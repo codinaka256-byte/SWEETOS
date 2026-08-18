@@ -81,6 +81,108 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 1b. API: POST /api/categories
+  if (req.method === 'POST' && req.url === '/api/categories') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        const list = JSON.parse(body);
+        const filePath = path.join(__dirname, 'data', 'categories.js');
+        const fileContent = `const categories = ${JSON.stringify(list, null, 2)};\n\nexport default categories;\n`;
+        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to write categories to disk' }));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          }
+        });
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  // 2b. API: GET /api/categories
+  if (req.method === 'GET' && req.url === '/api/categories') {
+    const filePath = path.join(__dirname, 'data', 'categories.js');
+    fs.readFile(filePath, 'utf8', (err, content) => {
+      if (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to read categories file' }));
+        return;
+      }
+      const startIdx = content.indexOf('[');
+      const endIdx = content.lastIndexOf(']');
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = content.substring(startIdx, endIdx + 1);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(jsonStr);
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid categories structure on server' }));
+      }
+    });
+    return;
+  }
+
+  // 1c. API: POST /api/brands
+  if (req.method === 'POST' && req.url === '/api/brands') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        const list = JSON.parse(body);
+        const filePath = path.join(__dirname, 'data', 'brands.js');
+        const fileContent = `const brands = ${JSON.stringify(list, null, 2)};\n\nexport default brands;\n`;
+        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to write brands to disk' }));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          }
+        });
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  // 2c. API: GET /api/brands
+  if (req.method === 'GET' && req.url === '/api/brands') {
+    const filePath = path.join(__dirname, 'data', 'brands.js');
+    fs.readFile(filePath, 'utf8', (err, content) => {
+      if (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to read brands file' }));
+        return;
+      }
+      const startIdx = content.indexOf('[');
+      const endIdx = content.lastIndexOf(']');
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = content.substring(startIdx, endIdx + 1);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(jsonStr);
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid brands structure on server' }));
+      }
+    });
+    return;
+  }
+
   // 3. Static File Server with SPA Fallback
   let filePath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
   let ext = path.extname(filePath);

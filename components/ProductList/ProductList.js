@@ -142,7 +142,29 @@ class ProductList extends HTMLElement {
           this.renderPageContent();
         }
       })
-      .catch(err => console.warn('Could not load products from server, using cached fallback:', err));
+      .catch(err => console.warn('Could not load products from server:', err));
+
+    // Fetch categories from server on startup
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then(serverCats => {
+        if (serverCats && serverCats.length > 0) {
+          localStorage.setItem('SWEETOS_categories', JSON.stringify(serverCats));
+          this.renderPageContent();
+        }
+      })
+      .catch(err => console.warn('Could not load categories from server:', err));
+
+    // Fetch brands from server on startup
+    fetch('/api/brands')
+      .then(res => res.json())
+      .then(serverBrands => {
+        if (serverBrands && serverBrands.length > 0) {
+          localStorage.setItem('SWEETOS_brands', JSON.stringify(serverBrands));
+          this.renderPageContent();
+        }
+      })
+      .catch(err => console.warn('Could not load brands from server:', err));
 
     // Check if product ID is passed in URL query params (e.g. from share button)
     const urlParams = new URLSearchParams(window.location.search);

@@ -1,5 +1,7 @@
 import { formatPrice } from '../../utils/storage.js';
 import products from '../../data/products.js';
+import categories from '../../data/categories.js';
+import brands from '../../data/brands.js';
 import { renderAdminSidebar, attachAdminSidebarListeners } from './AdminSidebar.js';
 import { renderAdminHeader, attachAdminHeaderListeners } from './AdminHeader.js';
 import { renderAdminDashboard, attachAdminDashboardListeners } from './AdminDashboard.js';
@@ -74,7 +76,31 @@ class AdminPage extends HTMLElement {
           this.render();
         }
       })
-      .catch(err => console.warn('Could not load products from server, using cached fallback:', err));
+      .catch(err => console.warn('Could not load products from server:', err));
+
+    // Fetch categories from server on load
+    fetch('/api/categories')
+      .then(res => res.json())
+      .then(serverCats => {
+        if (serverCats && serverCats.length > 0) {
+          this.categories = serverCats;
+          localStorage.setItem('SWEETOS_categories', JSON.stringify(serverCats));
+          this.render();
+        }
+      })
+      .catch(err => console.warn('Could not load categories from server:', err));
+
+    // Fetch brands from server on load
+    fetch('/api/brands')
+      .then(res => res.json())
+      .then(serverBrands => {
+        if (serverBrands && serverBrands.length > 0) {
+          this.brands = serverBrands;
+          localStorage.setItem('SWEETOS_brands', JSON.stringify(serverBrands));
+          this.render();
+        }
+      })
+      .catch(err => console.warn('Could not load brands from server:', err));
   }
 
   loadDatabase() {
@@ -99,13 +125,13 @@ class AdminPage extends HTMLElement {
     
     // 3. Category Settings
     const storedCats = localStorage.getItem('SWEETOS_categories');
-    this.categories = storedCats ? JSON.parse(storedCats) : [
-      { id: 1, name: "Keyboards", slug: "keyboards", parent: null, featured: true },
-      { id: 2, name: "Audio", slug: "audio", parent: null, featured: true },
-      { id: 3, name: "Lighting", slug: "lighting", parent: null, featured: true },
-      { id: 4, name: "Desks", slug: "desks", parent: null, featured: true }
-    ];
-    if (!storedCats) {
+    try {
+      this.categories = storedCats ? JSON.parse(storedCats) : [];
+    } catch (e) {
+      this.categories = [];
+    }
+    if (this.categories.length === 0) {
+      this.categories = categories;
       localStorage.setItem('SWEETOS_categories', JSON.stringify(this.categories));
     }
     
@@ -178,17 +204,13 @@ class AdminPage extends HTMLElement {
 
     // 8. Brand settings Directory
     const storedBrands = localStorage.getItem('SWEETOS_brands');
-    this.brands = storedBrands ? JSON.parse(storedBrands) : [
-      { id: 1, name: "SWEETOS", slug: "sweetos", logo: "🍭" },
-      { id: 2, name: "Apple", slug: "apple", logo: "🍏" },
-      { id: 3, name: "Keychron", slug: "keychron", logo: "⌨️" },
-      { id: 4, name: "Logitech", slug: "logitech", logo: "🖱️" },
-      { id: 5, name: "ASUS", slug: "asus", logo: "💻" },
-      { id: 6, name: "Aero", slug: "aero", logo: "🚀" },
-      { id: 7, name: "Apex", slug: "apex", logo: "⚡" },
-      { id: 8, name: "Nebula", slug: "nebula", logo: "🌌" }
-    ];
-    if (!storedBrands) {
+    try {
+      this.brands = storedBrands ? JSON.parse(storedBrands) : [];
+    } catch (e) {
+      this.brands = [];
+    }
+    if (this.brands.length === 0) {
+      this.brands = brands;
       localStorage.setItem('SWEETOS_brands', JSON.stringify(this.brands));
     }
   }
@@ -332,6 +354,7 @@ class AdminPage extends HTMLElement {
       localStorage.setItem('SWEETOS_coupons', JSON.stringify(this.coupons));
     } else if (type === 'categories') {
       localStorage.setItem('SWEETOS_categories', JSON.stringify(this.categories));
+      this.syncCategoriesToServer();
     } else if (type === 'inventory') {
       localStorage.setItem('SWEETOS_inventory_logs', JSON.stringify(this.inventoryLogs));
     } else if (type === 'sections') {
@@ -339,6 +362,7 @@ class AdminPage extends HTMLElement {
     } else if (type === 'brands') {
       localStorage.setItem('SWEETOS_brands', JSON.stringify(this.brands));
       window.dispatchEvent(new CustomEvent('brands:updated', { detail: this.brands }));
+      this.syncBrandsToServer();
     }
   }
 
@@ -359,6 +383,44 @@ class AdminPage extends HTMLElement {
       }
     })
     .catch(err => console.error('Error syncing products to server:', err));
+  }
+
+  syncCategoriesToServer() {
+    fetch('/api/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(this.categories)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log('Categories synced to server successfully.');
+      } else {
+        console.error('Failed to sync categories to server:', data.error);
+      }
+    })
+    .catch(err => console.error('Error syncing categories to server:', err));
+  }
+
+  syncBrandsToServer() {
+    fetch('/api/brands', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(this.brands)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log('Brands synced to server successfully.');
+      } else {
+        console.error('Failed to sync brands to server:', data.error);
+      }
+    })
+    .catch(err => console.error('Error syncing brands to server:', err));
   }
 
   render() {
