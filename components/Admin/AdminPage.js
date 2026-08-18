@@ -30,7 +30,18 @@ class AdminPage extends HTMLElement {
     this.sidebarCollapsed = sessionStorage.getItem('SWEETOS_admin_sidebar_collapsed') === 'true';
     
     // Filter & Search states
-    this.searchQuery = '';
+    this.searchQueries = {
+      dashboard: '',
+      products: '',
+      orders: '',
+      customers: '',
+      reviews: '',
+      inventory: '',
+      sections: '',
+      coupons: '',
+      analytics: '',
+      settings: ''
+    };
     this.categoryFilter = 'All';
     this.statusFilter = 'All';
     this.stockFilter = 'All';
@@ -61,8 +72,15 @@ class AdminPage extends HTMLElement {
     this.categories = [];
     this.inventoryLogs = [];
     this.homepageSections = [];
-    
     this.loadDatabase();
+  }
+
+  get searchQuery() {
+    return this.searchQueries[this.currentTab] || '';
+  }
+
+  set searchQuery(val) {
+    this.searchQueries[this.currentTab] = val;
   }
 
   connectedCallback() {
