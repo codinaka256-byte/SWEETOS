@@ -196,13 +196,32 @@ class NotificationDrawer extends HTMLElement {
       item.addEventListener('click', () => {
         const id = parseInt(item.getAttribute('data-id'));
         const target = this.notifications.find(n => n.id === id);
-        if (target && target.unread) {
+        if (!target) return;
+
+        // 1. Mark as read
+        if (target.unread) {
           target.unread = false;
           this.saveNotifications();
           item.classList.remove('unread-flag');
-          this.render(); 
           window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: this.notifications.filter(n => n.unread).length }));
         }
+
+        // 2. Close notification drawer
+        window.dispatchEvent(new CustomEvent('notifications:toggle', { detail: { open: false } }));
+
+        // 3. Handle page routing / actions
+        if (target.type === 'promo') {
+          navigator.clipboard.writeText('WELCOME10').then(() => {
+            window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Promo code WELCOME10 copied to clipboard! 🎟️' }));
+          }).catch(() => {});
+          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+        } else if (target.type === 'shipping') {
+          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'orders' } }));
+        } else if (target.type === 'system') {
+          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'profile' } }));
+        }
+
+        this.render();
       });
     });
   }
