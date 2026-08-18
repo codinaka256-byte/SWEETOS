@@ -132,50 +132,35 @@ class ProductList extends HTMLElement {
   connectedCallback() {
     this.parseHashRoute();
 
-    // Fetch products from server on startup
-    fetch('/api/products')
-      .then(res => res.json())
-      .then(serverProds => {
-        if (serverProds && serverProds.length > 0) {
-          this.products = serverProds;
-          localStorage.setItem('SWEETOS_products', JSON.stringify(serverProds));
-          this.renderPageContent();
-        }
-      })
-      .catch(err => console.warn('Could not load products from server:', err));
-
-    // Fetch categories from server on startup
-    fetch('/api/categories')
-      .then(res => res.json())
-      .then(serverCats => {
-        if (serverCats && serverCats.length > 0) {
-          localStorage.setItem('SWEETOS_categories', JSON.stringify(serverCats));
-          this.renderPageContent();
-        }
-      })
-      .catch(err => console.warn('Could not load categories from server:', err));
-
-    // Fetch brands from server on startup
-    fetch('/api/brands')
-      .then(res => res.json())
-      .then(serverBrands => {
-        if (serverBrands && serverBrands.length > 0) {
-          localStorage.setItem('SWEETOS_brands', JSON.stringify(serverBrands));
-          this.renderPageContent();
-        }
-      })
-      .catch(err => console.warn('Could not load brands from server:', err));
-
-    // Fetch reviews from server on startup
-    fetch('/api/reviews')
-      .then(res => res.json())
-      .then(serverReviews => {
-        if (serverReviews && serverReviews.length > 0) {
-          localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(serverReviews));
-          this.renderPageContent();
-        }
-      })
-      .catch(err => console.warn('Could not load reviews from server:', err));
+    // Fetch all database resources concurrently on startup
+    Promise.all([
+      fetch('/api/products').then(res => res.json()).catch(() => null),
+      fetch('/api/categories').then(res => res.json()).catch(() => null),
+      fetch('/api/brands').then(res => res.json()).catch(() => null),
+      fetch('/api/reviews').then(res => res.json()).catch(() => null)
+    ]).then(([products, categories, brands, reviews]) => {
+      let needsRender = false;
+      if (products && products.length > 0) {
+        this.products = products;
+        localStorage.setItem('SWEETOS_products', JSON.stringify(products));
+        needsRender = true;
+      }
+      if (categories && categories.length > 0) {
+        localStorage.setItem('SWEETOS_categories', JSON.stringify(categories));
+        needsRender = true;
+      }
+      if (brands && brands.length > 0) {
+        localStorage.setItem('SWEETOS_brands', JSON.stringify(brands));
+        needsRender = true;
+      }
+      if (reviews && reviews.length > 0) {
+        localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
+        needsRender = true;
+      }
+      if (needsRender) {
+        this.renderPageContent();
+      }
+    });
 
     // Check if product ID is passed in URL query params (e.g. from share button)
     const urlParams = new URLSearchParams(window.location.search);

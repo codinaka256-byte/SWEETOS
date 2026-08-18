@@ -67,53 +67,40 @@ class AdminPage extends HTMLElement {
   connectedCallback() {
     this.render();
     this.attachListeners();
-    // Fetch products from server on load
-    fetch('/api/products')
-      .then(res => res.json())
-      .then(serverProds => {
-        if (serverProds && serverProds.length > 0) {
-          this.products = serverProds;
-          localStorage.setItem('SWEETOS_products', JSON.stringify(serverProds));
-          this.render();
-        }
-      })
-      .catch(err => console.warn('Could not load products from server:', err));
 
-    // Fetch categories from server on load
-    fetch('/api/categories')
-      .then(res => res.json())
-      .then(serverCats => {
-        if (serverCats && serverCats.length > 0) {
-          this.categories = serverCats;
-          localStorage.setItem('SWEETOS_categories', JSON.stringify(serverCats));
-          this.render();
-        }
-      })
-      .catch(err => console.warn('Could not load categories from server:', err));
-
-    // Fetch brands from server on load
-    fetch('/api/brands')
-      .then(res => res.json())
-      .then(serverBrands => {
-        if (serverBrands && serverBrands.length > 0) {
-          this.brands = serverBrands;
-          localStorage.setItem('SWEETOS_brands', JSON.stringify(serverBrands));
-          this.render();
-        }
-      })
-      .catch(err => console.warn('Could not load brands from server:', err));
-
-    // Fetch reviews from server on load
-    fetch('/api/reviews')
-      .then(res => res.json())
-      .then(serverReviews => {
-        if (serverReviews && serverReviews.length > 0) {
-          this.reviews = serverReviews;
-          localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(serverReviews));
-          this.render();
-        }
-      })
-      .catch(err => console.warn('Could not load reviews from server:', err));
+    // Fetch all database sources concurrently on startup
+    Promise.all([
+      fetch('/api/products').then(res => res.json()).catch(() => null),
+      fetch('/api/categories').then(res => res.json()).catch(() => null),
+      fetch('/api/brands').then(res => res.json()).catch(() => null),
+      fetch('/api/reviews').then(res => res.json()).catch(() => null)
+    ]).then(([products, categories, brands, reviews]) => {
+      let needsRender = false;
+      if (products && products.length > 0) {
+        this.products = products;
+        localStorage.setItem('SWEETOS_products', JSON.stringify(products));
+        needsRender = true;
+      }
+      if (categories && categories.length > 0) {
+        this.categories = categories;
+        localStorage.setItem('SWEETOS_categories', JSON.stringify(categories));
+        needsRender = true;
+      }
+      if (brands && brands.length > 0) {
+        this.brands = brands;
+        localStorage.setItem('SWEETOS_brands', JSON.stringify(brands));
+        needsRender = true;
+      }
+      if (reviews && reviews.length > 0) {
+        this.reviews = reviews;
+        localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
+        needsRender = true;
+      }
+      if (needsRender) {
+        this.render();
+        this.attachListeners();
+      }
+    });
   }
 
   loadDatabase() {
