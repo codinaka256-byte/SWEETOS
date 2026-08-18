@@ -1,3 +1,11 @@
+// SPA pathname to hash router redirect fallback
+if (window.location.pathname !== '/' && window.location.pathname !== '/index.html' && window.location.pathname !== '/admin.html') {
+  const path = window.location.pathname.substring(1);
+  if (!path.includes('.') && !path.startsWith('assets/') && !path.startsWith('components/')) {
+    window.location.replace('/#/' + path);
+  }
+}
+
 import { getCartStorageKey } from './utils/storage.js';
 import products from './data/products.js';
 

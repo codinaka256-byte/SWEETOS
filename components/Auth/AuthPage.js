@@ -137,6 +137,23 @@ export function getAuthPageHTML() {
                         <p class="text-gray-500 text-sm mt-1">Join SWEETOS</p>
                       </div>
 
+                      <!-- Google Button -->
+                      <button type="button" id="google-register-btn" class="btn-google w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-semibold mb-6">
+                          <svg style="width: 20px; height: 20px; flex-shrink: 0;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                          </svg>
+                          Continue with Google
+                      </button>
+
+                      <div class="relative flex py-2 items-center mb-6">
+                          <div class="flex-grow border-t border-gray-200"></div>
+                          <span class="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase tracking-wider font-semibold">Or sign up with email</span>
+                          <div class="flex-grow border-t border-gray-200"></div>
+                      </div>
+
                       <div class="space-y-4">
                           <!-- Full Name -->
                           <div class="form-group">
@@ -286,6 +303,75 @@ export function getAuthPageHTML() {
               </div>
           </div>
       </div>
+      
+      <!-- GOOGLE OAUTH SIMULATED OVERLAY (SERIOUS AUTH FLOW) -->
+      <div id="google-oauth-overlay" class="modal-backdrop" style="display: none; z-index: 10000; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); align-items: center; justify-content: center; width: 100%; height: 100%;">
+        <div style="background: #ffffff; width: 440px; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.18); border: 1px solid #e2e8f0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; animation: fadeInModal 0.3s ease;">
+          
+          <!-- Google Header -->
+          <div style="padding: 36px 36px 16px 36px; text-align: center; border-bottom: 1px solid #f1f5f9;">
+            <svg style="width: 32px; height: 32px; margin: 0 auto 16px auto;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            <h2 style="font-size: 20px; font-weight: 500; color: #202124; margin: 0 0 6px 0; font-family: 'Outfit', sans-serif;">Sign in with Google</h2>
+            <p style="font-size: 14px; color: #5f6368; margin: 0; font-family: 'Outfit', sans-serif;">to continue to <strong style="color:#0052cc;">SWEETOS</strong></p>
+          </div>
+
+          <!-- Accounts Selector List -->
+          <div style="padding: 24px 36px 36px 36px;">
+            <h3 style="font-size: 14px; font-weight: 500; color: #202124; margin: 0 0 16px 0; font-family: 'Outfit', sans-serif;">Choose an account</h3>
+            
+            <div id="google-accounts-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px;">
+              
+              <!-- Alina Putri -->
+              <div class="google-acc-row" data-email="customer@sweetos.com" data-firstname="Alina" data-lastname="Putri" data-phone="+225 050 000 001" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
+                <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">AP</div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Alina Putri</strong>
+                  <span style="font-size: 12px; color: #5f6368;">customer@sweetos.com</span>
+                </div>
+              </div>
+
+              <!-- Odinaka Chibuike -->
+              <div class="google-acc-row" data-email="codinak256@gmail.com" data-firstname="Odinaka" data-lastname="Chibuike" data-phone="+234 803 000 002" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
+                <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">OC</div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Odinaka Chibuike</strong>
+                  <span style="font-size: 12px; color: #5f6368;">codinak256@gmail.com</span>
+                </div>
+              </div>
+
+              <!-- Alassane Koné -->
+              <div class="google-acc-row" data-email="alassane@orange.ci" data-firstname="Alassane" data-lastname="Koné" data-phone="+225 070 000 003" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
+                <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">AK</div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Alassane Koné</strong>
+                  <span style="font-size: 12px; color: #5f6368;">alassane@orange.ci</span>
+                </div>
+              </div>
+
+              <!-- Custom User / developer -->
+              <div class="google-acc-row" data-email="developer.sweetos@google.com" data-firstname="Developer" data-lastname="Member" data-phone="+225 600 000 000" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
+                <div style="background: #e2e8f0; color: #475569; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">DM</div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Developer Member</strong>
+                  <span style="font-size: 12px; color: #5f6368;">developer.sweetos@google.com</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <button type="button" id="cancel-google-oauth-btn" style="background: none; border: none; color: #1a73e8; font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 12px; border-radius: 4px; transition: background 0.2s;">Cancel</button>
+              <span style="font-size: 11.5px; color: #5f6368; font-family: 'Outfit', sans-serif;">Secure connection 🛡️</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   `;
 }
@@ -354,44 +440,94 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
     });
   });
 
-  // Handle Google button clicks
+  // Handle Google button clicks & Simulated OAuth Overlay
   const googleLoginBtn = shadow.getElementById('google-login-btn');
-  const handleGoogle = () => {
-    window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Connecting to Google Authentication... 🔒' }));
-    setTimeout(() => {
-      const email = 'developer.SWEETOS@google.com';
-      localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
+  const googleRegisterBtn = shadow.getElementById('google-register-btn');
+  const googleOverlay = shadow.getElementById('google-oauth-overlay');
+  const cancelGoogleBtn = shadow.getElementById('cancel-google-oauth-btn');
+  const googleAccRows = shadow.querySelectorAll('.google-acc-row');
 
-      const profileKey = getProfileStorageKey();
-      let saved = localStorage.getItem(profileKey);
-      if (!saved) {
-        const defaultProfile = {
-          firstName: "Developer",
-          lastName: "Member",
-          email: email,
-          phone: "+225 600 000 000",
-          bio: "SWEETOS member. Workspace curations.",
-          address: "Ivory Coast",
-          theme: "Ice Blue",
-          twoFactor: false,
-          marketingEmails: true,
-          smsUpdates: false,
-          addresses: ["Ivory Coast"],
-          orders: []
-        };
-        localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
-        localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
-      } else {
-        localStorage.setItem('SWEETOS_user_profile', saved);
-      }
-
-      window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Signed in with Google as ${email}` }));
-      onLoginSuccess();
-    }, 1200);
+  const openGoogleOverlay = () => {
+    if (googleOverlay) {
+      googleOverlay.style.display = 'flex';
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Opening Google Sign-In secure portal... 🔒' }));
+    }
   };
 
-  if (googleLoginBtn) googleLoginBtn.addEventListener('click', handleGoogle);
+  const closeGoogleOverlay = () => {
+    if (googleOverlay) googleOverlay.style.display = 'none';
+  };
+
+  if (googleLoginBtn) googleLoginBtn.addEventListener('click', openGoogleOverlay);
+  if (googleRegisterBtn) googleRegisterBtn.addEventListener('click', openGoogleOverlay);
+  if (cancelGoogleBtn) cancelGoogleBtn.addEventListener('click', closeGoogleOverlay);
+
+  googleAccRows.forEach(row => {
+    row.addEventListener('click', () => {
+      const email = row.getAttribute('data-email');
+      const firstname = row.getAttribute('data-firstname');
+      const lastname = row.getAttribute('data-lastname');
+      const phone = row.getAttribute('data-phone');
+
+      closeGoogleOverlay();
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Authenticating with Google account: ${email}... 🌐` }));
+
+      setTimeout(() => {
+        // Log in user state
+        localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
+
+        // Sync or initialize customer profile details
+        const profileKey = getProfileStorageKey();
+        let savedProfile = localStorage.getItem(profileKey);
+        if (!savedProfile) {
+          const defaultProfile = {
+            firstName: firstname,
+            lastName: lastname,
+            email: email,
+            phone: phone || "+225 600 000 000",
+            bio: "SWEETOS member. Google Authenticated Profile.",
+            address: "Ivory Coast",
+            theme: "Ice Blue",
+            twoFactor: false,
+            marketingEmails: true,
+            smsUpdates: false,
+            addresses: ["Ivory Coast"],
+            orders: []
+          };
+          localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
+          localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
+        } else {
+          localStorage.setItem('SWEETOS_user_profile', savedProfile);
+        }
+
+        // Add user credentials to dynamic Customer database so it shows up in Admin dashboard
+        let savedCreds = [];
+        try {
+          savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
+        } catch (e) {}
+
+        const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email.toLowerCase());
+        const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+        if (existingCredIdx === -1) {
+          savedCreds.push({
+            email: email,
+            password: "google_oauth_bypass",
+            fullname: `${firstname} ${lastname}`,
+            phone: phone || "",
+            country: "Ivory Coast",
+            joinedDate: joinedDate
+          });
+          localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
+        }
+
+        // Dispatch auth changed event to update sidebar / profile header
+        window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
+        
+        onLoginSuccess();
+      }, 1000);
+    });
+  });
 
   // Initialize customer credentials database if not present
   const initializeCredentials = () => {

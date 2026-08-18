@@ -80,7 +80,70 @@ class ProductList extends HTMLElement {
     this.activeFeaturedIndex = 0;
   }
 
+  parseHashRoute() {
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#/')) {
+      const route = hash.substring(2);
+      if (route.startsWith('product/')) {
+        const idStr = route.split('/')[1];
+        const pId = parseInt(idStr);
+        if (!isNaN(pId)) {
+          this.currentPage = 'pdp';
+          this.currentProductId = pId;
+        }
+      } else if (route === 'terms') {
+        this.currentPage = 'about';
+        this.activeAboutTab = 'terms';
+      } else if (route.startsWith('catalog/')) {
+        const cat = decodeURIComponent(route.split('/')[1]);
+        this.currentPage = 'catalog';
+        this.currentCategory = cat;
+        this.currentBrand = '';
+      } else {
+        this.currentPage = route || 'home';
+        if (this.currentPage === 'catalog') {
+          this.currentCategory = 'All';
+        }
+      }
+    } else {
+      this.currentPage = 'home';
+    }
+  }
+
+  updateHashURL() {
+    let hash = '#/';
+    if (this.currentPage === 'pdp' && this.currentProductId) {
+      hash += 'product/' + this.currentProductId;
+    } else if (this.currentPage === 'about' && this.activeAboutTab === 'terms') {
+      hash += 'terms';
+    } else if (this.currentPage === 'catalog' && this.currentCategory && this.currentCategory !== 'All') {
+      hash += 'catalog/' + encodeURIComponent(this.currentCategory);
+    } else if (this.currentPage === 'home') {
+      hash = '#/';
+    } else {
+      hash += this.currentPage;
+    }
+    
+    if (window.location.hash !== hash) {
+      history.pushState(null, '', hash);
+    }
+  }
+
   connectedCallback() {
+    this.parseHashRoute();
+
+    // Fetch products from server on startup
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(serverProds => {
+        if (serverProds && serverProds.length > 0) {
+          this.products = serverProds;
+          localStorage.setItem('SWEETOS_products', JSON.stringify(serverProds));
+          this.renderPageContent();
+        }
+      })
+      .catch(err => console.warn('Could not load products from server, using cached fallback:', err));
+
     // Check if product ID is passed in URL query params (e.g. from share button)
     const urlParams = new URLSearchParams(window.location.search);
     const sharedProductId = urlParams.get('product');
@@ -90,14 +153,27 @@ class ProductList extends HTMLElement {
       if (product) {
         this.currentPage = 'pdp';
         this.currentProductId = pId;
-        sessionStorage.setItem('SWEETOS_current_page', 'pdp');
-        sessionStorage.setItem('SWEETOS_current_product_id', pId.toString());
       }
     }
 
     this.render();
     this.renderPageContent();
     this.setupEventListeners();
+
+    // Listen to URL hash routing updates
+    window.addEventListener('hashchange', () => {
+      this.parseHashRoute();
+      this.renderPageContent();
+      
+      // Dispatch sync event for other navigation elements (Sidebar, MobileNav, Header)
+      window.dispatchEvent(new CustomEvent('navigation:changed', {
+        detail: {
+          page: this.currentPage,
+          category: this.currentCategory,
+          brand: this.currentBrand
+        }
+      }));
+    });
   }
 
   disconnectedCallback() {
@@ -270,6 +346,7 @@ class ProductList extends HTMLElement {
       sessionStorage.removeItem('SWEETOS_current_product_id');
     }
     sessionStorage.setItem('SWEETOS_active_profile_tab', this.activeProfileTab);
+    this.updateHashURL();
 
     const contentArea = this.shadowRoot.getElementById('page-content');
     const catRow = this.shadowRoot.getElementById('quick-category-row');

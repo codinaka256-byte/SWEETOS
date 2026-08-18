@@ -1,4 +1,5 @@
 import { formatPrice } from '../../utils/storage.js';
+import products from '../../data/products.js';
 import { renderAdminSidebar, attachAdminSidebarListeners } from './AdminSidebar.js';
 import { renderAdminHeader, attachAdminHeaderListeners } from './AdminHeader.js';
 import { renderAdminDashboard, attachAdminDashboardListeners } from './AdminDashboard.js';
@@ -63,12 +64,31 @@ class AdminPage extends HTMLElement {
   connectedCallback() {
     this.render();
     this.attachListeners();
+    // Fetch products from server on load
+    fetch('/api/products')
+      .then(res => res.json())
+      .then(serverProds => {
+        if (serverProds && serverProds.length > 0) {
+          this.products = serverProds;
+          localStorage.setItem('SWEETOS_products', JSON.stringify(serverProds));
+          this.render();
+        }
+      })
+      .catch(err => console.warn('Could not load products from server, using cached fallback:', err));
   }
 
   loadDatabase() {
     // 1. Products Catalog
     const storedProds = localStorage.getItem('SWEETOS_products');
-    this.products = storedProds ? JSON.parse(storedProds) : [];
+    try {
+      this.products = storedProds ? JSON.parse(storedProds) : [];
+    } catch (e) {
+      this.products = [];
+    }
+    if (this.products.length === 0) {
+      this.products = products;
+      localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
+    }
     
     // 2. Orders Pipeline
     const storedOrders = localStorage.getItem('SWEETOS_all_orders');
@@ -305,6 +325,7 @@ class AdminPage extends HTMLElement {
     if (type === 'products') {
       localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
       window.dispatchEvent(new CustomEvent('products:updated', { detail: this.products }));
+      this.syncProductsToServer();
     } else if (type === 'orders') {
       localStorage.setItem('SWEETOS_all_orders', JSON.stringify(this.orders));
     } else if (type === 'coupons') {
@@ -319,6 +340,25 @@ class AdminPage extends HTMLElement {
       localStorage.setItem('SWEETOS_brands', JSON.stringify(this.brands));
       window.dispatchEvent(new CustomEvent('brands:updated', { detail: this.brands }));
     }
+  }
+
+  syncProductsToServer() {
+    fetch('/api/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(this.products)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log('Products synced to server successfully.');
+      } else {
+        console.error('Failed to sync products to server:', data.error);
+      }
+    })
+    .catch(err => console.error('Error syncing products to server:', err));
   }
 
   render() {
