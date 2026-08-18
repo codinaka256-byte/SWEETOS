@@ -325,6 +325,17 @@ const server = http.createServer((req, res) => {
 
   // 3. Static File Server with SPA Fallback
   let filePath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+  
+  // Automatically strip timestamp suffixes (e.g. _1786...) to prevent 404s
+  if (filePath.includes('assets') && filePath.includes('_')) {
+    const ext = path.extname(filePath);
+    const baseWithoutExt = filePath.substring(0, filePath.lastIndexOf('_'));
+    const fallbackPath = baseWithoutExt + ext;
+    if (fs.existsSync(fallbackPath)) {
+      filePath = fallbackPath;
+    }
+  }
+
   let ext = path.extname(filePath);
 
   // If request has no extension (routing path e.g. /terms or /auth), fallback to index.html

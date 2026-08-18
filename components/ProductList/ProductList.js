@@ -3974,7 +3974,7 @@ class ProductList extends HTMLElement {
                     </div>
                   </div>
                 </div>
-                <input type="text" id="contact-store-input" value="${initialStore}" placeholder="Succes Technology, SWEETOS Shop..." autocomplete="organization" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="text" id="contact-store-input" value="${storeName}" placeholder="Succes Technology, SWEETOS Shop..." autocomplete="organization" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
               </div>
 
               <!-- Card 2: Emplacement -->
@@ -3989,7 +3989,7 @@ class ProductList extends HTMLElement {
                   </div>
                   <button id="contact-map-btn" style="height: 30px; padding: 0 14px; font-size: 11.5px; border-radius: 8px; border: none; cursor: pointer; flex-shrink: 0; background: var(--primary); color: white; font-weight: 750;">Carte</button>
                 </div>
-                <input type="text" id="contact-address-input" value="${initialAddress}" placeholder="Type address search keyword..." autocomplete="street-address" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="text" id="contact-address-input" value="${storeAddress}" placeholder="Type address search keyword..." autocomplete="street-address" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
               </div>
 
               <!-- Card 3: Phone contact -->
@@ -4007,7 +4007,7 @@ class ProductList extends HTMLElement {
                     <button id="contact-call-btn" style="height: 30px; padding: 0 12px; font-size: 11px; border-radius: 8px; border: 1.5px solid var(--border); cursor: pointer; background: white; color: var(--text-gray); font-weight: 750;">Appeler</button>
                   </div>
                 </div>
-                <input type="text" id="contact-phone-input" value="${initialPhone}" placeholder="ex: +2250172934545" autocomplete="tel" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="text" id="contact-phone-input" value="${storePhone}" placeholder="ex: +2250172934545" autocomplete="tel" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
               </div>
 
               <!-- Card 4: Email contact -->
@@ -4022,7 +4022,7 @@ class ProductList extends HTMLElement {
                   </div>
                   <button id="contact-email-btn" style="height: 30px; padding: 0 14px; font-size: 11.5px; border-radius: 8px; border: none; cursor: pointer; flex-shrink: 0; background: #0052cc; color: white; font-weight: 750;">Envoyer</button>
                 </div>
-                <input type="email" id="contact-email-input" value="${initialEmail}" placeholder="ex: austinlebechi02@gmail.com" autocomplete="email" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="email" id="contact-email-input" value="${storeEmail}" placeholder="ex: austinlebechi02@gmail.com" autocomplete="email" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
               </div>
 
               <!-- Card 5: Hours -->
@@ -4044,8 +4044,8 @@ class ProductList extends HTMLElement {
               <div style="width: 72px; height: 72px; border-radius: 20px; background: rgba(0, 82, 204, 0.06); display: flex; align-items: center; justify-content: center; font-size: 36px; color: #0052cc;">🗺ï¸</div>
               <div>
                 <h4 style="font-size: 18px; font-weight: 850; color: var(--text-dark); margin-bottom: 8px;">Trouvez-nous ici</h4>
-                <p id="contact-map-address" style="font-size: 13px; color: var(--text-gray); line-height: 1.5; max-width: 260px; margin: 0 auto 10px;">${initialAddress}</p>
-                <div id="contact-map-store" style="font-size: 14.5px; font-weight: 800; color: var(--primary); margin-top: 4px;">Store: ${initialStore}</div>
+                <p id="contact-map-address" style="font-size: 13px; color: var(--text-gray); line-height: 1.5; max-width: 260px; margin: 0 auto 10px;">${storeAddress}</p>
+                <div id="contact-map-store" style="font-size: 14.5px; font-weight: 800; color: var(--primary); margin-top: 4px;">Store: ${storeName}</div>
               </div>
               <button id="contact-gmaps-btn" class="btn-primary" style="height: 42px; padding: 0 24px; border-radius: 10px; font-weight: 750; border: none; cursor: pointer;">Ouvrir dans Google Maps</button>
             </div>
