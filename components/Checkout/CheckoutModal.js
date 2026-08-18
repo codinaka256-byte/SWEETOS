@@ -714,6 +714,22 @@ class CheckoutModal extends HTMLElement {
         });
         localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
 
+        // Sync order to server (which will trigger real-time SSE notifications)
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(allOrders)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            console.log('Order registered on server.');
+          }
+        })
+        .catch(err => console.error('Failed to register order on server:', err));
+
         window.dispatchEvent(new CustomEvent('orders:updated'));
 
         setTimeout(() => {

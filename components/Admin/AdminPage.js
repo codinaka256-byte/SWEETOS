@@ -2,6 +2,7 @@ import { formatPrice } from '../../utils/storage.js';
 import products from '../../data/products.js';
 import categories from '../../data/categories.js';
 import brands from '../../data/brands.js';
+import orders from '../../data/orders.js';
 import { renderAdminSidebar, attachAdminSidebarListeners } from './AdminSidebar.js';
 import { renderAdminHeader, attachAdminHeaderListeners } from './AdminHeader.js';
 import { renderAdminDashboard, attachAdminDashboardListeners } from './AdminDashboard.js';
@@ -73,8 +74,9 @@ class AdminPage extends HTMLElement {
       fetch('/api/products').then(res => res.json()).catch(() => null),
       fetch('/api/categories').then(res => res.json()).catch(() => null),
       fetch('/api/brands').then(res => res.json()).catch(() => null),
-      fetch('/api/reviews').then(res => res.json()).catch(() => null)
-    ]).then(([products, categories, brands, reviews]) => {
+      fetch('/api/reviews').then(res => res.json()).catch(() => null),
+      fetch('/api/orders').then(res => res.json()).catch(() => null)
+    ]).then(([products, categories, brands, reviews, orders]) => {
       let needsRender = false;
       if (products && products.length > 0) {
         this.products = products;
@@ -96,10 +98,18 @@ class AdminPage extends HTMLElement {
         localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
         needsRender = true;
       }
+      if (orders && orders.length > 0) {
+        this.orders = orders;
+        localStorage.setItem('SWEETOS_all_orders', JSON.stringify(orders));
+        needsRender = true;
+      }
       if (needsRender) {
         this.render();
         this.attachListeners();
       }
+
+      // Establish real-time notification stream (SSE)
+      this.initRealTimeNotificationStream();
     });
   }
 
@@ -118,8 +128,13 @@ class AdminPage extends HTMLElement {
     
     // 2. Orders Pipeline
     const storedOrders = localStorage.getItem('SWEETOS_all_orders');
-    this.orders = storedOrders ? JSON.parse(storedOrders) : this.generateMockOrders();
-    if (!storedOrders) {
+    try {
+      this.orders = storedOrders ? JSON.parse(storedOrders) : [];
+    } catch (e) {
+      this.orders = [];
+    }
+    if (this.orders.length === 0) {
+      this.orders = orders;
       localStorage.setItem('SWEETOS_all_orders', JSON.stringify(this.orders));
     }
     
@@ -451,6 +466,71 @@ class AdminPage extends HTMLElement {
       }
     })
     .catch(err => console.error('Error syncing reviews to server:', err));
+  }
+
+  syncOrdersToServer() {
+    fetch('/api/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(this.orders)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log('Orders synced to server successfully.');
+      } else {
+        console.error('Failed to sync orders to server:', data.error);
+      }
+    })
+    .catch(err => console.error('Error syncing orders to server:', err));
+  }
+
+  initRealTimeNotificationStream() {
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+    
+    this.eventSource = new EventSource('/api/live-alerts');
+    
+    this.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Real-time notification alert received:', data);
+        
+        // Push desktop-like banner toast using storefront toast dispatcher
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `🔔 LIVE ALERT: ${data.message}` }));
+        
+        // Dynamically pull latest details
+        this.syncAllDatabasesFromServer();
+      } catch (e) {
+        console.error('Failed to parse SSE event:', e);
+      }
+    };
+
+    this.eventSource.onerror = (err) => {
+      console.warn('Real-time notification stream lost. Reconnecting...', err);
+    };
+  }
+
+  syncAllDatabasesFromServer() {
+    Promise.all([
+      fetch('/api/products').then(res => res.json()).catch(() => null),
+      fetch('/api/categories').then(res => res.json()).catch(() => null),
+      fetch('/api/brands').then(res => res.json()).catch(() => null),
+      fetch('/api/reviews').then(res => res.json()).catch(() => null),
+      fetch('/api/orders').then(res => res.json()).catch(() => null)
+    ]).then(([products, categories, brands, reviews, orders]) => {
+      if (products) this.products = products;
+      if (categories) this.categories = categories;
+      if (brands) this.brands = brands;
+      if (reviews) this.reviews = reviews;
+      if (orders) this.orders = orders;
+      
+      this.render();
+      this.attachListeners();
+    });
   }
 
   render() {

@@ -4,6 +4,20 @@ const path = require('path');
 
 const PORT = 8080;
 
+let clients = [];
+
+function broadcastAlert(type, message) {
+  const data = JSON.stringify({ type, message });
+  clients.forEach(c => {
+    try {
+      c.response.write(`data: ${data}\n\n`);
+    } catch (e) {
+      // Remove stale client
+      clients = clients.filter(client => client.id !== c.id);
+    }
+  });
+}
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.css': 'text/css',
@@ -45,6 +59,7 @@ const server = http.createServer((req, res) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Failed to write products to disk' }));
           } else {
+            broadcastAlert('products', 'Product catalog updated.');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
           }
@@ -97,6 +112,7 @@ const server = http.createServer((req, res) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Failed to write categories to disk' }));
           } else {
+            broadcastAlert('categories', 'Categories list updated.');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
           }
@@ -148,6 +164,7 @@ const server = http.createServer((req, res) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Failed to write brands to disk' }));
           } else {
+            broadcastAlert('brands', 'Brands list updated.');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
           }
@@ -199,6 +216,7 @@ const server = http.createServer((req, res) => {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Failed to write reviews to disk' }));
           } else {
+            broadcastAlert('reviews', 'Product reviews updated.');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
           }
@@ -229,6 +247,77 @@ const server = http.createServer((req, res) => {
       } else {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid reviews structure on server' }));
+      }
+    });
+    return;
+  }
+
+  // 1e. SSE connection stream
+  if (req.method === 'GET' && req.url === '/api/live-alerts') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+    
+    // Register client
+    const clientId = Date.now();
+    clients.push({ id: clientId, response: res });
+    
+    req.on('close', () => {
+      clients = clients.filter(c => c.id !== clientId);
+    });
+    return;
+  }
+
+  // 1f. API: POST /api/orders
+  if (req.method === 'POST' && req.url === '/api/orders') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        const list = JSON.parse(body);
+        const filePath = path.join(__dirname, 'data', 'orders.js');
+        const fileContent = `const orders = ${JSON.stringify(list, null, 2)};\n\nexport default orders;\n`;
+        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to write orders to disk' }));
+          } else {
+            broadcastAlert('orders', 'New order received!');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          }
+        });
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  // 2f. API: GET /api/orders
+  if (req.method === 'GET' && req.url === '/api/orders') {
+    const filePath = path.join(__dirname, 'data', 'orders.js');
+    fs.readFile(filePath, 'utf8', (err, content) => {
+      if (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to read orders file' }));
+        return;
+      }
+      const startIdx = content.indexOf('[');
+      const endIdx = content.lastIndexOf(']');
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = content.substring(startIdx, endIdx + 1);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(jsonStr);
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid orders structure on server' }));
       }
     });
     return;
