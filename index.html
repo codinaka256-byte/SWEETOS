@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SWEETOS | Premium Tech & Workspace Accessories</title>
+  <meta name="description" content="Discover SWEETOS, a high-end dashboard-style showcase of minimalist tech and desk gear with premium white and ice-blue aesthetics.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌌</text></svg>">
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+  
+  <!-- Top Navigation Panel -->
+  <app-header id="main-header"></app-header>
+  
+  <!-- Floating Cart Toggle Pill (visible when Cart is closed) -->
+  <button class="cart-toggle-float" id="cartFloatBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle>
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+    </svg>
+    <span class="float-badge" id="floatBadge">0</span>
+    <span class="float-label">CART</span>
+  </button>
+
+  <!-- Overlay Backdrop for Mobile/Tablets cart draw -->
+  <div class="cart-overlay" id="cartOverlay"></div>
+
+  <!-- Primary Workspace Grid -->
+  <div class="layout">
+    <!-- Left Navigation Sidebar -->
+    <app-sidebar id="main-sidebar"></app-sidebar>
+    
+    <!-- Central Main Viewport -->
+    <main class="main-content" id="mainContent">
+      <!-- Sliding Hero Banner Carousel -->
+      <app-hero id="main-hero"></app-hero>
+      
+      <!-- Catalog list (Categories Circles, Promos, grids) -->
+      <product-list id="main-product-list"></product-list>
+    </main>
+
+    <!-- Right Sidebar Cart drawer -->
+    <cart-drawer id="global-cart-drawer"></cart-drawer>
+
+    <!-- Right Sidebar Notification drawer -->
+    <notification-drawer id="global-notification-drawer" class="closed"></notification-drawer>
+  </div>
+
+  <!-- Global Modals -->
+  <product-details-modal id="global-details-modal"></product-details-modal>
+  <checkout-modal id="global-checkout-modal"></checkout-modal>
+
+  <!-- Floating Toast Message popups -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <app-mobile-nav></app-mobile-nav>
+
+  <!-- Confetti Library -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- App Orchestrator Script -->
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

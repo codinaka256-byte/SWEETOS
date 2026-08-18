@@ -1,0 +1,129 @@
+.auth-wrapper {
+  font-family: 'Outfit', sans-serif;
+  color: #ffffff;
+  position: relative;
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+  background: rgba(11, 13, 25, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.input-field {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.input-field:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #0052cc; /* Brand Royal Blue */
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.2);
+}
+
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+@keyframes fadeInUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Gradient Text */
+.text-gradient {
+  background: linear-gradient(to right, #0052cc, #00b4d8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Checkbox Customization */
+.custom-checkbox:checked + div {
+  background-color: #0052cc;
+  border-color: #0052cc;
+}
+
+/* Hide default checkbox */
+.custom-checkbox-input {
+  display: none;
+}
+
+/* Google Button Style */
+.btn-google {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  color: #1e293b;
+  transition: all 0.3s ease;
+}
+.btn-google:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+/* Light Input Fields matching screen design */
+.light-input-field {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  color: #1e293b;
+  transition: all 0.3s ease;
+  outline: none;
+}
+.light-input-field:focus {
+  border-color: #0052cc;
+  box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.15);
+}
+.light-input-field::placeholder {
+  color: #94a3b8;
+}
+
+/* SWEETOS Brand Blue Theme Classes */
+.btn-brand {
+  background-color: #0052cc;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 82, 204, 0.3);
+  transition: all 0.3s ease;
+}
+
+.btn-brand:hover {
+  background-color: #003fa3;
+  box-shadow: 0 6px 20px rgba(0, 82, 204, 0.45);
+}
+
+.text-brand {
+  color: #0052cc;
+}
+
+.bg-brand-light {
+  background-color: rgba(0, 82, 204, 0.1);
+}
+
+.light-glass-column {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+}

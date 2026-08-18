@@ -1,0 +1,165 @@
+class ProductDetailsModal extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.isOpen = false;
+    this.product = null;
+    this.activeTab = 'description'; // 'description' or 'specs'
+  }
+
+  connectedCallback() {
+    this.setupEventListeners();
+  }
+
+  render() {
+    if (!this.product) return;
+    const p = this.product;
+
+    // 1. Ensure stylesheet link is injected exactly once to prevent layout style drops on re-renders
+    if (!this.shadowRoot.querySelector('link[href*="ProductDetailsModal.css"]')) {
+      const cssLink = document.createElement('link');
+      cssLink.rel = 'stylesheet';
+      cssLink.href = './components/ProductDetails/ProductDetailsModal.css';
+      this.shadowRoot.appendChild(cssLink);
+    }
+
+    // 2. Ensure wrapper container exists
+    let container = this.shadowRoot.querySelector('.modal-container-wrapper');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'modal-container-wrapper';
+      this.shadowRoot.appendChild(container);
+    }
+
+    container.innerHTML = `
+      <div class="modal-overlay ${this.isOpen ? 'open' : ''}" id="overlay">
+        <div class="modal-container glass-panel">
+          <button class="close-btn" id="close-btn" aria-label="Close details">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; flex-shrink: 0; display: inline-block;">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          
+          <div class="modal-grid">
+            <div class="modal-visual">
+              <img src="${p.image}" alt="${p.name}" class="details-img">
+              <span class="category-badge">${p.category}</span>
+            </div>
+            
+            <div class="modal-info">
+              <div class="rating-row">
+                <span class="stars">
+                  <svg class="star-icon" viewBox="0 0 24 24" width="14" height="14" fill="#00b4d8" stroke="#00b4d8" style="width: 14px; height: 14px; flex-shrink: 0; display: inline-block; vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                  ${p.rating}
+                </span>
+                <span class="reviews">${p.reviews} verified reviews</span>
+              </div>
+              
+              <h2 class="details-title">${p.name}</h2>
+              <div class="price-badge">$${p.price.toFixed(2)}</div>
+              
+              <div class="tabs-nav">
+                <button class="tab-btn ${this.activeTab === 'description' ? 'active' : ''}" id="tab-desc">Overview</button>
+                <button class="tab-btn ${this.activeTab === 'specs' ? 'active' : ''}" id="tab-specs">Specifications</button>
+              </div>
+              
+              <div class="tab-content" id="tab-content-area">
+                ${this.activeTab === 'description' ? `
+                  <p class="desc-text">${p.description}</p>
+                ` : `
+                  <table class="specs-table">
+                    <tbody>
+                      ${Object.entries(p.specs).map(([key, val]) => `
+                        <tr>
+                          <th>${key}</th>
+                          <td>${val}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                `}
+              </div>
+              
+              <div class="actions-row">
+                <button class="add-to-cart-btn btn-primary" id="add-btn">
+                  Add to Shopping Cart
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px; flex-shrink: 0; display: inline-block; margin-left: 4px; vertical-align: middle;">
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.attachDynamicListeners();
+  }
+
+  setupEventListeners() {
+    window.addEventListener('product:details-open', (e) => {
+      this.product = e.detail;
+      this.isOpen = true;
+      this.activeTab = 'description';
+      this.render();
+      this.updateState();
+    });
+  }
+
+  attachDynamicListeners() {
+    const shadow = this.shadowRoot;
+    
+    // Close clicks
+    shadow.addEventListener('click', (e) => {
+      if (e.target.id === 'close-btn' || e.target.id === 'overlay') {
+        this.isOpen = false;
+        this.updateState();
+      }
+    });
+
+    // Add to cart click
+    const addBtn = shadow.getElementById('add-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('cart:add', { detail: this.product }));
+        this.isOpen = false;
+        this.updateState();
+      });
+    }
+
+    // Tabs switches
+    const tabDesc = shadow.getElementById('tab-desc');
+    const tabSpecs = shadow.getElementById('tab-specs');
+
+    if (tabDesc && tabSpecs) {
+      tabDesc.addEventListener('click', () => {
+        this.activeTab = 'description';
+        this.render();
+        this.updateState();
+      });
+      tabSpecs.addEventListener('click', () => {
+        this.activeTab = 'specs';
+        this.render();
+        this.updateState();
+      });
+    }
+  }
+
+  updateState() {
+    const overlay = this.shadowRoot.getElementById('overlay');
+    if (overlay) {
+      if (this.isOpen) {
+        overlay.classList.add('open');
+      } else {
+        overlay.classList.remove('open');
+      }
+    }
+  }
+}
+
+customElements.define('product-details-modal', ProductDetailsModal);
+export default ProductDetailsModal;

@@ -1,0 +1,132 @@
+.edit-address-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(11, 13, 25, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.edit-address-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.edit-address-modal {
+  background: white;
+  border-radius: 28px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.edit-address-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.edit-address-header h4 {
+  font-size: 20px;
+  font-weight: 850;
+  color: #102a43;
+  margin: 0;
+}
+.edit-address-close {
+  background: none;
+  border: none;
+  color: #92aabf;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+.edit-address-close:hover {
+  color: #102a43;
+}
+.edit-address-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.edit-address-body .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.edit-address-body label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #486581;
+}
+.edit-address-body input {
+  height: 46px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
+  color: #102a43;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.edit-address-body input:focus {
+  border-color: #ff2e93;
+  box-shadow: 0 0 0 3px rgba(255, 46, 147, 0.1);
+}
+.edit-address-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+.edit-address-save-btn {
+  flex: 1;
+  background: #ff2e93 !important;
+  color: white !important;
+  height: 48px;
+  border: none;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.edit-address-save-btn:hover {
+  background: #e01b7a !important;
+}
+.edit-address-cancel-btn {
+  background: #f0f4f8 !important;
+  color: #486581 !important;
+  border: none !important;
+  height: 48px;
+  padding: 0 24px;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.edit-address-cancel-btn:hover {
+  background: #e2e8f0 !important;
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

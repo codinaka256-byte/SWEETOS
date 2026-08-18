@@ -1,0 +1,462 @@
+import { getCartStorageKey } from './utils/storage.js';
+import products from './data/products.js';
+
+// Import all Web Components to auto-register them
+import './components/Sidebar/Sidebar.js';
+import './components/Header/Header.js';
+import './components/Hero/Hero.js';
+import './components/Search/SearchBar.js';
+import './components/ProductCard/ProductCard.js';
+import './components/ProductList/ProductList.js';
+import './components/Cart/CartDrawer.js';
+import './components/Notifications/NotificationDrawer.js';
+import './components/ProductDetails/ProductDetailsModal.js';
+import './components/Checkout/CheckoutModal.js';
+import './components/MobileNav/MobileNav.js';
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Select DOM Elements
+  const cartEl = document.getElementById('global-cart-drawer');
+  const notifEl = document.getElementById('global-notification-drawer');
+  const mainContent = document.getElementById('mainContent');
+  const floatBtn = document.getElementById('cartFloatBtn');
+  const overlay = document.getElementById('cartOverlay');
+  const toastEl = document.getElementById('toast');
+
+  let toastTimeout = null;
+
+  // 1. Toast Notification Utility
+  const showToast = (message) => {
+    toastEl.textContent = message;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toastEl.classList.remove('show');
+    }, 2500);
+  };
+
+  // Listen to global toast requests
+  window.addEventListener('toast:show', (e) => {
+    showToast(e.detail);
+  });
+
+  // 2. Cart & Notification Panel Drawer Toggle Handlers
+  const openCart = () => {
+    cartEl.classList.remove('closed');
+    notifEl.classList.add('closed'); // Close notifications when cart opens
+    mainContent.classList.remove('cart-closed');
+    floatBtn.classList.remove('visible');
+    overlay.classList.remove('show');
+  };
+
+  const closeCart = () => {
+    cartEl.classList.add('closed');
+    if (notifEl.classList.contains('closed')) {
+      mainContent.classList.add('cart-closed');
+    }
+    floatBtn.classList.add('visible');
+    
+    // Only show backdrop overlay on small screens
+    if (window.innerWidth <= 968) {
+      overlay.classList.remove('show');
+    }
+  };
+
+  const toggleCart = () => {
+    if (cartEl.classList.contains('closed')) {
+      openCart();
+      if (window.innerWidth <= 968) {
+        overlay.classList.add('show');
+      }
+    } else {
+      closeCart();
+    }
+  };
+
+  const openNotifications = () => {
+    notifEl.classList.remove('closed');
+    cartEl.classList.add('closed'); // Close cart when notifications open
+    mainContent.classList.remove('cart-closed');
+    floatBtn.classList.add('visible'); // Cart float is visible since cart is closed
+    
+    if (window.innerWidth <= 968) {
+      overlay.classList.add('show');
+    }
+  };
+
+  const closeNotifications = () => {
+    notifEl.classList.add('closed');
+    if (cartEl.classList.contains('closed')) {
+      mainContent.classList.add('cart-closed');
+    }
+    
+    if (window.innerWidth <= 968) {
+      overlay.classList.remove('show');
+    }
+  };
+
+  const toggleNotifications = () => {
+    if (notifEl.classList.contains('closed')) {
+      openNotifications();
+    } else {
+      closeNotifications();
+    }
+  };
+
+  // --- Draggable Floating Cart Tab (Vertical constrained drag) ---
+  let isDragging = false;
+  let startY = 0;
+  let initialTop = 0;
+  let didDrag = false;
+  const dragThreshold = 5; // pixels to distinguish drag vs click
+
+  const onDragStart = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    
+    isDragging = true;
+    didDrag = false;
+    startY = e.clientY || e.touches?.[0]?.clientY || 0;
+    
+    const rect = floatBtn.getBoundingClientRect();
+    initialTop = rect.top + rect.height / 2; // Center Y of button
+    
+    floatBtn.classList.add('dragging');
+    floatBtn.style.transition = 'none'; // Disable hover transition during drag
+    
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+    document.addEventListener('touchmove', onDragMove, { passive: false });
+    document.addEventListener('touchend', onDragEnd);
+  };
+
+  const onDragMove = (e) => {
+    if (!isDragging) return;
+    
+    const clientY = e.clientY || e.touches?.[0]?.clientY || 0;
+    const deltaY = clientY - startY;
+    
+    if (Math.abs(deltaY) > dragThreshold) {
+      didDrag = true;
+      e.preventDefault(); // Stop text selections while dragging
+    }
+    
+    let newTop = initialTop + deltaY;
+    
+    const height = floatBtn.offsetHeight;
+    const minTop = height / 2 + 10;
+    const maxTop = window.innerHeight - (height / 2 + 10);
+    newTop = Math.max(minTop, Math.min(newTop, maxTop));
+    
+    floatBtn.style.top = `${newTop}px`;
+  };
+
+  const onDragEnd = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    floatBtn.classList.remove('dragging');
+    floatBtn.style.transition = ''; // Restore default transition styles
+    
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+    document.removeEventListener('touchmove', onDragMove);
+    document.removeEventListener('touchend', onDragEnd);
+  };
+
+  floatBtn.addEventListener('mousedown', onDragStart);
+  floatBtn.addEventListener('touchstart', onDragStart, { passive: true });
+
+  // Click listener intercepts clicks to prevent opening when dragging ends
+  floatBtn.addEventListener('click', (e) => {
+    if (didDrag) {
+      e.preventDefault();
+      e.stopPropagation();
+      didDrag = false; // reset
+      return;
+    }
+    toggleCart();
+  });
+
+  const sidebarEl = document.getElementById('main-sidebar');
+
+  const openSidebarMobile = () => {
+    sidebarEl.classList.add('open');
+    overlay.classList.add('show');
+    document.body.classList.add('sidebar-open');
+    cartEl.classList.add('closed');
+    notifEl.classList.add('closed');
+  };
+
+  const closeSidebarMobile = () => {
+    sidebarEl.classList.remove('open');
+    if (cartEl.classList.contains('closed') && notifEl.classList.contains('closed')) {
+      overlay.classList.remove('show');
+    }
+    document.body.classList.remove('sidebar-open');
+  };
+
+  const toggleSidebarMobile = () => {
+    if (sidebarEl.classList.contains('open')) {
+      closeSidebarMobile();
+    } else {
+      openSidebarMobile();
+    }
+  };
+
+  overlay.addEventListener('click', () => {
+    closeCart();
+    closeNotifications();
+    closeSidebarMobile();
+  });
+
+  // Handle sidebar collapse events
+  window.addEventListener('sidebar:toggle', (e) => {
+    const isCollapsed = e.detail?.collapsed;
+    if (isCollapsed) {
+      document.body.classList.add('sidebar-collapsed');
+    } else {
+      document.body.classList.remove('sidebar-collapsed');
+    }
+  });
+
+  // Custom event listener for components to trigger cart drawers
+  window.addEventListener('cart:toggle', (e) => {
+    const forceOpen = e.detail?.open;
+    if (forceOpen === true) {
+      openCart();
+      closeSidebarMobile();
+    } else if (forceOpen === false) {
+      closeCart();
+    } else {
+      toggleCart();
+    }
+  });
+
+  // Close sidebar drawer on any navigation changes
+  window.addEventListener('navigation:changed', () => {
+    closeSidebarMobile();
+  });
+
+  // Custom event listener to trigger mobile sidebar drawer
+  window.addEventListener('sidebar:mobile-toggle', () => {
+    toggleSidebarMobile();
+  });
+
+  // Custom event listener to trigger notification drawers
+  window.addEventListener('notifications:toggle', (e) => {
+    const forceOpen = e.detail?.open;
+    if (forceOpen === true) {
+      openNotifications();
+    } else if (forceOpen === false) {
+      closeNotifications();
+    } else {
+      toggleNotifications();
+    }
+  });
+
+  // Listen for Cart updates to keep float badge in sync
+  window.addEventListener('cart:updated', (e) => {
+    const cart = e.detail;
+    const count = cart.reduce((acc, item) => acc + item.quantity, 0);
+    
+    const floatBadge = document.getElementById('floatBadge');
+    if (floatBadge) {
+      floatBadge.textContent = count;
+    }
+  });
+
+  // Close Drawers on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (!cartEl.classList.contains('closed')) closeCart();
+      if (!notifEl.classList.contains('closed')) closeNotifications();
+    }
+  });
+
+  // 3. Modal Linkage Triggers
+  // Checkout modal view triggers
+  window.addEventListener('checkout:start', () => {
+    closeCart();
+    closeNotifications();
+    const checkoutModal = document.getElementById('global-checkout-modal');
+    if (checkoutModal) {
+      checkoutModal.open();
+    }
+  });
+
+  // Account settings fallback redirect
+  window.addEventListener('account:toggle', () => {
+    window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'profile' } }));
+  });
+
+  // Initial cart load synchronization
+  const initialSaved = localStorage.getItem(getCartStorageKey());
+  if (initialSaved) {
+    try {
+      const parsed = JSON.parse(initialSaved);
+      window.dispatchEvent(new CustomEvent('cart:updated', { detail: parsed }));
+    } catch (e) {}
+  } else {
+    setTimeout(() => {
+      const saved = localStorage.getItem(getCartStorageKey());
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          window.dispatchEvent(new CustomEvent('cart:updated', { detail: parsed }));
+        } catch (e) {}
+      }
+    }, 150);
+  }
+
+  // Listen for user login/logout to update the cart badge count dynamically
+  window.addEventListener('auth:changed', () => {
+    const saved = localStorage.getItem(getCartStorageKey());
+    let parsed = [];
+    if (saved) {
+      try {
+        parsed = JSON.parse(saved);
+      } catch (e) {}
+    }
+    window.dispatchEvent(new CustomEvent('cart:updated', { detail: parsed }));
+  });
+
+  // Adjust content alignments dynamically on resize
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 968) {
+      overlay.classList.remove('show');
+      if (!cartEl.classList.contains('closed')) {
+        mainContent.classList.remove('cart-closed');
+      }
+    } else {
+      if (!cartEl.classList.contains('closed') || !notifEl.classList.contains('closed')) {
+        overlay.classList.add('show');
+      }
+    }
+  });
+
+  // Keep drawers CLOSED on initial page load as requested
+  closeCart();
+  closeNotifications();
+
+  // Floating Back to Top Scroll Button Injection & Logic
+  const backToTopBtn = document.createElement('button');
+  backToTopBtn.className = 'back-to-top-btn';
+  backToTopBtn.id = 'backToTopBtn';
+  backToTopBtn.setAttribute('aria-label', 'Back to Top');
+  backToTopBtn.innerHTML = `
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15"></polyline>
+    </svg>
+  `;
+  document.body.appendChild(backToTopBtn);
+
+  const handleScroll = () => {
+    const scrollTop = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+    if (scrollTop > 300) {
+      backToTopBtn.classList.add('visible');
+    } else {
+      backToTopBtn.classList.remove('visible');
+    }
+  };
+
+  window.addEventListener('scroll', handleScroll, { passive: true });
+  document.addEventListener('scroll', handleScroll, { passive: true });
+
+  backToTopBtn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // 5. Dropdown push notification toast on order confirmation
+  window.addEventListener('toast:order-placed', (e) => {
+    const { orderId, name, total } = e.detail;
+
+    // Create container if it doesn't exist
+    let container = document.getElementById('order-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'order-toast-container';
+      container.className = 'order-toast-container';
+      document.body.appendChild(container);
+    }
+
+    // Create toast card
+    const toastCard = document.createElement('div');
+    toastCard.className = 'order-toast-card';
+    toastCard.innerHTML = `
+      <div class="order-toast-left-bar"></div>
+      <div class="order-toast-icon-wrapper">
+        <div class="order-toast-bag-circle">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0052cc" stroke-width="2.5">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+        </div>
+      </div>
+      <div class="order-toast-content">
+        <div class="order-toast-header">
+          <span class="order-toast-check">📦</span>
+          <strong>Order ${orderId} Placed</strong>
+        </div>
+        <p class="order-toast-body">Thank you ${name}! Your order ${orderId} totaling $${total.toFixed(2)} is confirmed.</p>
+        <span class="order-toast-time">Just now</span>
+      </div>
+      <button class="order-toast-close-btn">&times;</button>
+    `;
+
+    container.appendChild(toastCard);
+
+    const closeToast = () => {
+      if (toastCard.parentNode) {
+        toastCard.classList.add('slide-out');
+        setTimeout(() => {
+          toastCard.remove();
+          if (container.children.length === 0) {
+            container.remove();
+          }
+        }, 400);
+      }
+    };
+
+    // Close button trigger
+    toastCard.querySelector('.order-toast-close-btn').addEventListener('click', closeToast);
+
+    // Auto close after 4 seconds
+    setTimeout(closeToast, 4000);
+  });
+
+  // Swipe to close gestures for drawers on mobile
+  const bindSwipeToClose = (element, closeCallback, direction = 'right') => {
+    let startX = 0;
+    let startY = 0;
+
+    element.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+
+    element.addEventListener('touchend', (e) => {
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+
+      const diffX = endX - startX;
+      const diffY = endY - startY;
+
+      // Swipe right to close (for drawers on the right like cart / notifications)
+      if (direction === 'right' && diffX > 80 && Math.abs(diffY) < 100) {
+        closeCallback();
+      }
+      // Swipe left to close (for sidebar drawer on the left)
+      if (direction === 'left' && diffX < -80 && Math.abs(diffY) < 100) {
+        closeCallback();
+      }
+      // Swipe down to close (works universally!)
+      if (diffY > 80 && Math.abs(diffX) < 100) {
+        closeCallback();
+      }
+    }, { passive: true });
+  };
+
+  bindSwipeToClose(cartEl, closeCart, 'right');
+  bindSwipeToClose(notifEl, closeNotifications, 'right');
+  bindSwipeToClose(sidebarEl, closeSidebarMobile, 'left');
+});
