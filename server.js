@@ -183,6 +183,57 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 1d. API: POST /api/reviews
+  if (req.method === 'POST' && req.url === '/api/reviews') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        const list = JSON.parse(body);
+        const filePath = path.join(__dirname, 'data', 'reviews.js');
+        const fileContent = `const reviews = ${JSON.stringify(list, null, 2)};\n\nexport default reviews;\n`;
+        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
+          if (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to write reviews to disk' }));
+          } else {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          }
+        });
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
+  // 2d. API: GET /api/reviews
+  if (req.method === 'GET' && req.url === '/api/reviews') {
+    const filePath = path.join(__dirname, 'data', 'reviews.js');
+    fs.readFile(filePath, 'utf8', (err, content) => {
+      if (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to read reviews file' }));
+        return;
+      }
+      const startIdx = content.indexOf('[');
+      const endIdx = content.lastIndexOf(']');
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = content.substring(startIdx, endIdx + 1);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(jsonStr);
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid reviews structure on server' }));
+      }
+    });
+    return;
+  }
+
   // 3. Static File Server with SPA Fallback
   let filePath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
   let ext = path.extname(filePath);

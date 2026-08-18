@@ -13,6 +13,7 @@ import { renderAdminCoupons, attachAdminCouponsListeners } from './AdminCoupons.
 import { renderAdminAnalytics, attachAdminAnalyticsListeners } from './AdminAnalytics.js';
 import { renderAdminSettings, attachAdminSettingsListeners } from './AdminSettings.js';
 import { renderAdminSections, attachAdminSectionsListeners } from './AdminSections.js';
+import { renderAdminReviews, attachAdminReviewsListeners } from './AdminReviews.js';
 
 class AdminPage extends HTMLElement {
   constructor() {
@@ -101,6 +102,18 @@ class AdminPage extends HTMLElement {
         }
       })
       .catch(err => console.warn('Could not load brands from server:', err));
+
+    // Fetch reviews from server on load
+    fetch('/api/reviews')
+      .then(res => res.json())
+      .then(serverReviews => {
+        if (serverReviews && serverReviews.length > 0) {
+          this.reviews = serverReviews;
+          localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(serverReviews));
+          this.render();
+        }
+      })
+      .catch(err => console.warn('Could not load reviews from server:', err));
   }
 
   loadDatabase() {
@@ -212,6 +225,14 @@ class AdminPage extends HTMLElement {
     if (this.brands.length === 0) {
       this.brands = brands;
       localStorage.setItem('SWEETOS_brands', JSON.stringify(this.brands));
+    }
+
+    // 9. Review settings Directory
+    const storedReviews = localStorage.getItem('SWEETOS_reviews_all');
+    try {
+      this.reviews = storedReviews ? JSON.parse(storedReviews) : [];
+    } catch (e) {
+      this.reviews = [];
     }
   }
 
@@ -363,6 +384,9 @@ class AdminPage extends HTMLElement {
       localStorage.setItem('SWEETOS_brands', JSON.stringify(this.brands));
       window.dispatchEvent(new CustomEvent('brands:updated', { detail: this.brands }));
       this.syncBrandsToServer();
+    } else if (type === 'reviews') {
+      localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(this.reviews));
+      this.syncReviewsToServer();
     }
   }
 
@@ -421,6 +445,25 @@ class AdminPage extends HTMLElement {
       }
     })
     .catch(err => console.error('Error syncing brands to server:', err));
+  }
+
+  syncReviewsToServer() {
+    fetch('/api/reviews', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(this.reviews)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log('Reviews synced to server successfully.');
+      } else {
+        console.error('Failed to sync reviews to server:', data.error);
+      }
+    })
+    .catch(err => console.error('Error syncing reviews to server:', err));
   }
 
   render() {
@@ -519,6 +562,8 @@ class AdminPage extends HTMLElement {
         return renderAdminSettings(this);
       case 'sections':
         return renderAdminSections(this);
+      case 'reviews':
+        return renderAdminReviews(this);
       default:
         return renderAdminDashboard(this);
     }
@@ -582,6 +627,9 @@ class AdminPage extends HTMLElement {
         break;
       case 'sections':
         attachAdminSectionsListeners(this, shadow);
+        break;
+      case 'reviews':
+        attachAdminReviewsListeners(this, shadow);
         break;
     }
   }

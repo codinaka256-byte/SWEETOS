@@ -166,6 +166,17 @@ class ProductList extends HTMLElement {
       })
       .catch(err => console.warn('Could not load brands from server:', err));
 
+    // Fetch reviews from server on startup
+    fetch('/api/reviews')
+      .then(res => res.json())
+      .then(serverReviews => {
+        if (serverReviews && serverReviews.length > 0) {
+          localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(serverReviews));
+          this.renderPageContent();
+        }
+      })
+      .catch(err => console.warn('Could not load reviews from server:', err));
+
     // Check if product ID is passed in URL query params (e.g. from share button)
     const urlParams = new URLSearchParams(window.location.search);
     const sharedProductId = urlParams.get('product');
@@ -319,18 +330,60 @@ class ProductList extends HTMLElement {
   }
 
   loadProductReviews(productId, targetRating, defaultCount) {
-    const key = `SWEETOS_reviews_${productId}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
+    const allSaved = localStorage.getItem('SWEETOS_reviews_all');
+    let allReviews = [];
+    if (allSaved) {
       try {
-        return JSON.parse(saved);
+        allReviews = JSON.parse(allSaved);
       } catch (e) {}
     }
-    return [];
+    // Filter reviews belonging to this product and that are approved
+    return allReviews.filter(r => r.productId === productId && (r.status || 'approved') === 'approved');
   }
 
-  saveProductReviews(productId, reviews) {
-    localStorage.setItem(`SWEETOS_reviews_${productId}`, JSON.stringify(reviews));
+  saveProductReviews(productId, newReviewsForProduct) {
+    const allSaved = localStorage.getItem('SWEETOS_reviews_all');
+    let allReviews = [];
+    if (allSaved) {
+      try {
+        allReviews = JSON.parse(allSaved);
+      } catch (e) {}
+    }
+
+    // Keep reviews for other products
+    allReviews = allReviews.filter(r => r.productId !== productId);
+
+    // Map storefront new reviews to include standard metadata and go to 'pending' moderation
+    const mapped = newReviewsForProduct.map((r, index) => {
+      return {
+        id: r.id || Date.now() + index,
+        productId: productId,
+        user: r.user,
+        rating: r.rating,
+        comment: r.comment,
+        date: r.date || new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }),
+        status: r.status || 'pending'
+      };
+    });
+
+    allReviews = [...mapped, ...allReviews];
+    localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(allReviews));
+
+    // Sync to server disk
+    fetch('/api/reviews', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(allReviews)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log('Product reviews updated on server successfully.');
+      }
+    })
+    .catch(err => console.error('Error posting updated reviews list:', err));
   }
 
   renderPageContent() {
