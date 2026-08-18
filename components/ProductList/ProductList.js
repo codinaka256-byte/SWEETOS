@@ -92,8 +92,13 @@ class ProductList extends HTMLElement {
           this.currentProductId = pId;
         }
       } else if (route === 'terms') {
-        this.currentPage = 'about';
-        this.activeAboutTab = 'terms';
+        this.currentPage = 'terms';
+      } else if (route === 'about-us' || route === 'about') {
+        this.currentPage = 'about-us';
+      } else if (route === 'refund') {
+        this.currentPage = 'refund';
+      } else if (route === 'contact') {
+        this.currentPage = 'contact';
       } else if (route.startsWith('catalog/')) {
         const cat = decodeURIComponent(route.split('/')[1]);
         this.currentPage = 'catalog';
@@ -114,8 +119,6 @@ class ProductList extends HTMLElement {
     let hash = '#/';
     if (this.currentPage === 'pdp' && this.currentProductId) {
       hash += 'product/' + this.currentProductId;
-    } else if (this.currentPage === 'about' && this.activeAboutTab === 'terms') {
-      hash += 'terms';
     } else if (this.currentPage === 'catalog' && this.currentCategory && this.currentCategory !== 'All') {
       hash += 'catalog/' + encodeURIComponent(this.currentCategory);
     } else if (this.currentPage === 'home') {
@@ -878,7 +881,7 @@ class ProductList extends HTMLElement {
 
       this.attachWishlistListeners();
 
-    } else if (this.currentPage === 'about') {
+    } else if (['about-us', 'terms', 'refund', 'contact'].includes(this.currentPage)) {
       contentArea.innerHTML = `
         <div class="about-page-container animate-in" style="padding-bottom: 40px;">
           <div class="page-hero-banner page-about animate-in" style="margin-bottom: 24px;">
@@ -886,23 +889,23 @@ class ProductList extends HTMLElement {
             <div class="page-hero-content">
               <span class="page-hero-badge">🌿 KNOWLEDGE BASE</span>
               <h2>SWEETOS Information Desk</h2>
-              <p>Explore our company story, design standards, return policies, or contact our support concierge.</p>
+              <p>Explore our company story, design standards, policies, or contact our support concierge.</p>
             </div>
           </div>
 
-          <!-- Dynamic Tab Selector Row -->
+          <!-- Dynamic Page Navigation Tabs -->
           <div class="profile-sidebar-tabs" style="display: flex; flex-direction: row; gap: 12px; margin-bottom: 24px; width: 100%; border-bottom: 1.5px solid var(--border); padding-bottom: 16px; justify-content: flex-start; flex-wrap: wrap;">
-            <button class="profile-tab-btn ${this.activeAboutTab === 'about-us' ? 'active' : ''}" data-about-tab="about-us" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
+            <button class="profile-tab-btn ${this.currentPage === 'about-us' ? 'active' : ''}" data-nav-page="about-us" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
               🌿 About Us
             </button>
-            <button class="profile-tab-btn ${this.activeAboutTab === 'terms' ? 'active' : ''}" data-about-tab="terms" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
+            <button class="profile-tab-btn ${this.currentPage === 'terms' ? 'active' : ''}" data-nav-page="terms" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
               📄 Terms & Conditions
             </button>
-            <button class="profile-tab-btn ${this.activeAboutTab === 'refund' ? 'active' : ''}" data-about-tab="refund" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
+            <button class="profile-tab-btn ${this.currentPage === 'refund' ? 'active' : ''}" data-nav-page="refund" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
               🔄 Refund Policy
             </button>
-            <button class="profile-tab-btn ${this.activeAboutTab === 'contact' ? 'active' : ''}" data-about-tab="contact" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
-              ✉️ Contact Us
+            <button class="profile-tab-btn ${this.currentPage === 'contact' ? 'active' : ''}" data-nav-page="contact" style="margin: 0; padding: 10px 20px; border-radius: 10px; height: auto;">
+              ✉️  Contact Us
             </button>
           </div>
 
@@ -913,8 +916,9 @@ class ProductList extends HTMLElement {
         </div>
       `;
 
+      this.activeAboutTab = this.currentPage;
       this.injectAboutTabContent();
-      this.attachAboutTabListeners();
+      this.attachAboutPageListeners();
 
     } else if (this.currentPage === 'profile') {
       contentArea.innerHTML = `
@@ -3524,7 +3528,7 @@ class ProductList extends HTMLElement {
             <div style="background: rgba(255,255,255,0.1); width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 16px; font-size: 26px; flex-shrink: 0; position: relative; z-index: 1;">📄</div>
             <div style="display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 1;">
               <h2 style="font-size: 32px; font-weight: 850; margin: 0; color: white; letter-spacing: -0.5px;">Terms & Conditions · SWEETOS</h2>
-              <p style="font-size: 14.5px; color: rgba(255,255,255,0.75); margin: 0; max-width: 680px; line-height: 1.5;">Veuillez lire attentivement ces conditions générales avant d'utiliser notre plateforme. En accédant ou en utilisant nos services, vous acceptez d'être lié par ces conditions.</p>
+              <p style="font-size: 14.5px; color: rgba(255,255,255,0.75); margin: 0; max-width: 680px; line-height: 1.5;">Please read these terms and conditions carefully before using our platform. By accessing or using our services, you agree to be bound by these terms.</p>
               <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.08); padding: 5px 12px; border-radius: 8px; font-size: 12px; width: fit-content; border: 1px solid rgba(255,255,255,0.1); font-weight: 700; margin-top: 4px;">
                 ✓ Effective April 2026
               </div>
@@ -3533,40 +3537,36 @@ class ProductList extends HTMLElement {
 
           <!-- Last Updated Alert Box -->
           <div class="glass-panel" style="padding: 14px 20px; border-radius: 12px; border: 1.5px solid var(--border); display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700; color: var(--text-gray); background: rgba(255,255,255,0.4);">
-            <span>🕒</span> Dernière mise à jour : 15 Avril 2026
+            <span>🕒</span> Last Updated: April 15, 2026
           </div>
 
           <!-- Table of Contents -->
           <div class="glass-panel" style="padding: 28px; border-radius: 20px; border: 1.5px solid var(--border); background: white;">
             <h4 style="font-size: 16px; font-weight: 850; margin: 0 0 20px 0; display: flex; align-items: center; gap: 8px; color: var(--text-dark);">
-              <span>📋</span> Table des matières
+              <span>📋</span> Table of Contents
             </h4>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 24px;">
-              <a href="#" data-scroll-sec="1" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">1. Acceptation des conditions</a>
-              <a href="#" data-scroll-sec="2" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">2. Comptes utilisateurs</a>
-              <a href="#" data-scroll-sec="3" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">3. Commandes et paiements</a>
-              <a href="#" data-scroll-sec="4" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">4. Expédition et livraison</a>
-              <a href="#" data-scroll-sec="5" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">5. Retours et remboursements</a>
-              <a href="#" data-scroll-sec="6" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">6. Informations sur les produits</a>
-              <a href="#" data-scroll-sec="7" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">7. Propriété intellectuelle</a>
-              <a href="#" data-scroll-sec="8" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">8. Politique de confidentialité</a>
-              <a href="#" data-scroll-sec="9" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">9. Limitation de responsabilité</a>
-                     <!-- Section 1 -->
+              <a href="#" data-scroll-sec="1" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">1. Acceptance of Terms</a>
+              <a href="#" data-scroll-sec="2" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">2. User Accounts</a>
+              <a href="#" data-scroll-sec="3" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">3. Orders & Payments</a>
+              <a href="#" data-scroll-sec="4" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">4. Shipping & Delivery</a>
+              <a href="#" data-scroll-sec="5" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">5. Returns & Refunds</a>
+              <a href="#" data-scroll-sec="6" style="font-size: 13.5px; font-weight: 650; color: var(--primary); text-decoration: none; display: flex; gap: 6px; align-items: center;">6. Intellectual Property</a>
+            </div>
+          </div>
+
+          <!-- Section 1 -->
           <div id="terms-section-1" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
             <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
               <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">1</span>
-              Acceptation des conditions <span style="color: #36b37e; font-size: 15px;">✓</span>
+              Acceptance of Terms <span style="color: #36b37e; font-size: 15px;">✓</span>
             </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">En utilisant la plateforme SWEETOS, vous acceptez de vous conformer et d'être lié par ces conditions générales. Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser nos services.</p>
+            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">By accessing and using the SWEETOS platform, you agree to comply with and be bound by these terms. If you do not agree, please do not use our services.</p>
             <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔸 Vous devez avoir au moins 18 ans pour utiliser nos services.</li>
-              <li>🔸 Vous acceptez de fournir des informations exactes et complètes lors de l'utilisation de notre plateforme.</li>
-              <li>🔸 Vous êtes responsable de la confidentialité de vos identifiants de compte.</li>
-              <li>🔸 Nous nous réservons le droit de résilier les comptes qui violent ces conditions.</li>
+              <li>🔸 You must be at least 18 years old to order setup products.</li>
+              <li>🔸 You agree to provide accurate and complete registration info.</li>
+              <li>🔸 You are responsible for maintaining account credential confidentiality.</li>
             </ul>
-            <div style="border-left: 4px solid var(--primary); padding: 14px 20px; background: rgba(0, 82, 204, 0.02); border-radius: 0 12px 12px 0; margin-top: 8px; font-size: 13.5px; font-weight: 700; color: var(--text-dark);">
-              ℹ️ Important: En continuant à utiliser notre plateforme, vous reconnaissez avoir lu, compris et accepté d'être lié par ces conditions.
-            </div>
           </div>
 
           <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
@@ -3575,16 +3575,9 @@ class ProductList extends HTMLElement {
           <div id="terms-section-2" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
             <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
               <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">2</span>
-              Comptes utilisateurs 👤
+              User Accounts 👤
             </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Pour accéder à certaines fonctionnalités de notre plateforme, vous devrez peut-être créer un compte utilisateur. Vous êtes responsable de toutes les activités effectuées sous votre compte.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Vous devez fournir des informations d'inscription exactes et complètes.</li>
-              <li>🔹 Vous êtes responsable de la sécurité et de la confidentialité de votre mot de passe.</li>
-              <li>🔹 Vous devez nous informer immédiatement de toute utilisation non autorisée de votre compte.</li>
-              <li>🔹 Nous nous réservons le droit de suspendre ou de résilier les comptes qui violent nos politiques.</li>
-              <li>🔹 Vous ne pouvez pas créer plusieurs comptes à des fins frauduleuses.</li>
-            </ul>
+            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">To place orders and track delivery details, user accounts are securely created and stored on our server database. You are responsible for all activities under your credentials.</p>
           </div>
 
           <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
@@ -3593,19 +3586,9 @@ class ProductList extends HTMLElement {
           <div id="terms-section-3" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
             <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
               <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">3</span>
-              Commandes et paiements 💳
+              Orders & Payments 💳
             </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Toutes les commandes passées sur notre plateforme sont soumises à acceptation et disponibilité. Nous nous réservons le droit de refuser ou d'annuler toute commande pour quelque raison que ce soit.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Les prix sont sujets à modification sans préavis.</li>
-              <li>🔹 Nous acceptons divers modes de paiement comme indiqué sur notre plateforme (Visa, Mastercard, Mobile Money).</li>
-              <li>🔹 Tous les paiements sont traités en toute sécurité via nos partenaires de paiement de confiance.</li>
-              <li>🔹 Vous acceptez de fournir des informations de paiement exactes et complètes.</li>
-              <li>🔹 Nous nous réservons le droit d'annuler les commandes si le paiement n'est pas reçu ou vérifié.</li>
-            </ul>
-            <div style="border-left: 4px solid var(--primary); padding: 14px 20px; background: rgba(0, 82, 204, 0.02); border-radius: 0 12px 12px 0; margin-top: 8px; font-size: 13.5px; font-weight: 700; color: var(--text-dark);">
-              🔒 Sécurité des paiements: Toutes les transactions sont cryptées et traitées en toute sécurité. Nous ne stockons pas vos coordonnées de paiement complètes sur nos serveurs.
-            </div>
+            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Prices are subject to change without notice. All submitted orders are processed securely on the server and broadcasted directly to the admin moderation queue.</p>
           </div>
 
           <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
@@ -3614,16 +3597,9 @@ class ProductList extends HTMLElement {
           <div id="terms-section-4" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
             <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
               <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">4</span>
-              Expédition et livraison 🚚
+              Shipping & Delivery 🚚
             </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Nous nous efforçons de livrer vos commandes dans les délais et de manière efficace. Les délais de livraison sont estimés et peuvent varier en fonction de votre localisation.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Les frais d'expédition sont calculés en fonction du poids, des dimensions et de la destination.</li>
-              <li>🔹 Les délais de livraison sont des estimations et ne sont pas garantis.</li>
-              <li>🔹 Nous ne sommes pas responsables des retards causés par les douanes ou les transporteurs.</li>
-              <li>🔹 Vous êtes responsable de fournir des informations de livraison précises.</li>
-              <li>🔹 Le risque de perte vous est transféré à la livraison.</li>
-            </ul>
+            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">We aim to package and deliver your setup components promptly. Delivery estimates may fluctuate based on customs, logistics dispatch, and regional couriers.</p>
           </div>
 
           <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
@@ -3632,19 +3608,9 @@ class ProductList extends HTMLElement {
           <div id="terms-section-5" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
             <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
               <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">5</span>
-              Retours et remboursements 🔄
+              Returns & Refunds 🔄
             </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Nous voulons que vous soyez entièrement satisfait de votre achat. Veuillez consulter notre politique de retour pour plus d'informations.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Les retours doivent être initiés dans les 7 jours ouvrables suivant la livraison.</li>
-              <li>🔹 Les articles doivent être retournés dans leur emballage d'origine et en bon état.</li>
-              <li>🔹 Les remboursements sont effectués sur le mode de paiement d'origine.</li>
-              <li>🔹 Certains articles ne sont pas éligibles au retour (ex: commutateurs usagés, pièces sur mesure).</li>
-              <li>🔹 Les frais d'expédition ne sont pas remboursables, sauf si le retour est dû à notre erreur.</li>
-            </ul>
-            <div style="border-left: 4px solid var(--primary); padding: 14px 20px; background: rgba(0, 82, 204, 0.02); border-radius: 0 12px 12px 0; margin-top: 8px; font-size: 13.5px; font-weight: 700; color: var(--text-dark);">
-              📦 Politique de retour: Pour plus de détails, veuillez visiter notre page Politique de retour.
-            </div>
+            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Unopened mechanical desk setup hardware items are eligible for refund requests inside 7 business days from receipt. Return shipping costs are born by the customer.</p>
           </div>
 
           <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
@@ -3653,107 +3619,26 @@ class ProductList extends HTMLElement {
           <div id="terms-section-6" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
             <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
               <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">6</span>
-              Informations sur les produits ℹ️
+              Intellectual Property ©
             </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Nous nous efforçons de fournir des informations exactes et à jour. Cependant, nous ne garantissons pas que les descriptions, images ou spécifications des produits soient exemptes d'erreurs.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Les images des produits sont fournies à titre indicatif uniquement.</li>
-              <li>🔹 Les produits réels peuvent légèrement varier par rapport aux images présentées.</li>
-              <li>🔹 Nous nous réservons le droit de corriger les erreurs de prix ou d'informations sur les produits.</li>
-              <li>🔹 La disponibilité des produits est sujette à modification sans préavis.</li>
-              <li>🔹 Tous les produits sont soumis aux garanties du fabricant le cas échéant.</li>
-            </ul>
+            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">All digital assets, photographs, code segments, logos, and layouts are the exclusive property of SWEETOS and protected under copyright laws.</p>
           </div>
 
           <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
 
           <!-- Section 7 -->
-          <div id="terms-section-7" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
+          <div id="terms-section-7" style="display: flex; flex-direction: column; gap: 20px; scroll-margin-top: 100px;">
             <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
               <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">7</span>
-              Propriété intellectuelle ©
+              Contact Us ✉️
             </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Tout le contenu de notre plateforme, y compris les textes, images, logos et logiciels, est la propriété d'SWEETOS et est protégé par les lois sur le droit d'auteur et la propriété intellectuelle.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Vous ne pouvez pas reproduire, distribuer ou modifier un contenu sans notre autorisation écrite.</li>
-              <li>🔹 Toutes les marques et logos sont la propriété de leurs propriétaires respectifs.</li>
-              <li>🔹 L'utilisation non autorisée de notre contenu peut entraîner des poursuites judiciaires.</li>
-              <li>🔹 Vous bénéficiez d'une licence limitée pour accéder à notre plateforme et l'utiliser à des fins personnelles et non commerciales.</li>
-            </ul>
-          </div>
-
-          <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
-
-          <!-- Section 8 -->
-          <div id="terms-section-8" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
-            <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
-              <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">8</span>
-              Politique de confidentialité 🛡ï¸
-            </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Votre vie privée est importante pour nous. Veuillez consulter notre politique de confidentialité pour comprendre comment nous collectons, utilisons et protégeons vos informations personnelles.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Nous collectons des informations personnelles pour fournir et améliorer nos services.</li>
-              <li>🔹 Nous ne vendons ni ne partageons vos informations personnelles avec des tiers sans votre consentement.</li>
-              <li>🔹 Nous mettons en Å“uvre des mesures de sécurité pour protéger vos données.</li>
-              <li>🔹 Vous avez le droit d'accéder, de modifier ou de supprimer vos informations personnelles.</li>
-              <li>🔹 Les cookies sont utilisés pour améliorer votre expérience de navigation.</li>
-            </ul>
-            <div style="border-left: 4px solid var(--primary); padding: 14px 20px; background: rgba(0, 82, 204, 0.02); border-radius: 0 12px 12px 0; margin-top: 8px; font-size: 13.5px; font-weight: 700; color: var(--text-dark);">
-              🔒 Votre vie privée compte: Toutes les données stockées sont cryptées et isolées en toute sécurité selon les normes industrielles en vigueur.
-            </div>
-          </div>
-
-          <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
-
-          <!-- Section 9 -->
-          <div id="terms-section-9" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
-            <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
-              <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">9</span>
-              Limitation de responsabilité ⚖️
-            </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">SWEETOS n'est pas responsable des dommages découlant de l'utilisation de notre plateforme ou de nos produits, dans la mesure maximale autorisée par la loi.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Nous ne sommes pas responsables des dommages indirects, accessoires ou consécutifs.</li>
-              <li>🔹 Notre responsabilité est limitée au prix d'achat du produit.</li>
-              <li>🔹 Nous ne garantissons pas que notre plateforme sera exempte d'erreurs ou ininterrompue.</li>
-              <li>🔹 Nous ne sommes pas responsables du contenu ou des services de tiers.</li>
-              <li>🔹 Certaines juridictions n'autorisent pas l'exclusion de certaines garanties, cette limitation peut donc ne pas s'appliquer à vous.</li>
-            </ul>
-          </div>
-
-          <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
-
-          <!-- Section 11 -->
-          <div id="terms-section-11" style="display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 100px;">
-            <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
-              <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">11</span>
-              Modifications des conditions 📝
-            </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Nous nous réservons le droit de modifier ces conditions générales à tout moment. Les modifications entreront en vigueur immédiatement après leur publication sur notre plateforme.</p>
-            <ul style="margin: 0; padding-left: 20px; list-style-type: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-gray);">
-              <li>🔹 Nous informerons les utilisateurs des changements importants par e-mail ou par notification sur la plateforme.</li>
-              <li>🔹 Votre utilisation continue de notre plateforme constitue une acceptation des conditions révisées.</li>
-              <li>🔹 Il est de votre responsabilité de consulter périodiquement ces conditions.</li>
-              <li>🔹 La date de la dernière révision est indiquée en haut de cette page.</li>
-            </ul>
-          </div>
-
-          <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
-
-          <!-- Section 12 -->
-          <div id="terms-section-12" style="display: flex; flex-direction: column; gap: 20px; scroll-margin-top: 100px;">
-            <h4 style="font-size: 18px; font-weight: 850; margin: 0; display: flex; align-items: center; gap: 8px;">
-              <span style="background: var(--primary); color: white; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 13px;">12</span>
-              Contactez-nous ✉️
-            </h4>
-            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">Si vous avez des questions, des préoccupations ou des commentaires concernant ces conditions générales, n'hésitez pas à nous contacter.</p>
+            <p style="font-size: 14.5px; color: var(--text-gray); margin: 0;">If you have questions regarding these terms, contact our support team:</p>
             
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-              
               <div class="glass-panel" style="padding: 20px; border-radius: 12px; border: 1.5px solid var(--border); display: flex; gap: 16px; align-items: center;">
-                <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✉️</div>
+                <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✉️</div>
                 <div>
-                  <span style="font-size: 10px; font-weight: 800; color: var(--text-light); text-transform: uppercase;">E-mail Support</span>
+                  <span style="font-size: 10px; font-weight: 800; color: var(--text-light); text-transform: uppercase;">Support Email</span>
                   <span style="font-size: 13.5px; font-weight: 600; color: var(--text-dark); display: block;">support@SWEETOSdesigns.com</span>
                 </div>
               </div>
@@ -3761,43 +3646,22 @@ class ProductList extends HTMLElement {
               <div class="glass-panel" style="padding: 20px; border-radius: 12px; border: 1.5px solid var(--border); display: flex; gap: 16px; align-items: center;">
                 <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">📞</div>
                 <div>
-                  <span style="font-size: 10px; font-weight: 800; color: var(--text-light); text-transform: uppercase;">Hotline support</span>
-                  <span style="font-size: 13.5px; font-weight: 600; color: var(--text-dark); display: block;">CI +225 07-00-00-00-00</span>
+                  <span style="font-size: 10px; font-weight: 800; color: var(--text-light); text-transform: uppercase;">Support Hotline</span>
+                  <span style="font-size: 13.5px; font-weight: 600; color: var(--text-dark); display: block;">+225 07-00-00-00-00</span>
                 </div>
               </div>
-
-              <div class="glass-panel" style="padding: 20px; border-radius: 12px; border: 1.5px solid var(--border); display: flex; gap: 16px; align-items: center;">
-                <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">📍</div>
-                <div>
-                  <span style="font-size: 10px; font-weight: 800; color: var(--text-light); text-transform: uppercase;">Adresse</span>
-                  <span id="terms-contact-address" style="font-size: 13.5px; font-weight: 600; color: var(--text-dark); display: block;">${profile.address || 'Angre djibi terminus 82/81 aface sendai e-passeporte agencs'}</span>
-                </div>
-              </div>
-
-              <div class="glass-panel" style="padding: 20px; border-radius: 12px; border: 1.5px solid var(--border); display: flex; gap: 16px; align-items: center;">
-                <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">🕒</div>
-                <div>
-                  <span style="font-size: 10px; font-weight: 800; color: var(--text-light); text-transform: uppercase;">Horaires d'ouverture</span>
-                  <span style="font-size: 13.5px; font-weight: 600; color: var(--text-dark); display: block;">Mon - Fri: 7:00 AM - 8:00 PM Sun: Closed</span>
-                </div>
-              </div>
-
-            </div>
-
-            <div style="border-left: 4px solid var(--primary); padding: 14px 20px; background: rgba(0, 82, 204, 0.02); border-radius: 0 12px 12px 0; font-size: 13.5px; font-weight: 700; color: var(--text-dark);">
-              📞 Nous sommes là pour vous aider: Notre équipe de service client est disponible pour vous aider avec toutes vos questions ou préoccupations. Visitez notre page Contact pour plus de moyens de nous joindre.
             </div>
           </div>
 
-          <!-- Bottom Sticky-looking Acceptance Panel -->
+          <!-- Bottom sticky acceptance bar -->
           <div class="glass-panel animate-in" style="margin-top: 16px; padding: 24px 32px; border-radius: 20px; border: 1.5px solid var(--border); background: white; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.02);">
             <div style="display: flex; align-items: center; gap: 12px;">
               <div style="font-size: 20px; color: #36b37e; background: rgba(54, 179, 126, 0.08); width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✓</div>
-              <span style="font-size: 14px; font-weight: 750; color: var(--text-gray);">En utilisant notre plateforme, vous acceptez ces conditions générales.</span>
+              <span style="font-size: 14px; font-weight: 750; color: var(--text-gray);">By continuing to use our services, you accept these terms.</span>
             </div>
             <div style="display: flex; gap: 12px;">
-              <button id="terms-accept-btn" class="btn-primary" style="height: 42px; padding: 0 24px; font-size: 13.5px; font-weight: 750; border: none; border-radius: 10px; cursor: pointer; background: #10b981; color: white;">J'accepte</button>
-              <button id="terms-decline-btn" class="btn-secondary" style="height: 42px; padding: 0 24px; font-size: 13.5px; font-weight: 750; background: white; border: 1.5px solid var(--border); border-radius: 10px; cursor: pointer; color: var(--text-gray);">Refuser</button>
+              <button id="terms-accept-btn" class="btn-primary" style="height: 42px; padding: 0 24px; font-size: 13.5px; font-weight: 750; border: none; border-radius: 10px; cursor: pointer; background: #10b981; color: white;">I Agree</button>
+              <button id="terms-decline-btn" class="btn-secondary" style="height: 42px; padding: 0 24px; font-size: 13.5px; font-weight: 750; background: white; border: 1.5px solid var(--border); border-radius: 10px; cursor: pointer; color: var(--text-gray);">Decline</button>
             </div>
           </div>
 
@@ -4199,6 +4063,20 @@ class ProductList extends HTMLElement {
         this.injectAboutTabContent();
       });
     });
+  }
+
+  attachAboutPageListeners() {
+    const shadow = this.shadowRoot;
+    shadow.querySelectorAll('[data-nav-page]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetPage = btn.getAttribute('data-nav-page');
+        this.currentPage = targetPage;
+        this.updateHashURL();
+        this.renderPageContent();
+      });
+    });
+
+    this.attachAboutTabListeners();
   }
 
   // --- Functional Notifications Event Handlers ---
