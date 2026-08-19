@@ -7,10 +7,10 @@ export function renderAdminAnalytics(context) {
     const rawLogs = localStorage.getItem('SWEETOS_activity_logs');
     if (!rawLogs) {
       sessionLogs = [
-        { id: "mock_1", user: "Alina Putri", loginType: "Google OAuth", visits: ["Home", "Product: Keyboard Q1 Pro", "Cart", "Checkout Form"], bought: true, timestamp: "18 Aug, 02:32 PM" },
-        { id: "mock_2", user: "Odinaka Chibuike", loginType: "Email & Password", visits: ["Home", "Catalog: Audio", "Product: Sennheiser HD 600"], bought: false, timestamp: "18 Aug, 03:10 PM" },
-        { id: "mock_3", user: "Guest User", loginType: "Guest Checkout", visits: ["Home", "Product: Solid Oak Riser Shelf", "Checkout Form"], bought: true, timestamp: "19 Aug, 09:15 AM" },
-        { id: "mock_4", user: "Alex Johnson", loginType: "Not Logged In", visits: ["Home", "Product: Nebula Light Ring Dial"], bought: false, timestamp: "19 Aug, 10:44 AM" }
+        { id: "mock_1", user: "Alina Putri", loginType: "Google OAuth", visits: ["Home", "Product: Keyboard Q1 Pro", "Cart", "Checkout Form"], bought: true, timestamp: "18 Aug, 02:32 PM", browser: "Chrome", device: "Desktop", source: "google.com" },
+        { id: "mock_2", user: "Odinaka Chibuike", loginType: "Email & Password", visits: ["Home", "Catalog: Audio", "Product: Sennheiser HD 600"], bought: false, timestamp: "18 Aug, 03:10 PM", browser: "Safari", device: "Mobile", source: "Direct" },
+        { id: "mock_3", user: "Guest User", loginType: "Guest Checkout", visits: ["Home", "Product: Solid Oak Riser Shelf", "Checkout Form"], bought: true, timestamp: "19 Aug, 09:15 AM", browser: "Firefox", device: "Desktop", source: "facebook.com" },
+        { id: "mock_4", user: "Alex Johnson", loginType: "Not Logged In", visits: ["Home", "Product: Nebula Light Ring Dial"], bought: false, timestamp: "19 Aug, 10:44 AM", browser: "Chrome", device: "Mobile", source: "twitter.com" }
       ];
       localStorage.setItem('SWEETOS_activity_logs', JSON.stringify(sessionLogs));
     } else {
@@ -259,6 +259,8 @@ export function renderAdminAnalytics(context) {
               <tr style="border-bottom: 1.5px solid var(--border); text-align: left;">
                 <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Customer</th>
                 <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Method</th>
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Device / Browser</th>
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Traffic Source</th>
                 <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Pages Visited</th>
                 <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Purchased</th>
                 <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light); text-align: right;">Time</th>
@@ -267,13 +269,24 @@ export function renderAdminAnalytics(context) {
             <tbody>
               ${sortedSessionLogs.length === 0 ? `
                 <tr>
-                  <td colspan="5" style="text-align: center; padding: 20px; color: var(--text-light); font-size: 13px;">No active customer sessions recorded.</td>
+                  <td colspan="7" style="text-align: center; padding: 20px; color: var(--text-light); font-size: 13px;">No active customer sessions recorded.</td>
                 </tr>
               ` : sortedSessionLogs.map(s => `
                 <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
                   <td style="padding: 12px 10px; color: var(--text-dark);"><strong>${s.user}</strong></td>
                   <td style="padding: 12px 10px;"><span style="font-size: 11px; font-weight: 750; background: #e2e8f0; color: #475569; padding: 4px 8px; border-radius: 12px;">${s.loginType}</span></td>
-                  <td style="padding: 12px 10px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s.visits.join(' → ')}">
+                  <td style="padding: 12px 10px;">
+                    <span style="font-size: 12px; font-weight: 700; color: var(--text-dark); display: inline-flex; align-items: center; gap: 4px;">
+                      ${s.device === 'Mobile' ? '📱 Mobile' : s.device === 'Tablet' ? '📟 Tablet' : '💻 Desktop'}
+                      <span style="font-size: 11px; font-weight: 600; color: var(--text-light);">(${s.browser || 'Chrome'})</span>
+                    </span>
+                  </td>
+                  <td style="padding: 12px 10px;">
+                    <span style="font-size: 11px; font-weight: 750; background: rgba(54, 179, 126, 0.08); color: #36b37e; padding: 4px 8px; border-radius: 6px; display: inline-block;">
+                      🔗 ${s.source || 'Direct'}
+                    </span>
+                  </td>
+                  <td style="padding: 12px 10px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s.visits.join(' → ')}">
                     ${s.visits.map(v => `<span style="display: inline-block; background: rgba(0, 82, 204, 0.05); color: var(--primary); padding: 2px 6px; border-radius: 6px; font-size: 11px; margin-right: 4px; font-weight: 600;">${v}</span>`).join('')}
                   </td>
                   <td style="padding: 12px 10px;">

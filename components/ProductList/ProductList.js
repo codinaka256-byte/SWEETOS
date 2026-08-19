@@ -377,6 +377,26 @@ class ProductList extends HTMLElement {
   renderPageContent() {
     window.scrollTo(0, 0);
     
+    // Log user activity
+    let pageLabel = this.currentPage;
+    if (this.currentPage === 'home') pageLabel = 'Home';
+    else if (this.currentPage === 'catalog') pageLabel = `Catalog: ${this.currentCategory}`;
+    else if (this.currentPage === 'pdp' && this.currentProductId) {
+      const p = this.products.find(item => item.id === this.currentProductId);
+      pageLabel = p ? `Product: ${p.name}` : 'Product Detail';
+    } else if (this.currentPage === 'auth') pageLabel = 'Authentication';
+    else if (this.currentPage === 'profile') pageLabel = 'Profile Settings';
+    else if (this.currentPage === 'wishlist') pageLabel = 'Wishlist';
+    else if (this.currentPage === 'about-us') pageLabel = 'About Us';
+    else if (this.currentPage === 'terms') pageLabel = 'Terms & Conditions';
+    else if (this.currentPage === 'refund') pageLabel = 'Refund Policy';
+    else if (this.currentPage === 'contact') pageLabel = 'Contact Us';
+    else if (this.currentPage === 'checkout') pageLabel = 'Checkout Form';
+    
+    try {
+      this.logCustomerActivity(pageLabel);
+    } catch(err) {}
+
     // Reload products database to reflect Admin changes dynamically
     const storedProds = localStorage.getItem('SWEETOS_products');
     if (storedProds) {
@@ -2001,6 +2021,22 @@ class ProductList extends HTMLElement {
       finalCount = textFiltered.length;
     } else {
       finalCount = textFiltered.filter(p => p.category === this.currentCategory).length;
+    }
+
+    if (finalCount === 0 && this.currentQuery && this.currentQuery.trim() !== '') {
+      let failed = [];
+      try {
+        failed = JSON.parse(localStorage.getItem('SWEETOS_failed_searches') || '[]');
+      } catch (err) {}
+      
+      const queryNormal = this.currentQuery.trim().toLowerCase();
+      if (!failed.some(item => item.query.toLowerCase() === queryNormal)) {
+        failed.push({
+          query: this.currentQuery.trim(),
+          timestamp: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        });
+        localStorage.setItem('SWEETOS_failed_searches', JSON.stringify(failed));
+      }
     }
 
     const titleHeader = this.shadowRoot.getElementById('catalog-title-header');
@@ -4077,6 +4113,95 @@ class ProductList extends HTMLElement {
     });
 
     this.attachAboutTabListeners();
+  }
+
+  logCustomerActivity(pageName) {
+    let sessionId = sessionStorage.getItem('SWEETOS_session_id');
+    if (!sessionId) {
+      sessionId = 'sess_' + Date.now();
+      sessionStorage.setItem('SWEETOS_session_id', sessionId);
+    }
+    
+    let logs = [];
+    try {
+      logs = JSON.parse(localStorage.getItem('SWEETOS_activity_logs') || '[]');
+    } catch (err) {}
+    
+    let userName = 'Guest User';
+    let loginType = 'Not Logged In';
+    
+    const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
+    if (loggedIn) {
+      try {
+        const userObj = JSON.parse(loggedIn);
+        userName = userObj.email;
+        const creds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
+        const userCred = creds.find(c => c.email.toLowerCase() === userObj.email.toLowerCase());
+        if (userCred) {
+          userName = userCred.fullname || userCred.email;
+          loginType = userCred.password === 'google_oauth_bypass' ? 'Google OAuth' : 'Email & Password';
+        } else {
+          loginType = 'Email & Password';
+        }
+      } catch (e) {}
+    }
+    
+    let sessionRecord = logs.find(log => log.id === sessionId);
+    const dateStr = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    
+    if (!sessionRecord) {
+      const ua = navigator.userAgent;
+      let browser = "Chrome"; // fallback default
+      if (ua.includes("Firefox")) browser = "Firefox";
+      else if (ua.includes("SamsungBrowser")) browser = "Samsung";
+      else if (ua.includes("Opera") || ua.includes("OPR")) browser = "Opera";
+      else if (ua.includes("Trident")) browser = "IE";
+      else if (ua.includes("Edge") || ua.includes("Edg")) browser = "Edge";
+      else if (ua.includes("Chrome")) browser = "Chrome";
+      else if (ua.includes("Safari")) browser = "Safari";
+
+      let device = "Desktop";
+      if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) {
+        device = "Tablet";
+      } else if (/Mobile|iP(hone|od)|Android|BlackBerry|IEMobile|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) {
+        device = "Mobile";
+      }
+
+      let source = "Direct";
+      if (document.referrer) {
+        try {
+          const url = new URL(document.referrer);
+          source = url.hostname.replace('www.', '') || "Referral";
+        } catch (e) {
+          source = "Referral";
+        }
+      }
+
+      sessionRecord = {
+        id: sessionId,
+        user: userName,
+        loginType: loginType,
+        visits: [],
+        bought: false,
+        timestamp: dateStr,
+        browser: browser,
+        device: device,
+        source: source
+      };
+      logs.push(sessionRecord);
+    }
+    
+    if (userName !== 'Guest User') {
+      sessionRecord.user = userName;
+      sessionRecord.loginType = loginType;
+    }
+    
+    const lastVisit = sessionRecord.visits[sessionRecord.visits.length - 1];
+    if (lastVisit !== pageName) {
+      sessionRecord.visits.push(pageName);
+    }
+    
+    localStorage.setItem('SWEETOS_activity_logs', JSON.stringify(logs));
   }
 
   // --- Functional Notifications Event Handlers ---
