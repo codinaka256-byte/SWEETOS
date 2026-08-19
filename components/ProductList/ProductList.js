@@ -5913,7 +5913,7 @@ function printOrderReceipt(order) {
   const total = subtotal + shippingFee + (taxMode === 'exclusive' ? taxAmount : 0);
   const formattedDate = order.date || new Date().toISOString().replace('T', ' ').slice(0, 16);
 
-  printWindow.document.write(\`
+  printWindow.document.write(`
     <!DOCTYPE html>
     <html>
     <head>
@@ -6046,22 +6046,22 @@ function printOrderReceipt(order) {
         <table class="header-table">
           <tr>
             <td class="header-left">
-              <div class="store-logo">\${storeName}</div>
+              <div class="store-logo">${storeName}</div>
               <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
-                \${storeAddress}<br>
-                Tél: \${storePhone}<br>
-                Email: \${storeEmail}
+                ${storeAddress}<br>
+                Tél: ${storePhone}<br>
+                Email: ${storeEmail}
               </div>
             </td>
             <td class="header-right" valign="top">
               <div style="font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 6px;">FACTURE / REÇU</div>
               <div>
                 <span class="meta-label">Numéro de Commande:</span><br>
-                <span class="meta-val" style="color: #0052cc;">#\${order.id}</span>
+                <span class="meta-val" style="color: #0052cc;">#${order.id}</span>
               </div>
               <div style="margin-top: 8px;">
                 <span class="meta-label">Date d'Émission:</span><br>
-                <span class="meta-val">\${formattedDate}</span>
+                <span class="meta-val">${formattedDate}</span>
               </div>
             </td>
           </tr>
@@ -6071,23 +6071,23 @@ function printOrderReceipt(order) {
           <div class="info-block">
             <div class="info-title">Facturé à (Client)</div>
             <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">
-              \${order.customerName || order.name || 'Client Invité'}
+              ${order.customerName || order.name || 'Client Invité'}
             </div>
             <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
-              Téléphone: \${order.customerPhone || order.phone || 'N/A'}<br>
-              Email: \${order.email || order.customerEmail || 'N/A'}<br>
-              Adresse: \${order.customerAddress || order.address || 'N/A'}
+              Téléphone: ${order.customerPhone || order.phone || 'N/A'}<br>
+              Email: ${order.email || order.customerEmail || 'N/A'}<br>
+              Adresse: ${order.customerAddress || order.address || 'N/A'}
             </div>
           </div>
           <div class="info-block">
             <div class="info-title">Mode & Options de Livraison</div>
             <div style="font-size: 13.5px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
-              Status: <span style="color:#0052cc;">\${order.status}</span>
+              Status: <span style="color:#0052cc;">${order.status}</span>
             </div>
             <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
-              Paiement: \${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'COD'}<br>
-              Suivi #: \${order.trackingNumber || 'En attente'}<br>
-              Notes: \${order.notes || 'Aucune note.'}
+              Paiement: ${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'COD'}<br>
+              Suivi #: ${order.trackingNumber || 'En attente'}<br>
+              Notes: ${order.notes || 'Aucune note.'}
             </div>
           </div>
         </div>
@@ -6102,31 +6102,31 @@ function printOrderReceipt(order) {
             </tr>
           </thead>
           <tbody>
-            \${itemsHtml}
+            ${itemsHtml}
           </tbody>
         </table>
 
         <div class="summary-block">
           <div class="summary-row">
             <span>Sous-total:</span>
-            <strong>\${localFormatPrice(subtotal)}</strong>
+            <strong>${localFormatPrice(subtotal)}</strong>
           </div>
           <div class="summary-row">
             <span>Frais de port:</span>
-            <strong>\${shippingFee === 0 ? 'Gratuit' : localFormatPrice(shippingFee)}</strong>
+            <strong>${shippingFee === 0 ? 'Gratuit' : localFormatPrice(shippingFee)}</strong>
           </div>
           <div class="summary-row">
-            <span>TVA (\${vatRate}% - \${taxMode === 'inclusive' ? 'incluse' : 'non-incluse'}):</span>
-            <strong>\${localFormatPrice(taxAmount)}</strong>
+            <span>TVA (${vatRate}% - ${taxMode === 'inclusive' ? 'incluse' : 'non-incluse'}):</span>
+            <strong>${localFormatPrice(taxAmount)}</strong>
           </div>
           <div class="summary-row total">
             <span>Total Général:</span>
-            <span>\${localFormatPrice(total)}</span>
+            <span>${localFormatPrice(total)}</span>
           </div>
         </div>
 
         <div class="footer-note">
-          Merci pour votre confiance et votre commande chez <strong>\${storeName}</strong> !<br>
+          Merci pour votre confiance et votre commande chez <strong>${storeName}</strong> !<br>
           <span style="font-size:11px; margin-top:6px; display:block;">Ceci est un reçu de commande officiel. Pour toute réclamation, veuillez contacter le support client.</span>
         </div>
       </div>
@@ -6140,6 +6140,6 @@ function printOrderReceipt(order) {
       </script>
     </body>
     </html>
-  \`);
+  `);
   printWindow.document.close();
 }
