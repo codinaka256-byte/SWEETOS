@@ -7,7 +7,7 @@ export function renderAdminSettings(context) {
       <!-- Settings Nav Sidebar (10 tabs) -->
       <nav class="settings-nav">
         <a href="#" class="settings-nav-item ${currentSubTab === 'general' ? 'active' : ''}" data-subtab="general">
-          <span>General Store Info</span>
+          <span>Store Pages & Info</span>
         </a>
         <a href="#" class="settings-nav-item ${currentSubTab === 'brand' ? 'active' : ''}" data-subtab="brand">
           <span>Brand Colors & SEO</span>
@@ -95,6 +95,22 @@ function renderSettingsSubtabContent(context, subtab) {
       const storeAboutStory = localStorage.getItem('SWEETOS_store_about_story') || 'SWEETOS was founded to rescue professionals from cluttered, generic desks. By sourcing only the finest premium materials — including solid oak, CNC-milled aluminum, and artisan felt wool — we deliver functional luxury that is made to last a lifetime.';
       const storeEntranceImage = localStorage.getItem('SWEETOS_store_entrance_image') || './assets/succes_technology_store_1786799642676.jpg';
 
+      const stat1Val = localStorage.getItem('SWEETOS_about_stat_1_val') || '15,000+';
+      const stat1Lbl = localStorage.getItem('SWEETOS_about_stat_1_lbl') || 'Workspace upgrades';
+      const stat2Val = localStorage.getItem('SWEETOS_about_stat_2_val') || '50+';
+      const stat2Lbl = localStorage.getItem('SWEETOS_about_stat_2_lbl') || 'Countries shipped';
+      const stat3Val = localStorage.getItem('SWEETOS_about_stat_3_val') || '99.4%';
+      const stat3Lbl = localStorage.getItem('SWEETOS_about_stat_3_lbl') || 'Satisfaction Rate';
+      const stat4Val = localStorage.getItem('SWEETOS_about_stat_4_val') || '24/7';
+      const stat4Lbl = localStorage.getItem('SWEETOS_about_stat_4_lbl') || 'Concierge support';
+
+      const p1Title = localStorage.getItem('SWEETOS_about_p1_title') || 'Authentic Sourcing';
+      const p1Desc = localStorage.getItem('SWEETOS_about_p1_desc') || 'Solid wood, premium wool felt, and genuine electronic components sourced ethically from certified sustainable forestry and fabricators.';
+      const p2Title = localStorage.getItem('SWEETOS_about_p2_title') || 'Ergonomic Tactility';
+      const p2Desc = localStorage.getItem('SWEETOS_about_p2_desc') || 'Designed to optimize hand postures, wrist health, and auditory acoustics for high-productivity workspace layouts and mechanical switches.';
+      const p3Title = localStorage.getItem('SWEETOS_about_p3_title') || 'Global Shipping';
+      const p3Desc = localStorage.getItem('SWEETOS_about_p3_desc') || 'Swift shipping to over 50 African countries and globally with secure tracking and reliable express courier partners.';
+
       return `
         <h3>General Store Info</h3>
         <p class="section-desc">Manage store name, descriptors, contact numbers, physical addresses, and storefront banner.</p>
@@ -127,6 +143,92 @@ function renderSettingsSubtabContent(context, subtab) {
           <div class="form-group">
             <label>About Us / Brand Story</label>
             <textarea id="set-store-about-story" class="admin-input" rows="4">${storeAboutStory}</textarea>
+          </div>
+          <div style="border-top: 1px solid rgba(255,255,255,0.08); margin: 24px 0; padding-top: 20px;">
+            <h4 style="font-size: 14px; font-weight: 800; color: var(--primary-accent); margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px;">About Us Stats & Badges</h4>
+            <p style="font-size: 12px; color: var(--text-light); margin: 0 0 16px 0;">Configure the key metrics boxes shown on the storefront About Us tab.</p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 1 Value</label>
+                <input type="text" id="set-about-stat-1-val" value="${stat1Val}" class="admin-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 1 Label</label>
+                <input type="text" id="set-about-stat-1-lbl" value="${stat1Lbl}" class="admin-input">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 2 Value</label>
+                <input type="text" id="set-about-stat-2-val" value="${stat2Val}" class="admin-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 2 Label</label>
+                <input type="text" id="set-about-stat-2-lbl" value="${stat2Lbl}" class="admin-input">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 3 Value</label>
+                <input type="text" id="set-about-stat-3-val" value="${stat3Val}" class="admin-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 3 Label</label>
+                <input type="text" id="set-about-stat-3-lbl" value="${stat3Lbl}" class="admin-input">
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 4 Value</label>
+                <input type="text" id="set-about-stat-4-val" value="${stat4Val}" class="admin-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label style="font-size: 11px;">Stat 4 Label</label>
+                <input type="text" id="set-about-stat-4-lbl" value="${stat4Lbl}" class="admin-input">
+              </div>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid rgba(255,255,255,0.08); margin: 24px 0; padding-top: 20px;">
+            <h4 style="font-size: 14px; font-weight: 800; color: var(--primary-accent); margin: 0 0 4px 0; text-transform: uppercase; letter-spacing: 0.5px;">About Us Design Principles</h4>
+            <p style="font-size: 12px; color: var(--text-light); margin: 0 0 16px 0;">Configure the three sourcing and design principles cards on the About Us page.</p>
+
+            <div style="margin-bottom: 20px; padding: 12px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+              <div class="form-group">
+                <label>Principle 1 Title</label>
+                <input type="text" id="set-about-p1-title" value="${p1Title}" class="admin-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Principle 1 Description</label>
+                <textarea id="set-about-p1-desc" class="admin-input" rows="2">${p1Desc}</textarea>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 20px; padding: 12px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+              <div class="form-group">
+                <label>Principle 2 Title</label>
+                <input type="text" id="set-about-p2-title" value="${p2Title}" class="admin-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Principle 2 Description</label>
+                <textarea id="set-about-p2-desc" class="admin-input" rows="2">${p2Desc}</textarea>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 20px; padding: 12px; background: rgba(255,255,255,0.02); border-radius: 8px;">
+              <div class="form-group">
+                <label>Principle 3 Title</label>
+                <input type="text" id="set-about-p3-title" value="${p3Title}" class="admin-input">
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label>Principle 3 Description</label>
+                <textarea id="set-about-p3-desc" class="admin-input" rows="2">${p3Desc}</textarea>
+              </div>
+            </div>
           </div>
           
           <div class="form-group">
@@ -776,6 +878,24 @@ export function attachAdminSettingsListeners(context, shadow) {
       localStorage.setItem('SWEETOS_store_hours', storeHours);
       localStorage.setItem('SWEETOS_store_about_story', storeAboutStory);
       localStorage.setItem('SWEETOS_store_entrance_image', storeEntranceImg);
+
+      // Save stats
+      localStorage.setItem('SWEETOS_about_stat_1_val', shadow.getElementById('set-about-stat-1-val').value.trim());
+      localStorage.setItem('SWEETOS_about_stat_1_lbl', shadow.getElementById('set-about-stat-1-lbl').value.trim());
+      localStorage.setItem('SWEETOS_about_stat_2_val', shadow.getElementById('set-about-stat-2-val').value.trim());
+      localStorage.setItem('SWEETOS_about_stat_2_lbl', shadow.getElementById('set-about-stat-2-lbl').value.trim());
+      localStorage.setItem('SWEETOS_about_stat_3_val', shadow.getElementById('set-about-stat-3-val').value.trim());
+      localStorage.setItem('SWEETOS_about_stat_3_lbl', shadow.getElementById('set-about-stat-3-lbl').value.trim());
+      localStorage.setItem('SWEETOS_about_stat_4_val', shadow.getElementById('set-about-stat-4-val').value.trim());
+      localStorage.setItem('SWEETOS_about_stat_4_lbl', shadow.getElementById('set-about-stat-4-lbl').value.trim());
+
+      // Save design principles
+      localStorage.setItem('SWEETOS_about_p1_title', shadow.getElementById('set-about-p1-title').value.trim());
+      localStorage.setItem('SWEETOS_about_p1_desc', shadow.getElementById('set-about-p1-desc').value.trim());
+      localStorage.setItem('SWEETOS_about_p2_title', shadow.getElementById('set-about-p2-title').value.trim());
+      localStorage.setItem('SWEETOS_about_p2_desc', shadow.getElementById('set-about-p2-desc').value.trim());
+      localStorage.setItem('SWEETOS_about_p3_title', shadow.getElementById('set-about-p3-title').value.trim());
+      localStorage.setItem('SWEETOS_about_p3_desc', shadow.getElementById('set-about-p3-desc').value.trim());
 
       window.dispatchEvent(new CustomEvent('branding:updated'));
       window.dispatchEvent(new CustomEvent('toast:show', { detail: 'General store information saved successfully.' }));

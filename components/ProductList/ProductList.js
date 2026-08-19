@@ -3365,6 +3365,22 @@ class ProductList extends HTMLElement {
       const storeAboutStory = localStorage.getItem('SWEETOS_store_about_story') || 'We believe that your physical workspace is a direct reflection of your mind. Every tactile keystroke on our mechanical layouts, every frequency shift in our custom studio audio monitors, and every ambient ray of smart lighting is calibrated to enhance focus, creativity, and deep flow.\n\nSWEETOS was founded to rescue professionals from cluttered, generic desks. By sourcing only the finest premium materials — including solid oak, CNC-milled aluminum, and artisan felt wool — we deliver functional luxury that is made to last a lifetime.';
       const storeEntranceImage = localStorage.getItem('SWEETOS_store_entrance_image') || './assets/desk_mat_1786712444512.jpg';
       
+      const s1Val = localStorage.getItem('SWEETOS_about_stat_1_val') || '15,000+';
+      const s1Lbl = localStorage.getItem('SWEETOS_about_stat_1_lbl') || 'Workspace upgrades';
+      const s2Val = localStorage.getItem('SWEETOS_about_stat_2_val') || '50+';
+      const s2Lbl = localStorage.getItem('SWEETOS_about_stat_2_lbl') || 'Countries shipped';
+      const s3Val = localStorage.getItem('SWEETOS_about_stat_3_val') || '99.4%';
+      const s3Lbl = localStorage.getItem('SWEETOS_about_stat_3_lbl') || 'Satisfaction Rate';
+      const s4Val = localStorage.getItem('SWEETOS_about_stat_4_val') || '24/7';
+      const s4Lbl = localStorage.getItem('SWEETOS_about_stat_4_lbl') || 'Concierge support';
+
+      const p1Title = localStorage.getItem('SWEETOS_about_p1_title') || 'Authentic Sourcing';
+      const p1Desc = localStorage.getItem('SWEETOS_about_p1_desc') || 'Solid wood, premium wool felt, and genuine electronic components sourced ethically from certified sustainable forestry and fabricators.';
+      const p2Title = localStorage.getItem('SWEETOS_about_p2_title') || 'Ergonomic Tactility';
+      const p2Desc = localStorage.getItem('SWEETOS_about_p2_desc') || 'Designed to optimize hand postures, wrist health, and auditory acoustics for high-productivity workspace layouts and mechanical switches.';
+      const p3Title = localStorage.getItem('SWEETOS_about_p3_title') || 'Global Shipping';
+      const p3Desc = localStorage.getItem('SWEETOS_about_p3_desc') || 'Swift shipping to over 50 African countries and globally with secure tracking and reliable express courier partners.';
+
       const storyParagraphs = storeAboutStory.split('\n\n').map(p => `
         <p style="font-size: 15.5px; color: var(--text-gray); line-height: 1.8; margin: 0;">${p.trim()}</p>
       `).join('');
@@ -3386,20 +3402,20 @@ class ProductList extends HTMLElement {
           <!-- Section 2: Key Sourcing / Impact Numbers -->
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px;">
             <div class="glass-panel" style="padding: 24px; border-radius: 16px; border: 1.5px solid var(--border); text-align: center; background: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">15,000+</div>
-              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">Workspace upgrades</span>
+              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">${s1Val}</div>
+              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">${s1Lbl}</span>
             </div>
             <div class="glass-panel" style="padding: 24px; border-radius: 16px; border: 1.5px solid var(--border); text-align: center; background: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">50+</div>
-              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">Countries shipped</span>
+              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">${s2Val}</div>
+              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">${s2Lbl}</span>
             </div>
             <div class="glass-panel" style="padding: 24px; border-radius: 16px; border: 1.5px solid var(--border); text-align: center; background: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">99.4%</div>
-              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">Satisfaction Rate</span>
+              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">${s3Val}</div>
+              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">${s3Lbl}</span>
             </div>
             <div class="glass-panel" style="padding: 24px; border-radius: 16px; border: 1.5px solid var(--border); text-align: center; background: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">24/7</div>
-              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">Concierge support</span>
+              <div style="font-size: 32px; font-weight: 850; color: var(--primary); margin-bottom: 4px;">${s4Val}</div>
+              <span style="font-size: 13px; font-weight: 750; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">${s4Lbl}</span>
             </div>
           </div>
 
@@ -3410,20 +3426,20 @@ class ProductList extends HTMLElement {
               
               <div class="glass-panel" style="padding: 24px; border-radius: 16px; background: rgba(0, 82, 204, 0.015); border: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
                 <div style="font-size: 28px; background: rgba(0, 82, 204, 0.05); width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 12px;">🪵</div>
-                <h4 style="font-size: 16px; font-weight: 750; color: var(--text-dark); margin: 0;">Authentic Sourcing</h4>
-                <p style="font-size: 13.5px; color: var(--text-gray); line-height: 1.6; margin: 0;">Solid wood, premium wool felt, and genuine electronic components sourced ethically from certified sustainable forestry and fabricators.</p>
+                <h4 style="font-size: 16px; font-weight: 750; color: var(--text-dark); margin: 0;">${p1Title}</h4>
+                <p style="font-size: 13.5px; color: var(--text-gray); line-height: 1.6; margin: 0;">${p1Desc}</p>
               </div>
 
               <div class="glass-panel" style="padding: 24px; border-radius: 16px; background: rgba(0, 82, 204, 0.015); border: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
                 <div style="font-size: 28px; background: rgba(0, 82, 204, 0.05); width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 12px;">⌨️</div>
-                <h4 style="font-size: 16px; font-weight: 750; color: var(--text-dark); margin: 0;">Ergonomic Tactility</h4>
-                <p style="font-size: 13.5px; color: var(--text-gray); line-height: 1.6; margin: 0;">Designed to optimize hand postures, wrist health, and auditory acoustics for high-productivity workspace layouts and mechanical switches.</p>
+                <h4 style="font-size: 16px; font-weight: 750; color: var(--text-dark); margin: 0;">${p2Title}</h4>
+                <p style="font-size: 13.5px; color: var(--text-gray); line-height: 1.6; margin: 0;">${p2Desc}</p>
               </div>
 
               <div class="glass-panel" style="padding: 24px; border-radius: 16px; background: rgba(0, 82, 204, 0.015); border: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 12px;">
                 <div style="font-size: 28px; background: rgba(0, 82, 204, 0.05); width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; border-radius: 12px;">🌍</div>
-                <h4 style="font-size: 16px; font-weight: 750; color: var(--text-dark); margin: 0;">Global Shipping</h4>
-                <p style="font-size: 13.5px; color: var(--text-gray); line-height: 1.6; margin: 0;">Swift shipping to over 50 African countries and globally with secure tracking and reliable express courier partners.</p>
+                <h4 style="font-size: 16px; font-weight: 750; color: var(--text-dark); margin: 0;">${p3Title}</h4>
+                <p style="font-size: 13.5px; color: var(--text-gray); line-height: 1.6; margin: 0;">${p3Desc}</p>
               </div>
 
             </div>
@@ -3871,12 +3887,12 @@ class ProductList extends HTMLElement {
                   <div style="display: flex; gap: 16px; align-items: center;">
                     <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">🏪</div>
                     <div>
-                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">Magasin / Store Name</span>
-                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Enter the business title display name:</span>
+                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">Store Name</span>
+                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Business display name:</span>
                     </div>
                   </div>
                 </div>
-                <input type="text" id="contact-store-input" value="${storeName}" placeholder="Succes Technology, SWEETOS Shop..." autocomplete="organization" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="text" id="contact-store-input" value="${storeName}" readonly style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: #f8fafc; color: var(--text-dark); font-weight: 600; pointer-events: none;">
               </div>
 
               <!-- Card 2: Emplacement -->
@@ -3885,13 +3901,13 @@ class ProductList extends HTMLElement {
                   <div style="display: flex; gap: 16px; align-items: center;">
                     <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">📍</div>
                     <div>
-                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">Emplacement / Location</span>
-                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Enter physical maps searching coordinates:</span>
+                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">Location</span>
+                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Physical address coordinates:</span>
                     </div>
                   </div>
                   <button id="contact-map-btn" style="height: 30px; padding: 0 14px; font-size: 11.5px; border-radius: 8px; border: none; cursor: pointer; flex-shrink: 0; background: var(--primary); color: white; font-weight: 750;">Carte</button>
                 </div>
-                <input type="text" id="contact-address-input" value="${storeAddress}" placeholder="Type address search keyword..." autocomplete="street-address" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="text" id="contact-address-input" value="${storeAddress}" readonly style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: #f8fafc; color: var(--text-dark); font-weight: 600; pointer-events: none;">
               </div>
 
               <!-- Card 3: Phone contact -->
@@ -3900,8 +3916,8 @@ class ProductList extends HTMLElement {
                   <div style="display: flex; gap: 16px; align-items: center;">
                     <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">📞</div>
                     <div>
-                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">Téléphone / Contact</span>
-                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Enter cellular dial / text prefix:</span>
+                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">Phone / Contact</span>
+                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Cellular Dial / WhatsApp text number:</span>
                     </div>
                   </div>
                   <div style="display: flex; gap: 6px; flex-shrink: 0;">
@@ -3909,7 +3925,7 @@ class ProductList extends HTMLElement {
                     <button id="contact-call-btn" style="height: 30px; padding: 0 12px; font-size: 11px; border-radius: 8px; border: 1.5px solid var(--border); cursor: pointer; background: white; color: var(--text-gray); font-weight: 750;">Appeler</button>
                   </div>
                 </div>
-                <input type="text" id="contact-phone-input" value="${storePhone}" placeholder="ex: +2250172934545" autocomplete="tel" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="text" id="contact-phone-input" value="${storePhone}" readonly style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: #f8fafc; color: var(--text-dark); font-weight: 600; pointer-events: none;">
               </div>
 
               <!-- Card 4: Email contact -->
@@ -3918,13 +3934,13 @@ class ProductList extends HTMLElement {
                   <div style="display: flex; gap: 16px; align-items: center;">
                     <div style="font-size: 20px; background: rgba(0, 82, 204, 0.05); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 50%;">✉️ </div>
                     <div>
-                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">E-mail</span>
-                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Enter inquiry dispatch address:</span>
+                      <span style="font-size: 9.5px; font-weight: 800; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; display: block;">E-mail Support</span>
+                      <span style="font-size: 13px; font-weight: 600; color: var(--text-dark);">Official support dispatch address:</span>
                     </div>
                   </div>
                   <button id="contact-email-btn" style="height: 30px; padding: 0 14px; font-size: 11.5px; border-radius: 8px; border: none; cursor: pointer; flex-shrink: 0; background: #0052cc; color: white; font-weight: 750;">Envoyer</button>
                 </div>
-                <input type="email" id="contact-email-input" value="${storeEmail}" placeholder="ex: austinlebechi02@gmail.com" autocomplete="email" style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: white; color: var(--text-dark); font-weight: 600;">
+                <input type="email" id="contact-email-input" value="${storeEmail}" readonly style="width: 100%; border: 1.5px solid var(--border); border-radius: 10px; height: 40px; padding: 0 16px; font-size: 13px; outline: none; background: #f8fafc; color: var(--text-dark); font-weight: 600; pointer-events: none;">
               </div>
 
               <!-- Card 5: Hours -->
