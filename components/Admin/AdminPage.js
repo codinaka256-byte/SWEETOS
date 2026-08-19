@@ -370,9 +370,38 @@ class AdminPage extends HTMLElement {
     this.searchQueries[this.currentTab] = val;
   }
 
+   checkSessionValidity() {
+    const isAuth = sessionStorage.getItem('SWEETOS_admin_authenticated') === 'true';
+    const globalVersion = localStorage.getItem('SWEETOS_admin_session_version');
+    const deviceVersion = sessionStorage.getItem('SWEETOS_admin_device_session_version');
+
+    if (isAuth && globalVersion && deviceVersion !== globalVersion) {
+      sessionStorage.removeItem('SWEETOS_admin_authenticated');
+      sessionStorage.removeItem('SWEETOS_admin_device_session_version');
+      this.isAuthenticated = false;
+    }
+  }
+
   connectedCallback() {
+    this.checkSessionValidity();
     this.render();
     this.attachListeners();
+
+    this._storageEventListener = (e) => {
+      if (e.key === 'SWEETOS_admin_session_version') {
+        const isAuth = sessionStorage.getItem('SWEETOS_admin_authenticated') === 'true';
+        const deviceVersion = sessionStorage.getItem('SWEETOS_admin_device_session_version');
+        if (isAuth && e.newValue && deviceVersion !== e.newValue) {
+          sessionStorage.removeItem('SWEETOS_admin_authenticated');
+          sessionStorage.removeItem('SWEETOS_admin_device_session_version');
+          this.isAuthenticated = false;
+          this.render();
+          this.attachListeners();
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Session expired: logged out from another device.' }));
+        }
+      }
+    };
+    window.addEventListener('storage', this._storageEventListener);
 
     // Fetch all database sources concurrently on startup
     Promise.all([
@@ -880,6 +909,9 @@ class AdminPage extends HTMLElement {
           if (email === 'admin@sweetos.com' && pass === 'admin') {
             this.isAuthenticated = true;
             sessionStorage.setItem('SWEETOS_admin_authenticated', 'true');
+            const sessionVersion = localStorage.getItem('SWEETOS_admin_session_version') || Date.now().toString();
+            localStorage.setItem('SWEETOS_admin_session_version', sessionVersion);
+            sessionStorage.setItem('SWEETOS_admin_device_session_version', sessionVersion);
             this.render();
             this.attachListeners();
             window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Welcome back, Admin Manager!' }));
@@ -926,6 +958,12 @@ class AdminPage extends HTMLElement {
       case 'reviews':
         attachAdminReviewsListeners(this, shadow);
         break;
+    }
+  }
+
+  disconnectedCallback() {
+    if (this._storageEventListener) {
+      window.removeEventListener('storage', this._storageEventListener);
     }
   }
 

@@ -714,18 +714,23 @@ function renderSettingsSubtabContent(context, subtab) {
             <button type="submit" class="admin-btn admin-btn-danger mt-4">Change Admin Password</button>
           </form>
 
-          <div class="sessions-history" style="flex:1; border-left:1px solid var(--border); padding-left:20px;">
-            <h4 style="font-weight:800; font-size:14px; margin:0 0 10px 0;">Active Login Sessions</h4>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-              <div style="padding:10px; background:rgba(0, 82, 204, 0.05); border: 1px solid rgba(0, 82, 204, 0.1); border-radius:10px; font-size:12px; line-height:1.4;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                  <strong>Windows PC - Chrome Browser</strong>
-                  <span style="color:#10b981; font-weight:700;">Active Session</span>
+          <div class="sessions-history" style="flex:1; border-left:1px solid var(--border); padding-left:20px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <h4 style="font-weight:800; font-size:14px; margin:0 0 10px 0;">Active Login Sessions</h4>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="padding:10px; background:rgba(0, 82, 204, 0.05); border: 1px solid rgba(0, 82, 204, 0.1); border-radius:10px; font-size:12px; line-height:1.4;">
+                  <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <strong>Windows PC - Chrome Browser</strong>
+                    <span style="color:#10b981; font-weight:700;">Active Session</span>
+                  </div>
+                  <span>IP: 197.234.34.12 • Location: Abidjan, CI</span>
+                  <p style="color:var(--text-gray); margin:4px 0 0 0; font-size:11px;">Authenticated: Today 09:48</p>
                 </div>
-                <span>IP: 197.234.34.12 • Location: Abidjan, CI</span>
-                <p style="color:var(--text-gray); margin:4px 0 0 0; font-size:11px;">Authenticated: Today 09:48</p>
               </div>
             </div>
+            <button type="button" id="logout-others-btn" class="admin-btn admin-btn-danger mt-4" style="background:#ef4444; color:white; border:none; font-weight:800; font-size:12px; height:38px; justify-content:center; cursor:pointer;">
+              Log Out Other Devices / Sessions
+            </button>
           </div>
         </div>
       `;
@@ -1377,6 +1382,17 @@ export function attachAdminSettingsListeners(context, shadow) {
       shadow.getElementById('set-pass-curr').value = '';
       shadow.getElementById('set-pass-new').value = '';
       shadow.getElementById('set-pass-conf').value = '';
+    });
+  }
+
+  // Log out other sessions listener
+  const logoutOthersBtn = shadow.getElementById('logout-others-btn');
+  if (logoutOthersBtn) {
+    logoutOthersBtn.addEventListener('click', () => {
+      const newVersion = Date.now().toString();
+      localStorage.setItem('SWEETOS_admin_session_version', newVersion);
+      sessionStorage.setItem('SWEETOS_admin_device_session_version', newVersion);
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'All other admin sessions have been logged out!' }));
     });
   }
 
