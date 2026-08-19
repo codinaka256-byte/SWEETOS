@@ -496,6 +496,67 @@ export function attachAdminOrdersListeners(context, shadow) {
         order.trackingNumber = trackingNum;
         context.saveDatabase('orders');
 
+        // Create customer notification
+        if (order.email) {
+          const safeKey = order.email.replace(/[^a-zA-Z0-9]/g, '_');
+          const notifKey = `SWEETOS_notifications_${safeKey}`;
+          
+          let customerNotifs = [];
+          const savedNotifs = localStorage.getItem(notifKey);
+          if (savedNotifs) {
+            try {
+              customerNotifs = JSON.parse(savedNotifs);
+            } catch(e) {}
+          }
+          
+          // Generate status-specific emojis and message
+          let icon = '📦';
+          let title = `Mise à jour commande #${order.id}`;
+          let desc = `Le statut de votre commande #${order.id} a été mis à jour : ${nextStatus}.`;
+          
+          if (nextStatus === 'Shipped') {
+            icon = '🚚';
+            title = `Commande #${order.id} expédiée !`;
+            desc = `Votre commande #${order.id} a été expédiée. Numéro de suivi : ${trackingNum || 'N/A'}`;
+          } else if (nextStatus === 'Livr' || nextStatus === 'Done' || nextStatus === 'Livre' || nextStatus.includes('Livr')) {
+            icon = '✅';
+            title = `Commande #${order.id} livrée !`;
+            desc = `Félicitations, votre commande #${order.id} a été livrée avec succès.`;
+          } else if (nextStatus === 'Cancelled') {
+            icon = '❌';
+            title = `Commande #${order.id} annulée`;
+            desc = `Votre commande #${order.id} a été annulée.`;
+          } else if (nextStatus === 'Confirm' || nextStatus.includes('Confirm')) {
+            icon = '👍';
+            title = `Commande #${order.id} confirmée`;
+            desc = `Votre commande #${order.id} a été confirmée et est en cours de traitement.`;
+          }
+          
+          customerNotifs.unshift({
+            id: Date.now(),
+            type: 'shipping',
+            icon: icon,
+            title: title,
+            desc: desc,
+            time: 'Just now',
+            unread: true
+          });
+          
+          localStorage.setItem(notifKey, JSON.stringify(customerNotifs));
+          
+          // If the customer is currently logged in, trigger badge sync instantly
+          const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
+          if (loggedInUserStr) {
+            try {
+              const loggedIn = JSON.parse(loggedInUserStr);
+              if (loggedIn.email === order.email) {
+                const totalUnread = customerNotifs.filter(n => n.unread).length;
+                window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
+              }
+            } catch(e) {}
+          }
+        }
+
         // If order status is set to Cancelled, restock catalog products quantity
         if (nextStatus === 'Cancelled' && originalStatus !== 'Cancelled') {
           order.products.forEach(item => {
