@@ -1,6 +1,47 @@
 import { formatPrice } from '../../utils/storage.js';
 
 export function renderAdminAnalytics(context) {
+  // Pre-seed mock customer activity logs if empty
+  let sessionLogs = [];
+  try {
+    const rawLogs = localStorage.getItem('SWEETOS_activity_logs');
+    if (!rawLogs) {
+      sessionLogs = [
+        { id: "mock_1", user: "Alina Putri", loginType: "Google OAuth", visits: ["Home", "Product: Keyboard Q1 Pro", "Cart", "Checkout Form"], bought: true, timestamp: "18 Aug, 02:32 PM" },
+        { id: "mock_2", user: "Odinaka Chibuike", loginType: "Email & Password", visits: ["Home", "Catalog: Audio", "Product: Sennheiser HD 600"], bought: false, timestamp: "18 Aug, 03:10 PM" },
+        { id: "mock_3", user: "Guest User", loginType: "Guest Checkout", visits: ["Home", "Product: Solid Oak Riser Shelf", "Checkout Form"], bought: true, timestamp: "19 Aug, 09:15 AM" },
+        { id: "mock_4", user: "Alex Johnson", loginType: "Not Logged In", visits: ["Home", "Product: Nebula Light Ring Dial"], bought: false, timestamp: "19 Aug, 10:44 AM" }
+      ];
+      localStorage.setItem('SWEETOS_activity_logs', JSON.stringify(sessionLogs));
+    } else {
+      sessionLogs = JSON.parse(rawLogs);
+    }
+  } catch (err) {
+    sessionLogs = [];
+  }
+
+  // Pre-seed mock failed searches if empty
+  let failedSearches = [];
+  try {
+    const rawSearches = localStorage.getItem('SWEETOS_failed_searches');
+    if (!rawSearches) {
+      failedSearches = [
+        { query: "wood wrist rest", timestamp: "18 Aug, 04:05 PM" },
+        { query: "mx master 3s mouse", timestamp: "19 Aug, 08:22 AM" },
+        { query: "type-c braided cable", timestamp: "19 Aug, 11:05 AM" }
+      ];
+      localStorage.setItem('SWEETOS_failed_searches', JSON.stringify(failedSearches));
+    } else {
+      failedSearches = JSON.parse(rawSearches);
+    }
+  } catch (err) {
+    failedSearches = [];
+  }
+
+  // Sort logs by time (newest first)
+  const sortedSessionLogs = [...sessionLogs].reverse();
+  const sortedFailedSearches = [...failedSearches].reverse();
+
   // Sales computations
   const totalSales = context.orders.filter(o => o.status !== 'Cancelled' && o.status !== 'Refusé').reduce((sum, o) => sum + o.total, 0);
   const completedOrders = context.orders.filter(o => o.status !== 'Cancelled').length;
@@ -201,6 +242,83 @@ export function renderAdminAnalytics(context) {
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- Real-Time Customer Session & Search Insights (Two Columns) -->
+    <div class="admin-columns-grid" style="margin-top: 24px; display: flex; gap: 24px; flex-wrap: wrap;">
+      
+      <!-- Session Activity Log Table -->
+      <div class="glass-panel" style="flex: 2; min-width: 320px; padding: 24px; border-radius: 20px; border: 1.5px solid var(--border); background: white;">
+        <div style="margin-bottom: 16px;">
+          <h3 style="margin:0; font-size:16px; font-weight:850; color:var(--text-dark);">Customer Sessions & Visits</h3>
+          <span class="sub" style="font-size:12.5px; color:var(--text-light);">Real-time tracking of active store visitors, logins, and purchases</span>
+        </div>
+        <div class="table-wrapper" style="max-height: 300px; overflow-y: auto;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1.5px solid var(--border); text-align: left;">
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Customer</th>
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Method</th>
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Pages Visited</th>
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Purchased</th>
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light); text-align: right;">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedSessionLogs.length === 0 ? `
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: 20px; color: var(--text-light); font-size: 13px;">No active customer sessions recorded.</td>
+                </tr>
+              ` : sortedSessionLogs.map(s => `
+                <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
+                  <td style="padding: 12px 10px; color: var(--text-dark);"><strong>${s.user}</strong></td>
+                  <td style="padding: 12px 10px;"><span style="font-size: 11px; font-weight: 750; background: #e2e8f0; color: #475569; padding: 4px 8px; border-radius: 12px;">${s.loginType}</span></td>
+                  <td style="padding: 12px 10px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${s.visits.join(' → ')}">
+                    ${s.visits.map(v => `<span style="display: inline-block; background: rgba(0, 82, 204, 0.05); color: var(--primary); padding: 2px 6px; border-radius: 6px; font-size: 11px; margin-right: 4px; font-weight: 600;">${v}</span>`).join('')}
+                  </td>
+                  <td style="padding: 12px 10px;">
+                    <span class="status-badge ${s.bought ? 'status-green' : 'status-yellow'}" style="font-weight: 800;">
+                      ${s.bought ? 'Yes ✓' : 'No'}
+                    </span>
+                  </td>
+                  <td style="padding: 12px 10px; text-align: right; color: var(--text-gray); font-size: 11.5px;">${s.timestamp}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Failed Searches Table -->
+      <div class="glass-panel" style="flex: 1; min-width: 280px; padding: 24px; border-radius: 20px; border: 1.5px solid var(--border); background: white;">
+        <div style="margin-bottom: 16px;">
+          <h3 style="margin:0; font-size:16px; font-weight:850; color:var(--text-dark);">Unresolved Searches</h3>
+          <span class="sub" style="font-size:12.5px; color:var(--text-light);">Customer search queries that returned 0 matches</span>
+        </div>
+        <div class="table-wrapper" style="max-height: 300px; overflow-y: auto;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="border-bottom: 1.5px solid var(--border); text-align: left;">
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light);">Search Query</th>
+                <th style="padding: 10px; font-size: 12px; font-weight: 750; color: var(--text-light); text-align: right;">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedFailedSearches.length === 0 ? `
+                <tr>
+                  <td colspan="2" style="text-align: center; padding: 20px; color: var(--text-light); font-size: 13px;">No failed searches recorded.</td>
+                </tr>
+              ` : sortedFailedSearches.map(f => `
+                <tr style="border-bottom: 1px solid var(--border); font-size: 13px;">
+                  <td style="padding: 12px 10px;"><code style="font-size: 13px; font-weight: 750; color: #ef4444; background: rgba(239, 68, 68, 0.05); padding: 4px 8px; border-radius: 6px;">"${f.query}"</code></td>
+                  <td style="padding: 12px 10px; text-align: right; color: var(--text-gray); font-size: 11.5px;">${f.timestamp || f.date || ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   `;
 }

@@ -732,6 +732,18 @@ class CheckoutModal extends HTMLElement {
 
         window.dispatchEvent(new CustomEvent('orders:updated'));
 
+        const sessionId = sessionStorage.getItem('SWEETOS_session_id');
+        if (sessionId) {
+          try {
+            const logs = JSON.parse(localStorage.getItem('SWEETOS_activity_logs') || '[]');
+            const sess = logs.find(log => log.id === sessionId);
+            if (sess) {
+              sess.bought = true;
+              localStorage.setItem('SWEETOS_activity_logs', JSON.stringify(logs));
+            }
+          } catch (err) {}
+        }
+
         setTimeout(() => {
           this.step = 3;
           this.orderedItems = cartItems;
