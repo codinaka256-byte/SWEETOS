@@ -2265,7 +2265,9 @@ class ProductList extends HTMLElement {
 
     window.addEventListener('navigation:changed', (e) => {
       const { page, category, brand } = e.detail;
-      this.currentPage = page || 'home';
+      let targetPage = page || 'home';
+      if (targetPage === 'about') targetPage = 'about-us';
+      this.currentPage = targetPage;
       this.currentCategory = category || 'All';
       this.currentBrand = brand || '';
       this.currentBrandFilter = 'All'; // Reset active brand filter on navigation change

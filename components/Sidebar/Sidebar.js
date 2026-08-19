@@ -112,7 +112,7 @@ class Sidebar extends HTMLElement {
             </svg>
             <span>Coupons</span>
           </a>
-          <a class="sidebar-item" href="#" data-page="about">
+          <a class="sidebar-item" href="#" data-page="about-us">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="12" y1="16" x2="12" y2="12"></line>

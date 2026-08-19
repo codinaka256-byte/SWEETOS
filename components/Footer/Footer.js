@@ -36,12 +36,11 @@ class Footer extends HTMLElement {
               <a href="#" data-category="Desks">Desks</a>
             </div>
             
-            <div class="link-group">
+            <div class="link-group footer-support-links">
               <h4>Support</h4>
-              <a href="#">Contact Us</a>
-              <a href="#">Shipping FAQ</a>
-              <a href="#">Warranty & Returns</a>
-              <a href="#">Privacy Policy</a>
+              <a href="#/contact" data-page="contact">Contact Us</a>
+              <a href="#/refund" data-page="refund">Shipping & Refund FAQ</a>
+              <a href="#/terms" data-page="terms">Terms & Conditions</a>
             </div>
           </div>
           
@@ -97,6 +96,20 @@ class Footer extends HTMLElement {
           if (productListEl) {
             productListEl.scrollIntoView({ behavior: 'smooth' });
           }
+        }
+      });
+    });
+
+    // Support pages redirection
+    shadow.querySelectorAll('.footer-support-links a').forEach(link => {
+      link.addEventListener('click', (e) => {
+        const page = link.getAttribute('data-page');
+        if (page) {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('navigation:changed', {
+            detail: { page }
+          }));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
     });
