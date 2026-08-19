@@ -22,6 +22,13 @@ class CheckoutModal extends HTMLElement {
     };
   }
 
+  getShippingFee(subtotal) {
+    if (subtotal === 0) return 0;
+    const shippingRate = parseFloat(localStorage.getItem('SWEETOS_shipping_rate') || '2000');
+    const freeThreshold = parseFloat(localStorage.getItem('SWEETOS_free_shipping_threshold') || '15000');
+    return subtotal >= freeThreshold ? 0 : shippingRate;
+  }
+
   getOrderTotal() {
     const cartSaved = localStorage.getItem(getCartStorageKey());
     let cartItems = [];
@@ -31,7 +38,7 @@ class CheckoutModal extends HTMLElement {
       } catch (e) {}
     }
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shippingFee = cartItems.length > 0 ? 2000 : 0;
+    const shippingFee = this.getShippingFee(subtotal);
     return subtotal + shippingFee;
   }
 
@@ -237,28 +244,47 @@ class CheckoutModal extends HTMLElement {
           <div class="form-group">
             <label style="font-weight: 750; font-size: 13px; color: #102a43; margin-bottom: 2px;">Méthode de paiement</label>
             <div class="payment-methods-grid">
-              <div class="payment-method-card" data-value="cod">
-                <span class="payment-method-icon">📦</span>
-                <span class="payment-method-title">Livraison</span>
-              </div>
-              <div class="payment-method-card" data-value="wave">
-                <span class="payment-method-icon">🌊</span>
-                <span class="payment-method-title">Wave</span>
-              </div>
-              <div class="payment-method-card" data-value="orange">
-                <span class="payment-method-icon">🍊</span>
-                <span class="payment-method-title">Orange</span>
-              </div>
-              <div class="payment-method-card" data-value="mtn">
-                <span class="payment-method-icon">💛</span>
-                <span class="payment-method-title">MTN</span>
-              </div>
-              <div class="payment-method-card" data-value="card">
-                <span class="payment-method-icon">💳</span>
-                <span class="payment-method-title">Carte</span>
-              </div>
+              ${localStorage.getItem('SWEETOS_payment_cod_enabled') !== 'false' ? `
+                <div class="payment-method-card" data-value="cod">
+                  <span class="payment-method-icon">📦</span>
+                  <span class="payment-method-title">Livraison</span>
+                </div>
+              ` : ''}
+              ${localStorage.getItem('SWEETOS_payment_momo_enabled') !== 'false' ? `
+                <div class="payment-method-card" data-value="wave">
+                  <span class="payment-method-icon">🌊</span>
+                  <span class="payment-method-title">Wave</span>
+                </div>
+                <div class="payment-method-card" data-value="orange">
+                  <span class="payment-method-icon">🍊</span>
+                  <span class="payment-method-title">Orange</span>
+                </div>
+                <div class="payment-method-card" data-value="mtn">
+                  <span class="payment-method-icon">💛</span>
+                  <span class="payment-method-title">MTN</span>
+                </div>
+              ` : ''}
+              ${localStorage.getItem('SWEETOS_payment_card_enabled') === 'true' ? `
+                <div class="payment-method-card" data-value="card">
+                  <span class="payment-method-icon">💳</span>
+                  <span class="payment-method-title">Carte</span>
+                </div>
+              ` : ''}
             </div>
-            <input type="hidden" id="payment-method" value="${this.selectedPaymentMethod || 'cod'}" required>
+            ${(() => {
+              const cod = localStorage.getItem('SWEETOS_payment_cod_enabled') !== 'false';
+              const momo = localStorage.getItem('SWEETOS_payment_momo_enabled') !== 'false';
+              const card = localStorage.getItem('SWEETOS_payment_card_enabled') === 'true';
+              let fallback = 'cod';
+              if (!cod) {
+                if (momo) fallback = 'wave';
+                else if (card) fallback = 'card';
+              }
+              if (!this.selectedPaymentMethod) {
+                this.selectedPaymentMethod = fallback;
+              }
+              return `<input type="hidden" id="payment-method" value="${this.selectedPaymentMethod}" required>`;
+            })()}
           </div>
 
           <!-- Dynamic payment instruction preview -->
@@ -284,6 +310,8 @@ class CheckoutModal extends HTMLElement {
       let paymentTitle = 'Commande passée ! 🎉';
       let paymentSub = 'Merci pour votre achat. Nous allons la confirmer sous peu.';
 
+      const customMomo = localStorage.getItem('SWEETOS_payment_momo_instructions') || 'Veuillez effectuer le transfert puis envoyer la capture WhatsApp.';
+
       if (this.selectedPaymentMethod === 'wave') {
         paymentTitle = 'Attente de paiement Wave 🌊';
         paymentSub = 'Votre commande a bien été enregistrée. Pour la finaliser, veuillez effectuer le transfert Wave.';
@@ -292,11 +320,10 @@ class CheckoutModal extends HTMLElement {
             <h4 style="font-size: 14px; font-weight: 800; color: #166534; margin: 0 0 10px 0; display:flex; align-items:center; gap:8px;">
               <span style="font-size:18px;">🌊</span> Instructions de paiement Wave:
             </h4>
-            <ol style="font-size: 12.5px; color: #166534; padding-left: 20px; margin: 0; line-height: 1.6;">
-              <li>Ouvrez l'application <strong>Wave</strong> sur votre téléphone.</li>
-              <li>Envoyez le montant exact de <strong>${formatPrice(this.latestOrderTotal)}</strong> au numéro Wave : <strong style="color: #0052cc; font-size: 14px;">+225 05 00 61 99 23</strong>.</li>
-              <li>Une fois le transfert effectué, cliquez sur le bouton vert WhatsApp ci-dessous pour envoyer la capture d'écran du reçu au vendeur afin de valider l'expédition.</li>
-            </ol>
+            <p style="font-size: 12.5px; color: #166534; margin: 0; line-height: 1.6; font-weight: 700;">
+              ${customMomo}
+            </p>
+            <p style="font-size: 12.5px; color: #166534; margin: 8px 0 0 0;">Montant total à régler : <strong>${formatPrice(this.latestOrderTotal)}</strong></p>
           </div>
         `;
       } else if (this.selectedPaymentMethod === 'orange') {
@@ -307,11 +334,10 @@ class CheckoutModal extends HTMLElement {
             <h4 style="font-size: 14px; font-weight: 800; color: #7c2d12; margin: 0 0 10px 0; display:flex; align-items:center; gap:8px;">
               <span style="font-size:18px;">🍊</span> Instructions Orange Money:
             </h4>
-            <ol style="font-size: 12.5px; color: #9a3412; padding-left: 20px; margin: 0; line-height: 1.6;">
-              <li>Composez le code de transfert ou utilisez l'application Orange Max it.</li>
-              <li>Envoyez le montant de <strong>${formatPrice(this.latestOrderTotal)}</strong> à notre numéro marchand Orange : <strong style="color: #0052cc; font-size: 14px;">+225 07 00 00 00 00</strong>.</li>
-              <li>Faites une capture d'écran de la confirmation et envoyez-la nous par WhatsApp pour confirmer.</li>
-            </ol>
+            <p style="font-size: 12.5px; color: #9a3412; margin: 0; line-height: 1.6; font-weight: 700;">
+              ${customMomo}
+            </p>
+            <p style="font-size: 12.5px; color: #9a3412; margin: 8px 0 0 0;">Montant total à régler : <strong>${formatPrice(this.latestOrderTotal)}</strong></p>
           </div>
         `;
       } else if (this.selectedPaymentMethod === 'mtn') {
@@ -322,11 +348,10 @@ class CheckoutModal extends HTMLElement {
             <h4 style="font-size: 14px; font-weight: 800; color: #713f12; margin: 0 0 10px 0; display:flex; align-items:center; gap:8px;">
               <span style="font-size:18px;">💛</span> Instructions MTN MoMo:
             </h4>
-            <ol style="font-size: 12.5px; color: #854d0e; padding-left: 20px; margin: 0; line-height: 1.6;">
-              <li>Composez le menu de transfert MTN Mobile Money.</li>
-              <li>Envoyez le montant de <strong>${formatPrice(this.latestOrderTotal)}</strong> à notre numéro MoMo : <strong style="color: #0052cc; font-size: 14px;">+225 05 05 00 00 00</strong>.</li>
-              <li>Envoyez le SMS de confirmation ou la capture par WhatsApp pour validation.</li>
-            </ol>
+            <p style="font-size: 12.5px; color: #854d0e; margin: 0; line-height: 1.6; font-weight: 700;">
+              ${customMomo}
+            </p>
+            <p style="font-size: 12.5px; color: #854d0e; margin: 8px 0 0 0;">Montant total à régler : <strong>${formatPrice(this.latestOrderTotal)}</strong></p>
           </div>
         `;
       } else if (this.selectedPaymentMethod === 'cod') {
@@ -419,7 +444,7 @@ class CheckoutModal extends HTMLElement {
     }
 
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const shippingFee = cartItems.length > 0 ? 2000 : 0; // FCFA 2000 delivery fee
+    const shippingFee = this.getShippingFee(subtotal);
     const total = subtotal + shippingFee;
 
     // Prefill WhatsApp text with order details

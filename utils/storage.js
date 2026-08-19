@@ -41,5 +41,14 @@ export function getNotificationsStorageKey() {
 }
 
 export function formatPrice(price) {
-  return `${Math.round(price).toLocaleString()} CFA`;
+  const currency = localStorage.getItem('SWEETOS_currency') || 'CFA';
+  let symbol = currency;
+  if (currency === 'USD') symbol = '$';
+  else if (currency === 'EUR') symbol = '€';
+  else if (currency === 'CFA' || currency === 'XOF' || currency === 'FCFA') symbol = 'FCFA';
+  
+  if (symbol === '$' || symbol === '€') {
+    return `${symbol}${Math.round(price).toLocaleString()}`;
+  }
+  return `${Math.round(price).toLocaleString()} ${symbol}`;
 }

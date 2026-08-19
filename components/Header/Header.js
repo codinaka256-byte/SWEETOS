@@ -122,7 +122,7 @@ class Header extends HTMLElement {
             <line x1="3" y1="6" x2="21" y2="6"/>
             <path d="M16 10a4 4 0 01-8 0"/>
           </svg>
-          SWEETOS
+          ${localStorage.getItem('SWEETOS_store_name') || 'SWEETOS'}
         </div>
         
         <!-- Search bar (NovaShop premium style matching mockup image) -->
@@ -419,6 +419,15 @@ class Header extends HTMLElement {
     });
 
     window.addEventListener('wishlist:updated', () => {
+      this.syncWishlistBadge();
+    });
+    
+    window.addEventListener('branding:updated', () => {
+      this.render();
+      this.setupEventListeners();
+      this.updateUserPill();
+      this.syncCartBadge();
+      this.syncNotificationBadge();
       this.syncWishlistBadge();
     });
   }

@@ -777,6 +777,7 @@ export function attachAdminSettingsListeners(context, shadow) {
       localStorage.setItem('SWEETOS_store_about_story', storeAboutStory);
       localStorage.setItem('SWEETOS_store_entrance_image', storeEntranceImg);
 
+      window.dispatchEvent(new CustomEvent('branding:updated'));
       window.dispatchEvent(new CustomEvent('toast:show', { detail: 'General store information saved successfully.' }));
     });
 
@@ -841,8 +842,8 @@ export function attachAdminSettingsListeners(context, shadow) {
       localStorage.setItem('SWEETOS_seo_desc', seo);
       localStorage.setItem('SWEETOS_fb_url', fb);
       localStorage.setItem('SWEETOS_ig_url', ig);
-      
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Branding options updated. Reload storefront to see styling changes.' }));
+      window.dispatchEvent(new CustomEvent('branding:updated'));
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Branding options updated successfully!' }));
     });
 
     const primaryPick = shadow.getElementById('set-color-primary');
@@ -1336,6 +1337,7 @@ export function attachAdminSettingsListeners(context, shadow) {
       // Reactively apply theme settings
       document.body.className = theme === 'dark' ? 'dark-theme' : (theme === 'light' ? 'light-theme' : '');
       
+      window.dispatchEvent(new CustomEvent('branding:updated'));
       window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Appearance options saved successfully.' }));
     });
   }

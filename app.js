@@ -23,6 +23,60 @@ import './components/Checkout/CheckoutModal.js';
 import './components/MobileNav/MobileNav.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Apply dynamic store configurations (theme, brand colors, font family)
+  const applyBrandingSettings = () => {
+    const primaryColor = localStorage.getItem('SWEETOS_brand_color_primary') || '#0052cc';
+    const accentColor = localStorage.getItem('SWEETOS_brand_color_accent') || '#00b4d8';
+    const font = localStorage.getItem('SWEETOS_font_family') || 'Outfit';
+    const theme = localStorage.getItem('SWEETOS_theme_mode') || 'dark';
+
+    // Inject Google Font link tag dynamically if it isn't already loaded
+    if (font && !document.getElementById(`font-link-${font}`)) {
+      const link = document.createElement('link');
+      link.id = `font-link-${font}`;
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/ /g, '+')}:wght@300;400;500;600;700;800;900&display=swap`;
+      document.head.appendChild(link);
+    }
+
+    let styleEl = document.getElementById('sweetos-dynamic-branding');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'sweetos-dynamic-branding';
+      document.head.appendChild(styleEl);
+    }
+
+    styleEl.textContent = `
+      :root {
+        --primary: ${primaryColor} !important;
+        --primary-light: ${accentColor} !important;
+        --primary-dark: ${primaryColor} !important;
+        --primary-accent: ${accentColor} !important;
+        --accent: ${accentColor} !important;
+        --font-family: '${font}', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      }
+      body {
+        font-family: var(--font-family) !important;
+      }
+    `;
+
+    // Apply dark/light class on body
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+      document.body.classList.remove('dark-theme');
+    } else {
+      document.body.classList.add('dark-theme');
+      document.body.classList.remove('light-theme');
+    }
+  };
+
+  applyBrandingSettings();
+
+  // Listen to branding settings update triggers
+  window.addEventListener('branding:updated', () => {
+    applyBrandingSettings();
+  });
+
   // Select DOM Elements
   const cartEl = document.getElementById('global-cart-drawer');
   const notifEl = document.getElementById('global-notification-drawer');
