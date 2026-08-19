@@ -463,7 +463,10 @@ function renderSettingsSubtabContent(context, subtab) {
               </thead>
               <tbody>
                 ${context.brands.map(b => {
-                  const prodCount = context.products.filter(p => p.brand === b.name).length;
+                  const prodCount = context.products.filter(p => {
+                    if (p.brand && p.brand.toLowerCase() === b.name.toLowerCase()) return true;
+                    return p.name.toLowerCase().startsWith(b.name.toLowerCase());
+                  }).length;
                   return `
                     <tr>
                       <td style="font-size: 20px; text-align: center;">${b.logo || '🍭'}</td>
