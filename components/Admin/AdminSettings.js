@@ -89,7 +89,7 @@ function renderSettingsSubtabContent(context, subtab) {
   const heroSubtitle = localStorage.getItem('SWEETOS_hero_subtitle') || 'Uncompromising aesthetics for developers & creators';
 
   switch (subtab) {
-    case 'general':
+    case 'general': {
       const storePhone = localStorage.getItem('SWEETOS_store_phone') || '+225 05 00 61 99 23';
       const storeHours = localStorage.getItem('SWEETOS_store_hours') || 'Mon - Fri: 7:00 AM - 8:00 PM | Sun: Closed';
       const storeAboutStory = localStorage.getItem('SWEETOS_store_about_story') || 'SWEETOS was founded to rescue professionals from cluttered, generic desks. By sourcing only the finest premium materials — including solid oak, CNC-milled aluminum, and artisan felt wool — we deliver functional luxury that is made to last a lifetime.';
@@ -257,6 +257,7 @@ function renderSettingsSubtabContent(context, subtab) {
           <button type="submit" class="admin-btn admin-btn-primary mt-4">Save General Changes</button>
         </form>
       `;
+    }
     case 'brand':
       return `
         <h3>Brand Colors & SEO Configuration</h3>
@@ -1424,18 +1425,29 @@ export function attachAdminSettingsListeners(context, shadow) {
     }
 
     paymentForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const cod = shadow.getElementById('set-pay-cod').checked;
-      const momo = shadow.getElementById('set-pay-momo').checked;
-      const momoInst = shadow.getElementById('set-pay-momo-instructions').value;
-      const card = shadow.getElementById('set-pay-card').checked;
+      try {
+        e.preventDefault();
+        const codEl = shadow.getElementById('set-pay-cod');
+        const momoEl = shadow.getElementById('set-pay-momo');
+        const momoInstEl = shadow.getElementById('set-pay-momo-instructions');
+        const cardEl = shadow.getElementById('set-pay-card');
 
-      localStorage.setItem('SWEETOS_payment_cod_enabled', cod ? 'true' : 'false');
-      localStorage.setItem('SWEETOS_payment_momo_enabled', momo ? 'true' : 'false');
-      localStorage.setItem('SWEETOS_payment_momo_instructions', momoInst);
-      localStorage.setItem('SWEETOS_payment_card_enabled', card ? 'true' : 'false');
+        const cod = codEl ? codEl.checked : true;
+        const momo = momoEl ? momoEl.checked : true;
+        const momoInst = momoInstEl ? momoInstEl.value : '';
+        const card = cardEl ? cardEl.checked : false;
 
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Payment gateway configuration updated.' }));
+        localStorage.setItem('SWEETOS_payment_cod_enabled', cod ? 'true' : 'false');
+        localStorage.setItem('SWEETOS_payment_momo_enabled', momo ? 'true' : 'false');
+        localStorage.setItem('SWEETOS_payment_momo_instructions', momoInst);
+        localStorage.setItem('SWEETOS_payment_card_enabled', card ? 'true' : 'false');
+
+        window.dispatchEvent(new CustomEvent('branding:updated'));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Payment gateway configuration updated successfully!' }));
+      } catch (err) {
+        console.error('Error saving payment gateways:', err);
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Error: ' + err.message }));
+      }
     });
   }
 
@@ -1443,22 +1455,32 @@ export function attachAdminSettingsListeners(context, shadow) {
   const appearanceForm = shadow.getElementById('settings-appearance-form');
   if (appearanceForm) {
     appearanceForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const theme = shadow.getElementById('set-appearance-theme').value;
-      const font = shadow.getElementById('set-appearance-font').value;
-      const title = shadow.getElementById('set-appearance-hero-title').value.trim();
-      const subtitle = shadow.getElementById('set-appearance-hero-subtitle').value.trim();
+      try {
+        e.preventDefault();
+        const themeEl = shadow.getElementById('set-appearance-theme');
+        const fontEl = shadow.getElementById('set-appearance-font');
+        const titleEl = shadow.getElementById('set-appearance-hero-title');
+        const subtitleEl = shadow.getElementById('set-appearance-hero-subtitle');
 
-      localStorage.setItem('SWEETOS_theme_mode', theme);
-      localStorage.setItem('SWEETOS_font_family', font);
-      localStorage.setItem('SWEETOS_hero_title', title);
-      localStorage.setItem('SWEETOS_hero_subtitle', subtitle);
+        const theme = themeEl ? themeEl.value : 'dark';
+        const font = fontEl ? fontEl.value : 'Outfit';
+        const title = titleEl ? titleEl.value.trim() : '';
+        const subtitle = subtitleEl ? subtitleEl.value.trim() : '';
 
-      // Reactively apply theme settings
-      document.body.className = theme === 'dark' ? 'dark-theme' : (theme === 'light' ? 'light-theme' : '');
-      
-      window.dispatchEvent(new CustomEvent('branding:updated'));
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Appearance options saved successfully.' }));
+        localStorage.setItem('SWEETOS_theme_mode', theme);
+        localStorage.setItem('SWEETOS_font_family', font);
+        localStorage.setItem('SWEETOS_hero_title', title);
+        localStorage.setItem('SWEETOS_hero_subtitle', subtitle);
+
+        // Reactively apply theme settings
+        document.body.className = theme === 'dark' ? 'dark-theme' : (theme === 'light' ? 'light-theme' : '');
+        
+        window.dispatchEvent(new CustomEvent('branding:updated'));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Appearance options saved successfully.' }));
+      } catch (err) {
+        console.error('Error saving appearance options:', err);
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Error: ' + err.message }));
+      }
     });
   }
 }
