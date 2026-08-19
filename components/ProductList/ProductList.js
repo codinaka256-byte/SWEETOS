@@ -4851,20 +4851,22 @@ class ProductList extends HTMLElement {
 
     const checkIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
-    if (o.status === 'Pending' || o.status === 'Placed' || o.status === 'En cours') {
-      statusText = 'En cours';
+    const statusLower = (o.status || '').toLowerCase();
+
+    if (statusLower === 'pending' || statusLower === 'placed') {
+      statusText = 'En attente';
       progressWidth = '0%';
       step1Class = 'active';
       step1Content = '1';
-    } else if (o.status === 'Confirmed') {
-      statusText = 'Confirmed';
+    } else if (statusLower === 'confirmé' || statusLower === 'confirmed') {
+      statusText = 'Confirmé';
       progressWidth = '33.3%';
       step1Class = 'completed';
       step1Content = checkIcon;
       step2Class = 'active';
       step2Content = '2';
-    } else if (o.status === 'Processing') {
-      statusText = 'Processing';
+    } else if (statusLower === 'en cours' || statusLower === 'processing') {
+      statusText = 'En cours';
       progressWidth = '66.6%';
       step1Class = 'completed';
       step1Content = checkIcon;
@@ -4872,8 +4874,8 @@ class ProductList extends HTMLElement {
       step2Content = checkIcon;
       step3Class = 'active';
       step3Content = '3';
-    } else if (o.status === 'Shipped' || o.status === 'Delivered' || o.status === 'Done') {
-      statusText = 'Done';
+    } else if (statusLower === 'shipped') {
+      statusText = 'Expédié';
       progressWidth = '100%';
       step1Class = 'completed';
       step1Content = checkIcon;
@@ -4883,6 +4885,17 @@ class ProductList extends HTMLElement {
       step3Content = checkIcon;
       step4Class = 'active';
       step4Content = '4';
+    } else if (statusLower === 'livré' || statusLower === 'delivered' || statusLower === 'done' || statusLower === 'livre') {
+      statusText = 'Livré';
+      progressWidth = '100%';
+      step1Class = 'completed';
+      step1Content = checkIcon;
+      step2Class = 'completed';
+      step2Content = checkIcon;
+      step3Class = 'completed';
+      step3Content = checkIcon;
+      step4Class = 'completed';
+      step4Content = checkIcon;
     } else {
       statusText = o.status;
       progressWidth = '0%';
