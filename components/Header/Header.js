@@ -187,11 +187,8 @@ class Header extends HTMLElement {
           </button>
           
           <div class="user-profile" id="profile-pill">
-            <div class="user-avatar">AP</div>
-            <span class="user-name">Alina Putri</span>
-            <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
+            <div class="user-avatar" style="background: #cbd5e1; color: #475569;">👤</div>
+            <span class="user-name" style="font-weight: 750;">Sign In</span>
           </div>
         </div>
       </header>

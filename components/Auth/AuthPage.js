@@ -320,50 +320,24 @@ export function getAuthPageHTML() {
             <p style="font-size: 14px; color: #5f6368; margin: 0; font-family: 'Outfit', sans-serif;">to continue to <strong style="color:#0052cc;">SWEETOS</strong></p>
           </div>
 
-          <!-- Accounts Selector List -->
+          <!-- Google Sign-in Form -->
           <div style="padding: 24px 36px 36px 36px;">
-            <h3 style="font-size: 14px; font-weight: 500; color: #202124; margin: 0 0 16px 0; font-family: 'Outfit', sans-serif;">Choose an account</h3>
-            
-            <div id="google-accounts-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px;">
+            <form id="google-oauth-form" style="display: flex; flex-direction: column; gap: 16px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-size: 13px; font-weight: 600; color: #374151;">Email address</label>
+                <input type="email" id="google-email" required placeholder="name@gmail.com" style="width: 100%; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; background: white;">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="font-size: 13px; font-weight: 600; color: #374151;">Full Name</label>
+                <input type="text" id="google-fullname" required placeholder="Alex Johnson" style="width: 100%; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; background: white;">
+              </div>
               
-              <!-- Alina Putri -->
-              <div class="google-acc-row" data-email="customer@sweetos.com" data-firstname="Alina" data-lastname="Putri" data-phone="+225 050 000 001" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
-                <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">AP</div>
-                <div style="display: flex; flex-direction: column; gap: 2px;">
-                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Alina Putri</strong>
-                  <span style="font-size: 12px; color: #5f6368;">customer@sweetos.com</span>
-                </div>
-              </div>
+              <button type="submit" style="width: 100%; background: #4285F4; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+                Continue to SWEETOS
+              </button>
+            </form>
 
-              <!-- Odinaka Chibuike -->
-              <div class="google-acc-row" data-email="codinak256@gmail.com" data-firstname="Odinaka" data-lastname="Chibuike" data-phone="+234 803 000 002" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
-                <div style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">OC</div>
-                <div style="display: flex; flex-direction: column; gap: 2px;">
-                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Odinaka Chibuike</strong>
-                  <span style="font-size: 12px; color: #5f6368;">codinak256@gmail.com</span>
-                </div>
-              </div>
-
-              <!-- Alassane Koné -->
-              <div class="google-acc-row" data-email="alassane@orange.ci" data-firstname="Alassane" data-lastname="Koné" data-phone="+225 070 000 003" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
-                <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">AK</div>
-                <div style="display: flex; flex-direction: column; gap: 2px;">
-                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Alassane Koné</strong>
-                  <span style="font-size: 12px; color: #5f6368;">alassane@orange.ci</span>
-                </div>
-              </div>
-
-              <!-- Custom User / developer -->
-              <div class="google-acc-row" data-email="developer.sweetos@google.com" data-firstname="Developer" data-lastname="Member" data-phone="+225 600 000 000" style="display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: background 0.2s;">
-                <div style="background: #e2e8f0; color: #475569; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; flex-shrink: 0;">DM</div>
-                <div style="display: flex; flex-direction: column; gap: 2px;">
-                  <strong style="font-size: 13.5px; color: #202124; font-family: 'Outfit', sans-serif;">Developer Member</strong>
-                  <span style="font-size: 12px; color: #5f6368;">developer.sweetos@google.com</span>
-                </div>
-              </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
               <button type="button" id="cancel-google-oauth-btn" style="background: none; border: none; color: #1a73e8; font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 12px; border-radius: 4px; transition: background 0.2s;">Cancel</button>
               <span style="font-size: 11.5px; color: #5f6368; font-family: 'Outfit', sans-serif;">Secure connection 🛡️</span>
             </div>
@@ -462,12 +436,15 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
   if (googleRegisterBtn) googleRegisterBtn.addEventListener('click', openGoogleOverlay);
   if (cancelGoogleBtn) cancelGoogleBtn.addEventListener('click', closeGoogleOverlay);
 
-  googleAccRows.forEach(row => {
-    row.addEventListener('click', () => {
-      const email = row.getAttribute('data-email');
-      const firstname = row.getAttribute('data-firstname');
-      const lastname = row.getAttribute('data-lastname');
-      const phone = row.getAttribute('data-phone');
+  const googleForm = shadow.getElementById('google-oauth-form');
+  if (googleForm) {
+    googleForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = shadow.getElementById('google-email').value.trim().toLowerCase();
+      const fullName = shadow.getElementById('google-fullname').value.trim();
+      const parts = fullName.split(' ');
+      const firstname = parts[0] || 'Google';
+      const lastname = parts.slice(1).join(' ') || 'User';
 
       closeGoogleOverlay();
       window.dispatchEvent(new CustomEvent('toast:show', { detail: `Authenticating with Google account: ${email}... 🌐` }));
@@ -484,7 +461,7 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
             firstName: firstname,
             lastName: lastname,
             email: email,
-            phone: phone || "+225 600 000 000",
+            phone: "+225 600 000 000",
             bio: "SWEETOS member. Google Authenticated Profile.",
             address: "Ivory Coast",
             theme: "Ice Blue",
@@ -504,7 +481,7 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         let savedCreds = [];
         try {
           savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
-        } catch (e) {}
+        } catch (err) {}
 
         const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email.toLowerCase());
         const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -512,8 +489,8 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
           savedCreds.push({
             email: email,
             password: "google_oauth_bypass",
-            fullname: `${firstname} ${lastname}`,
-            phone: phone || "",
+            fullname: fullName,
+            phone: "+225 600 000 000",
             country: "Ivory Coast",
             joinedDate: joinedDate
           });
@@ -527,36 +504,13 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         onLoginSuccess();
       }, 1000);
     });
-  });
+  }
 
   // Initialize customer credentials database if not present
   const initializeCredentials = () => {
     const savedCreds = localStorage.getItem('SWEETOS_customer_credentials');
     if (!savedCreds) {
-      const defaultCreds = [
-        { email: "customer@sweetos.com", password: "customer", name: "Alina Putri", phone: "+225 07 00 00 00 00", address: "Abidjan, Cocody Mermoz" },
-        { email: "codinak256@gmail.com", password: "password", name: "Odinaka Chibuike", phone: "+225 05 00 61 99 23", address: "Abidjan, Cocody Mermoz Villa 12" },
-        { email: "alassane@orange.ci", password: "password", name: "Alassane Koné", phone: "+225 07 00 00 00 01", address: "Plateau, Boulevard de la République Imb. 4" }
-      ];
-      localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(defaultCreds));
-      
-      // Also pre-seed Alina's default profile
-      const safeKey = "customer_sweetos_com";
-      const defaultProfile = {
-        firstName: "Alina",
-        lastName: "Putri",
-        email: "customer@sweetos.com",
-        phone: "+225 07 00 00 00 00",
-        bio: "Workspace Designer & Minimalism Enthusiast. Building clean setups since 2024.",
-        address: "Abidjan, Cocody Mermoz",
-        theme: "Ice Blue",
-        twoFactor: false,
-        marketingEmails: true,
-        smsUpdates: false,
-        addresses: ["Abidjan, Cocody Mermoz"],
-        orders: []
-      };
-      localStorage.setItem(`SWEETOS_user_profile_${safeKey}`, JSON.stringify(defaultProfile));
+      localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify([]));
     }
   };
 

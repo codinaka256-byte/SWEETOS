@@ -256,85 +256,8 @@ class AdminPage extends HTMLElement {
     }
   }
 
-  generateMockOrders() {
-    return [
-      {
-        id: "SW-8947A",
-        date: "14 août, 2026",
-        status: "Livré",
-        total: 125000,
-        items: "Keychron Q1 Pro Mechanical Keyboard x1",
-        products: [{ id: 1, name: "Keychron Q1 Pro Mechanical Keyboard", price: 125000, quantity: 1, image: "./assets/keyboard_1786712380801.jpg" }],
-        customerName: "Odinaka Chibuike",
-        customerEmail: "codinak256@gmail.com",
-        customerPhone: "+225 05 00 61 99 23",
-        customerAddress: "Abidjan, Cocody Mermoz Villa 12",
-        customerZip: "225",
-        paymentMethod: "wave",
-        trackingNumber: "WV-ABJ-98273"
-      },
-      {
-        id: "SW-9812C",
-        date: "15 août, 2026",
-        status: "En cours",
-        total: 78000,
-        items: "Aero Silent Switches x1, Nebula Light Ring Dial x1",
-        products: [
-          { id: 13, name: "Aero Silent Switches", price: 33000, quantity: 1, image: "./assets/keyboard_1786712380801.jpg" },
-          { id: 37, name: "Nebula Light Ring Dial", price: 45000, quantity: 1, image: "./assets/desk_lamp_1786712407372.jpg" }
-        ],
-        customerName: "Alassane Koné",
-        customerEmail: "alassane@orange.ci",
-        customerPhone: "+225 07 00 00 00 01",
-        customerAddress: "Plateau, Boulevard de la République Imb. 4",
-        customerZip: "01",
-        paymentMethod: "orange",
-        trackingNumber: ""
-      },
-      {
-        id: "SW-1082K",
-        date: "16 août, 2026",
-        status: "Pending",
-        total: 147000,
-        items: "Sennheiser HD 600 Open Back Cans x1, Solid Oak Riser Shelf x1",
-        products: [
-          { id: 26, name: "Sennheiser HD 600 Open Back Cans", price: 110000, quantity: 1, image: "./assets/headphones_1786712393413.jpg" },
-          { id: 40, name: "Solid Oak Riser Shelf", price: 37000, quantity: 1, image: "./assets/monitor_stand_1786712418743.jpg" }
-        ],
-        customerName: "Marie Dupont",
-        customerEmail: "marie@yahoo.fr",
-        customerPhone: "+225 05 05 00 00 01",
-        customerAddress: "Zone 4, Rue du Canal Rés. Prestige",
-        customerZip: "04",
-        paymentMethod: "cod",
-        trackingNumber: ""
-      }
-    ];
-  }
-
   loadCustomers() {
     const customersMap = new Map();
-    
-    // Add defaults
-    customersMap.set("codinak256@gmail.com", {
-      name: "Odinaka Chibuike",
-      email: "codinak256@gmail.com",
-      phone: "+225 05 00 61 99 23",
-      ordersCount: 1,
-      totalSpent: 125000,
-      registrationDate: "12 juil., 2026",
-      addresses: ["Abidjan, Cocody Mermoz Villa 12"]
-    });
-    
-    customersMap.set("alassane@orange.ci", {
-      name: "Alassane Koné",
-      email: "alassane@orange.ci",
-      phone: "+225 07 00 00 00 01",
-      ordersCount: 1,
-      totalSpent: 78000,
-      registrationDate: "1 août, 2026",
-      addresses: ["Plateau, Boulevard de la République Imb. 4"]
-    });
 
     // Scan localStorage user profiles
     for (let i = 0; i < localStorage.length; i++) {
