@@ -1015,7 +1015,7 @@ export function attachAdminSettingsListeners(context, shadow) {
         // Add mode
         const dup = context.categories.some(c => c.slug === slug);
         if (dup) {
-          alert('Error: Category slug already exists.');
+          window.showAlert('A category with this URL slug already exists. Please choose a different slug.', 'Duplicate Slug');
           return;
         }
         const nextId = context.categories.reduce((max, c) => c.id > max ? c.id : max, 0) + 1;
@@ -1034,17 +1034,18 @@ export function attachAdminSettingsListeners(context, shadow) {
 
   // Delete category button action
   shadow.querySelectorAll('.delete-cat-action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = parseInt(btn.getAttribute('data-cat-id'));
       const cat = context.categories.find(c => c.id === id);
       if (cat) {
         const hasProducts = context.products.some(p => p.category === cat.name);
         if (hasProducts) {
-          alert(`Error: Cannot delete category "${cat.name}" because it still has assigned catalog products!`);
+          window.showAlert(`Cannot delete category "${cat.name}" because it still has assigned catalog products!`, 'Action Blocked');
           return;
         }
 
-        if (confirm(`Are you sure you want to delete category "${cat.name}"?`)) {
+        const confirmed = await window.showConfirm(`Are you sure you want to delete category "${cat.name}"?`, 'Delete Category');
+        if (confirmed) {
           const idx = context.categories.findIndex(c => c.id === id);
           context.categories.splice(idx, 1);
           context.saveDatabase('categories');
@@ -1147,7 +1148,7 @@ export function attachAdminSettingsListeners(context, shadow) {
         // Add mode
         const dup = context.brands.some(b => b.slug === slug);
         if (dup) {
-          alert('Error: Brand slug already exists.');
+          window.showAlert('A brand with this URL slug already exists. Please choose a different slug.', 'Duplicate Slug');
           return;
         }
         const nextId = context.brands.reduce((max, b) => b.id > max ? b.id : max, 0) + 1;
@@ -1165,17 +1166,18 @@ export function attachAdminSettingsListeners(context, shadow) {
 
   // Delete brand button action
   shadow.querySelectorAll('.delete-brand-action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = parseInt(btn.getAttribute('data-brand-id'));
       const brand = context.brands.find(b => b.id === id);
       if (brand) {
         const hasProducts = context.products.some(p => p.brand === brand.name);
         if (hasProducts) {
-          alert(`Error: Cannot delete brand "${brand.name}" because it still has assigned catalog products!`);
+          window.showAlert(`Cannot delete brand "${brand.name}" because it still has assigned catalog products!`, 'Action Blocked');
           return;
         }
 
-        if (confirm(`Are you sure you want to delete brand "${brand.name}"?`)) {
+        const confirmed = await window.showConfirm(`Are you sure you want to delete brand "${brand.name}"?`, 'Delete Brand');
+        if (confirmed) {
           const idx = context.brands.findIndex(b => b.id === id);
           context.brands.splice(idx, 1);
           context.saveDatabase('brands');

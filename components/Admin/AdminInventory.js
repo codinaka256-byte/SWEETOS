@@ -522,7 +522,7 @@ export function attachAdminInventoryListeners(context, shadow) {
       const nextThresh = parseInt(shadow.getElementById('stock-adjust-thresh').value);
 
       if (nextQty < 0) {
-        alert('Error: Stock quantity cannot be negative.');
+        window.showAlert('Stock quantity cannot be less than zero. Please enter a valid non-negative number.', 'Invalid Quantity');
         return;
       }
 

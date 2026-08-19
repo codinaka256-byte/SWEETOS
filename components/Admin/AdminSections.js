@@ -239,11 +239,12 @@ export function attachAdminSectionsListeners(context, shadow) {
 
   // Delete action trigger
   shadow.querySelectorAll('.delete-section-row-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const sId = btn.getAttribute('data-id');
       const sectionObj = context.homepageSections.find(s => s.id === sId);
       if (sectionObj) {
-        if (confirm(`Are you sure you want to delete the homepage section "${sectionObj.name}"?`)) {
+        const confirmed = await window.showConfirm(`Are you sure you want to delete the homepage section "${sectionObj.name}"?`, 'Delete Section');
+        if (confirmed) {
           context.homepageSections = context.homepageSections.filter(s => s.id !== sId);
           context.saveDatabase('sections');
           window.dispatchEvent(new CustomEvent('toast:show', { detail: `Section "${sectionObj.name}" has been deleted.` }));

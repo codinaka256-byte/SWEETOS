@@ -16,6 +16,293 @@ import { renderAdminSettings, attachAdminSettingsListeners } from './AdminSettin
 import { renderAdminSections, attachAdminSectionsListeners } from './AdminSections.js';
 import { renderAdminReviews, attachAdminReviewsListeners } from './AdminReviews.js';
 
+window.showConfirm = function(message, title = 'Confirm Action') {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.backgroundColor = 'rgba(15, 23, 42, 0.45)';
+    overlay.style.backdropFilter = 'blur(10px)';
+    overlay.style.webkitBackdropFilter = 'blur(10px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '999999';
+    overlay.style.fontFamily = "'Outfit', sans-serif";
+    overlay.style.padding = '20px';
+    overlay.style.animation = 'confirm-fade-in 0.25s ease';
+
+    const styleTag = document.createElement('style');
+    styleTag.textContent = `
+      @keyframes confirm-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes confirm-scale-in {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      .confirm-btn-primary {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .confirm-btn-primary:hover {
+        background: #dc2626;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        transform: translateY(-1px);
+      }
+      .confirm-btn-secondary {
+        background: #f8fafc;
+        color: #475569;
+        border: 1.5px solid #e2e8f0;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .confirm-btn-secondary:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        transform: translateY(-1px);
+      }
+    `;
+    overlay.appendChild(styleTag);
+
+    const dialog = document.createElement('div');
+    dialog.style.background = 'rgba(255, 255, 255, 0.95)';
+    dialog.style.border = '1.5px solid rgba(255, 255, 255, 0.8)';
+    dialog.style.boxShadow = '0 25px 50px -12px rgba(15, 23, 42, 0.15)';
+    dialog.style.borderRadius = '24px';
+    dialog.style.padding = '32px';
+    dialog.style.width = '100%';
+    dialog.style.maxWidth = '420px';
+    dialog.style.display = 'flex';
+    dialog.style.flexDirection = 'column';
+    dialog.style.gap = '20px';
+    dialog.style.animation = 'confirm-scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+
+    // Icon & Header
+    const headerRow = document.createElement('div');
+    headerRow.style.display = 'flex';
+    headerRow.style.alignItems = 'center';
+    headerRow.style.gap = '16px';
+
+    const iconBox = document.createElement('div');
+    iconBox.style.fontSize = '24px';
+    iconBox.style.background = 'rgba(239, 68, 68, 0.08)';
+    iconBox.style.color = '#ef4444';
+    iconBox.style.width = '48px';
+    iconBox.style.height = '48px';
+    iconBox.style.borderRadius = '50%';
+    iconBox.style.display = 'flex';
+    iconBox.style.alignItems = 'center';
+    iconBox.style.justifyContent = 'center';
+    iconBox.textContent = '⚠️';
+
+    const titleEl = document.createElement('h3');
+    titleEl.style.margin = '0';
+    titleEl.style.fontSize = '18.5px';
+    titleEl.style.fontWeight = '800';
+    titleEl.style.color = '#0f172a';
+    titleEl.textContent = title;
+
+    headerRow.appendChild(iconBox);
+    headerRow.appendChild(titleEl);
+
+    // Message
+    const msgEl = document.createElement('p');
+    msgEl.style.margin = '0';
+    msgEl.style.fontSize = '14.5px';
+    msgEl.style.color = '#64748b';
+    msgEl.style.lineHeight = '1.6';
+    msgEl.textContent = message;
+
+    // Action buttons row
+    const btnRow = document.createElement('div');
+    btnRow.style.display = 'flex';
+    btnRow.style.justifyContent = 'flex-end';
+    btnRow.style.gap = '12px';
+    btnRow.style.marginTop = '8px';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'confirm-btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'confirm-btn-primary';
+    confirmBtn.textContent = 'Confirm';
+
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(confirmBtn);
+
+    dialog.appendChild(headerRow);
+    dialog.appendChild(msgEl);
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+
+    const cleanup = (value) => {
+      overlay.style.animation = 'confirm-fade-in 0.2s ease reverse';
+      dialog.style.animation = 'confirm-scale-in 0.2s ease reverse';
+      setTimeout(() => {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+        resolve(value);
+      }, 180);
+    };
+
+    confirmBtn.addEventListener('click', () => cleanup(true));
+    cancelBtn.addEventListener('click', () => cleanup(false));
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup(false);
+    });
+
+    document.body.appendChild(overlay);
+  });
+};
+
+window.showAlert = function(message, title = 'Attention Required') {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.backgroundColor = 'rgba(15, 23, 42, 0.45)';
+    overlay.style.backdropFilter = 'blur(10px)';
+    overlay.style.webkitBackdropFilter = 'blur(10px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '999999';
+    overlay.style.fontFamily = "'Outfit', sans-serif";
+    overlay.style.padding = '20px';
+    overlay.style.animation = 'confirm-fade-in 0.25s ease';
+
+    const styleTag = document.createElement('style');
+    styleTag.textContent = `
+      @keyframes confirm-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes confirm-scale-in {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      .alert-btn-primary {
+        background: #0052cc;
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .alert-btn-primary:hover {
+        background: #0040a3;
+        box-shadow: 0 4px 12px rgba(0, 82, 204, 0.2);
+        transform: translateY(-1px);
+      }
+    `;
+    overlay.appendChild(styleTag);
+
+    const dialog = document.createElement('div');
+    dialog.style.background = 'rgba(255, 255, 255, 0.95)';
+    dialog.style.border = '1.5px solid rgba(255, 255, 255, 0.8)';
+    dialog.style.boxShadow = '0 25px 50px -12px rgba(15, 23, 42, 0.15)';
+    dialog.style.borderRadius = '24px';
+    dialog.style.padding = '32px';
+    dialog.style.width = '100%';
+    dialog.style.maxWidth = '420px';
+    dialog.style.display = 'flex';
+    dialog.style.flexDirection = 'column';
+    dialog.style.gap = '20px';
+    dialog.style.animation = 'confirm-scale-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+
+    // Icon & Header
+    const headerRow = document.createElement('div');
+    headerRow.style.display = 'flex';
+    headerRow.style.alignItems = 'center';
+    headerRow.style.gap = '16px';
+
+    const iconBox = document.createElement('div');
+    iconBox.style.fontSize = '24px';
+    iconBox.style.background = 'rgba(0, 82, 204, 0.08)';
+    iconBox.style.color = '#0052cc';
+    iconBox.style.width = '48px';
+    iconBox.style.height = '48px';
+    iconBox.style.borderRadius = '50%';
+    iconBox.style.display = 'flex';
+    iconBox.style.alignItems = 'center';
+    iconBox.style.justifyContent = 'center';
+    iconBox.textContent = 'ℹ️';
+
+    const titleEl = document.createElement('h3');
+    titleEl.style.margin = '0';
+    titleEl.style.fontSize = '18.5px';
+    titleEl.style.fontWeight = '800';
+    titleEl.style.color = '#0f172a';
+    titleEl.textContent = title;
+
+    headerRow.appendChild(iconBox);
+    headerRow.appendChild(titleEl);
+
+    // Message
+    const msgEl = document.createElement('p');
+    msgEl.style.margin = '0';
+    msgEl.style.fontSize = '14.5px';
+    msgEl.style.color = '#64748b';
+    msgEl.style.lineHeight = '1.6';
+    msgEl.textContent = message;
+
+    // Action buttons row
+    const btnRow = document.createElement('div');
+    btnRow.style.display = 'flex';
+    btnRow.style.justifyContent = 'flex-end';
+    btnRow.style.gap = '12px';
+    btnRow.style.marginTop = '8px';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'alert-btn-primary';
+    confirmBtn.textContent = 'OK';
+
+    btnRow.appendChild(confirmBtn);
+
+    dialog.appendChild(headerRow);
+    dialog.appendChild(msgEl);
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+
+    const cleanup = () => {
+      overlay.style.animation = 'confirm-fade-in 0.2s ease reverse';
+      dialog.style.animation = 'confirm-scale-in 0.2s ease reverse';
+      setTimeout(() => {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+        resolve();
+      }, 180);
+    };
+
+    confirmBtn.addEventListener('click', () => cleanup());
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) cleanup();
+    });
+
+    document.body.appendChild(overlay);
+  });
+};
+
 class AdminPage extends HTMLElement {
   constructor() {
     super();

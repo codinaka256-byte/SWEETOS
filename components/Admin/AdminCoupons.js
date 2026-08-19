@@ -151,11 +151,12 @@ export function attachAdminCouponsListeners(context, shadow) {
 
   // Delete action
   shadow.querySelectorAll('.delete-coupon-action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const code = btn.getAttribute('data-coupon-code');
       const index = context.coupons.findIndex(c => c.code === code);
       if (index > -1) {
-        if (confirm(`Are you sure you want to delete coupon code ${code}?`)) {
+        const confirmed = await window.showConfirm(`Are you sure you want to delete coupon code ${code}?`, 'Delete Coupon');
+        if (confirmed) {
           context.coupons.splice(index, 1);
           context.saveDatabase('coupons');
           window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon ${code} deleted.` }));

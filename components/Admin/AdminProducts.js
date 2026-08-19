@@ -427,7 +427,7 @@ export function attachAdminProductsListeners(context, shadow) {
 
   // Delete product action
   shadow.querySelectorAll('.delete-prod-action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = parseInt(btn.getAttribute('data-product-id'));
       const index = context.products.findIndex(p => p.id === id);
       if (index > -1) {
@@ -440,7 +440,8 @@ export function attachAdminProductsListeners(context, shadow) {
           window.dispatchEvent(new CustomEvent('toast:show', { detail: `Error: Cannot delete "${prod.name}" because it has active pending customer orders!` }));
           return;
         }
-        if (confirm(`Are you sure you want to delete "${prod.name}" from the product catalog?`)) {
+        const confirmed = await window.showConfirm(`Are you sure you want to delete "${prod.name}" from the product catalog?`, 'Delete Product');
+        if (confirmed) {
           context.products.splice(index, 1);
           context.saveDatabase('products');
           window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted product "${prod.name}" successfully.` }));

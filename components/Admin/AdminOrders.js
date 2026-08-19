@@ -487,7 +487,7 @@ export function attachAdminOrdersListeners(context, shadow) {
         const trackingNum = shadow.getElementById('order-tracking-num').value.trim();
 
         if (nextStatus === 'Shipped' && !trackingNum) {
-          alert('Error: Tracking number is required when status is marked as Shipped!');
+          window.showAlert('A tracking number is required to update this order status to Shipped.', 'Tracking Required');
           return;
         }
 

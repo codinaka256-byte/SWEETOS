@@ -259,8 +259,9 @@ export function attachAdminReviewsListeners(context, shadow) {
 
   // 5. Delete review actions
   shadow.querySelectorAll('.btn-delete-review').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (confirm('Are you sure you want to permanently delete this review?')) {
+    btn.addEventListener('click', async () => {
+      const confirmed = await window.showConfirm('Are you sure you want to permanently delete this review?', 'Delete Review');
+      if (confirmed) {
         const id = parseInt(btn.getAttribute('data-delete-id'));
         context.reviews = context.reviews.filter(r => r.id !== id);
         context.saveDatabase('reviews');
