@@ -1362,7 +1362,7 @@ class ProductList extends HTMLElement {
                   <div class="pdp-accordion-content">
                     <table class="pdp-accordion-specs-table">
                       <tbody>
-                        ${Object.entries(p.specs).map(([key, val]) => `
+                        ${Object.entries(p.specs || {}).map(([key, val]) => `
                           <tr>
                             <th>${key}</th>
                             <td>${val}</td>

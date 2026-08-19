@@ -70,7 +70,7 @@ class ProductDetailsModal extends HTMLElement {
                 ` : `
                   <table class="specs-table">
                     <tbody>
-                      ${Object.entries(p.specs).map(([key, val]) => `
+                      ${Object.entries(p.specs || {}).map(([key, val]) => `
                         <tr>
                           <th>${key}</th>
                           <td>${val}</td>
