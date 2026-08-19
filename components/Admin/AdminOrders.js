@@ -611,11 +611,310 @@ export function attachAdminOrdersListeners(context, shadow) {
     });
   }
 
-  // Print invoice btn
+  // Print invoice helper and event handler
   const printBtn = shadow.getElementById('print-order-invoice-btn');
   if (printBtn) {
     printBtn.addEventListener('click', () => {
-      window.print();
+      const order = context.orders.find(o => o.id === context.selectedOrderId);
+      if (order) {
+        printOrderReceipt(order);
+      }
     });
   }
+}
+
+// Global styled receipt generator
+function printOrderReceipt(order) {
+  const storeName = localStorage.getItem('SWEETOS_store_name') || 'SWEETOS';
+  const storePhone = localStorage.getItem('SWEETOS_store_phone') || '+225 05 00 61 99 23';
+  const storeEmail = localStorage.getItem('SWEETOS_store_email') || 'support@sweetos.com';
+  const storeAddress = localStorage.getItem('SWEETOS_store_addr') || 'Abidjan, Cocody Mermoz';
+  const currency = localStorage.getItem('SWEETOS_currency') || 'CFA';
+  
+  const localFormatPrice = (price) => {
+    let symbol = currency;
+    if (currency === 'USD') symbol = '$';
+    else if (currency === 'EUR') symbol = '€';
+    else if (currency === 'CFA' || currency === 'XOF' || currency === 'FCFA') symbol = 'FCFA';
+    
+    if (symbol === '$' || symbol === '€') {
+      return `${symbol}${Math.round(price).toLocaleString()}`;
+    }
+    return `${Math.round(price).toLocaleString()} ${symbol}`;
+  };
+
+  const printWindow = window.open('', '_blank', 'width=800,height=900');
+  if (!printWindow) return;
+  
+  let itemsHtml = '';
+  let subtotal = 0;
+  
+  const products = order.products || [];
+  products.forEach(p => {
+    const itemTotal = p.price * p.quantity;
+    subtotal += itemTotal;
+    itemsHtml += `
+      <tr>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; font-size: 13.5px; font-weight: 600; color: #1e293b;">
+          ${p.name}
+        </td>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center; color: #64748b;">
+          ${localFormatPrice(p.price)}
+        </td>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center; color: #64748b;">
+          ${p.quantity}
+        </td>
+        <td style="padding: 12px 8px; border-bottom: 1px solid #e2e8f0; font-size: 13.5px; font-weight: 700; text-align: right; color: #0052cc;">
+          ${localFormatPrice(itemTotal)}
+        </td>
+      </tr>
+    `;
+  });
+
+  const shippingRate = parseFloat(localStorage.getItem('SWEETOS_shipping_rate') || '2000');
+  const freeThreshold = parseFloat(localStorage.getItem('SWEETOS_free_shipping_threshold') || '15000');
+  const shippingFee = subtotal >= freeThreshold ? 0 : shippingRate;
+  
+  const vatRate = parseFloat(localStorage.getItem('SWEETOS_vat_rate') || '18');
+  const taxMode = localStorage.getItem('SWEETOS_tax_mode') || 'inclusive';
+  
+  let taxAmount = 0;
+  if (taxMode === 'exclusive') {
+    taxAmount = subtotal * (vatRate / 100);
+  } else {
+    taxAmount = (subtotal / (1 + vatRate / 100)) * (vatRate / 100);
+  }
+  
+  const total = subtotal + shippingFee + (taxMode === 'exclusive' ? taxAmount : 0);
+  const formattedDate = order.date || new Date().toISOString().replace('T', ' ').slice(0, 16);
+
+  printWindow.document.write(\`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Facture de Commande #${order.id}</title>
+      <meta charset="utf-8">
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+        body {
+          font-family: 'Outfit', sans-serif;
+          margin: 0;
+          padding: 40px;
+          color: #334155;
+          background: #ffffff;
+        }
+        .receipt-card {
+          max-width: 700px;
+          margin: 0 auto;
+          padding: 24px;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 20px;
+        }
+        .header-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 30px;
+        }
+        .header-left {
+          text-align: left;
+        }
+        .header-right {
+          text-align: right;
+        }
+        .store-logo {
+          font-size: 28px;
+          font-weight: 900;
+          color: #0052cc;
+          margin-bottom: 6px;
+        }
+        .meta-label {
+          font-size: 11px;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .meta-val {
+          font-size: 13.5px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+        .details-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          margin-bottom: 30px;
+          padding-bottom: 24px;
+          border-bottom: 1.5px dashed #e2e8f0;
+        }
+        .info-block {
+          background: #f8fafc;
+          padding: 16px;
+          border-radius: 12px;
+          border: 1px solid #f1f5f9;
+        }
+        .info-title {
+          font-size: 12px;
+          font-weight: 800;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 8px;
+        }
+        .table-items {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 30px;
+        }
+        .table-items th {
+          background: #f1f5f9;
+          padding: 10px 8px;
+          font-size: 11px;
+          font-weight: 800;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 1.5px solid #cbd5e1;
+        }
+        .summary-block {
+          width: 300px;
+          margin-left: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          font-size: 13.5px;
+        }
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          color: #64748b;
+        }
+        .summary-row.total {
+          font-size: 18px;
+          font-weight: 900;
+          color: #0052cc;
+          border-top: 1.5px solid #e2e8f0;
+          padding-top: 10px;
+          margin-top: 5px;
+        }
+        .footer-note {
+          text-align: center;
+          margin-top: 50px;
+          font-size: 12.5px;
+          color: #94a3b8;
+          border-top: 1px solid #e2e8f0;
+          padding-top: 20px;
+        }
+        @media print {
+          body {
+            padding: 0;
+          }
+          .receipt-card {
+            border: none;
+            padding: 0;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="receipt-card">
+        <table class="header-table">
+          <tr>
+            <td class="header-left">
+              <div class="store-logo">\${storeName}</div>
+              <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
+                \${storeAddress}<br>
+                Tél: \${storePhone}<br>
+                Email: \${storeEmail}
+              </div>
+            </td>
+            <td class="header-right" valign="top">
+              <div style="font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 6px;">FACTURE / REÇU</div>
+              <div>
+                <span class="meta-label">Numéro de Commande:</span><br>
+                <span class="meta-val" style="color: #0052cc;">#\${order.id}</span>
+              </div>
+              <div style="margin-top: 8px;">
+                <span class="meta-label">Date d'Émission:</span><br>
+                <span class="meta-val">\${formattedDate}</span>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <div class="details-grid">
+          <div class="info-block">
+            <div class="info-title">Facturé à (Client)</div>
+            <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">
+              \${order.customerName || order.name || 'Client Invité'}
+            </div>
+            <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
+              Téléphone: \${order.customerPhone || order.phone || 'N/A'}<br>
+              Email: \${order.email || order.customerEmail || 'N/A'}<br>
+              Adresse: \${order.customerAddress || order.address || 'N/A'}
+            </div>
+          </div>
+          <div class="info-block">
+            <div class="info-title">Mode & Options de Livraison</div>
+            <div style="font-size: 13.5px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+              Status: <span style="color:#0052cc;">\${order.status}</span>
+            </div>
+            <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
+              Paiement: \${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'COD'}<br>
+              Suivi #: \${order.trackingNumber || 'En attente'}<br>
+              Notes: \${order.notes || 'Aucune note.'}
+            </div>
+          </div>
+        </div>
+
+        <table class="table-items">
+          <thead>
+            <tr>
+              <th align="left">Désignation</th>
+              <th align="center">Prix Unitaire</th>
+              <th align="center">Quantité</th>
+              <th align="right">Montant Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            \${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="summary-block">
+          <div class="summary-row">
+            <span>Sous-total:</span>
+            <strong>\${localFormatPrice(subtotal)}</strong>
+          </div>
+          <div class="summary-row">
+            <span>Frais de port:</span>
+            <strong>\${shippingFee === 0 ? 'Gratuit' : localFormatPrice(shippingFee)}</strong>
+          </div>
+          <div class="summary-row">
+            <span>TVA (\${vatRate}% - \${taxMode === 'inclusive' ? 'incluse' : 'non-incluse'}):</span>
+            <strong>\${localFormatPrice(taxAmount)}</strong>
+          </div>
+          <div class="summary-row total">
+            <span>Total Général:</span>
+            <span>\${localFormatPrice(total)}</span>
+          </div>
+        </div>
+
+        <div class="footer-note">
+          Merci pour votre confiance et votre commande chez <strong>\${storeName}</strong> !<br>
+          <span style="font-size:11px; margin-top:6px; display:block;">Ceci est un reçu de commande officiel. Pour toute réclamation, veuillez contacter le support client.</span>
+        </div>
+      </div>
+      
+      <script>
+        window.onload = function() {
+          setTimeout(function() {
+            window.print();
+          }, 300);
+        };
+      </script>
+    </body>
+    </html>
+  \`);
+  printWindow.document.close();
 }
