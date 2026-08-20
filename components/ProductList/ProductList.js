@@ -148,8 +148,9 @@ class ProductList extends HTMLElement {
       fetch('/api/products').then(res => res.json()).catch(() => null),
       fetch('/api/categories').then(res => res.json()).catch(() => null),
       fetch('/api/brands').then(res => res.json()).catch(() => null),
-      fetch('/api/reviews').then(res => res.json()).catch(() => null)
-    ]).then(([products, categories, brands, reviews]) => {
+      fetch('/api/reviews').then(res => res.json()).catch(() => null),
+      fetch('/api/coupons').then(res => res.json()).catch(() => null)
+    ]).then(([products, categories, brands, reviews, coupons]) => {
       let needsRender = false;
       if (products && products.length > 0) {
         this.products = products;
@@ -166,6 +167,10 @@ class ProductList extends HTMLElement {
       }
       if (reviews && reviews.length > 0) {
         localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
+        needsRender = true;
+      }
+      if (coupons && coupons.length > 0) {
+        localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
         needsRender = true;
       }
       if (needsRender) {

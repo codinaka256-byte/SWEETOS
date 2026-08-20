@@ -39,7 +39,19 @@ class CheckoutModal extends HTMLElement {
     }
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const shippingFee = this.getShippingFee(subtotal);
-    return subtotal + shippingFee;
+    
+    let discount = 0;
+    try {
+      const savedCoupon = sessionStorage.getItem('SWEETOS_applied_coupon');
+      if (savedCoupon) {
+        const applied = JSON.parse(savedCoupon);
+        if (!applied.minOrder || subtotal >= applied.minOrder) {
+          discount = applied.type === 'percentage' ? subtotal * (applied.value / 100) : applied.value;
+        }
+      }
+    } catch(e) {}
+
+    return subtotal + shippingFee - discount;
   }
 
   connectedCallback() {
@@ -445,11 +457,30 @@ class CheckoutModal extends HTMLElement {
 
     const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const shippingFee = this.getShippingFee(subtotal);
-    const total = subtotal + shippingFee;
+
+    let discount = 0;
+    let appliedCoupon = null;
+    try {
+      const savedCoupon = sessionStorage.getItem('SWEETOS_applied_coupon');
+      if (savedCoupon) {
+        appliedCoupon = JSON.parse(savedCoupon);
+        if (!appliedCoupon.minOrder || subtotal >= appliedCoupon.minOrder) {
+          discount = appliedCoupon.type === 'percentage' ? subtotal * (appliedCoupon.value / 100) : appliedCoupon.value;
+        } else {
+          appliedCoupon = null;
+        }
+      }
+    } catch(e) {}
+
+    const total = subtotal + shippingFee - discount;
 
     // Prefill WhatsApp text with order details
     const itemsDesc = cartItems.map(item => `- ${item.name} (x${item.quantity})`).join('%0A');
-    const waText = `Bonjour, je souhaite finaliser ma commande sur SWEETOS:%0A%0A*Articles:*%0A${itemsDesc}%0A%0A*Sous-total:* ${formatPrice(subtotal)}%0A*Frais de livraison:* ${formatPrice(shippingFee)}%0A*Total:* ${formatPrice(total)}`;
+    let waText = `Bonjour, je souhaite finaliser ma commande sur SWEETOS:%0A%0A*Articles:*%0A${itemsDesc}%0A%0A*Sous-total:* ${formatPrice(subtotal)}`;
+    if (discount > 0) {
+      waText += `%0A*Réduction (${appliedCoupon.code}):* -${formatPrice(discount)}`;
+    }
+    waText += `%0A*Frais de livraison:* ${formatPrice(shippingFee)}%0A*Total:* ${formatPrice(total)}`;
     const waLink = `https://api.whatsapp.com/send?phone=2250500619923&text=${waText}`;
 
     return `
@@ -481,6 +512,12 @@ class CheckoutModal extends HTMLElement {
           <span>Sous-total</span>
           <span>${formatPrice(subtotal)}</span>
         </div>
+        ${discount > 0 ? `
+          <div class="pricing-line discount-row" style="color: #ff5630; font-weight: 750;">
+            <span>Réduction (${appliedCoupon.code})</span>
+            <span>-${formatPrice(discount)}</span>
+          </div>
+        ` : ''}
         <div class="pricing-line">
           <span>Frais de livraison</span>
           <span>${formatPrice(shippingFee)}</span>
@@ -678,8 +715,20 @@ class CheckoutModal extends HTMLElement {
             if (cartItems.length > 0) {
               itemsLabel = cartItems.map(item => `${item.name} (x${item.quantity})`).join(', ');
               const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-              const shippingFee = 2000;
-              orderTotal = subtotal + shippingFee;
+              const shippingFee = this.getShippingFee(subtotal);
+              
+              let discount = 0;
+              try {
+                const savedCoupon = sessionStorage.getItem('SWEETOS_applied_coupon');
+                if (savedCoupon) {
+                  const applied = JSON.parse(savedCoupon);
+                  if (!applied.minOrder || subtotal >= applied.minOrder) {
+                    discount = applied.type === 'percentage' ? subtotal * (applied.value / 100) : applied.value;
+                  }
+                }
+              } catch(e) {}
+              
+              orderTotal = subtotal + shippingFee - discount;
               this.latestOrderTotal = orderTotal;
             }
           } catch (err) {}
@@ -738,6 +787,33 @@ class CheckoutModal extends HTMLElement {
           userProfileKey: profileKey // to propagate state back to user orders tab!
         });
         localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+
+        // Mark applied coupon as used/expired
+        try {
+          const savedCoupon = sessionStorage.getItem('SWEETOS_applied_coupon');
+          if (savedCoupon) {
+            const applied = JSON.parse(savedCoupon);
+            let coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+            const cIndex = coupons.findIndex(c => c.code.toUpperCase() === applied.code.toUpperCase());
+            if (cIndex > -1) {
+              coupons[cIndex].used = (coupons[cIndex].used || 0) + 1;
+              coupons[cIndex].status = 'expired'; // mark as expired/inactive so it can only be used once
+              localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
+              
+              // Sync updated coupons to server
+              fetch('/api/coupons', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(coupons)
+              }).catch(e => console.error('Failed to sync coupons on use:', e));
+            }
+            sessionStorage.removeItem('SWEETOS_applied_coupon');
+          }
+        } catch(e) {
+          console.error('Failed to update used coupon status:', e);
+        }
 
         // Sync order to server (which will trigger real-time SSE notifications)
         fetch('/api/orders', {

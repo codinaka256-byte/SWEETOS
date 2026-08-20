@@ -60,7 +60,26 @@ class CartDrawer extends HTMLElement {
 
     const totalItems = this.cart.reduce((sum, item) => sum + item.quantity, 0);
     const subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const discount = subtotal * 0.1; // 10% discount simulation
+    
+    let discount = 0;
+    let appliedCoupon = null;
+    try {
+      const savedCoupon = sessionStorage.getItem('SWEETOS_applied_coupon');
+      if (savedCoupon) {
+        appliedCoupon = JSON.parse(savedCoupon);
+        if (appliedCoupon.minOrder && subtotal < appliedCoupon.minOrder) {
+          sessionStorage.removeItem('SWEETOS_applied_coupon');
+          appliedCoupon = null;
+        } else {
+          if (appliedCoupon.type === 'percentage') {
+            discount = subtotal * (appliedCoupon.value / 100);
+          } else {
+            discount = appliedCoupon.value;
+          }
+        }
+      }
+    } catch(e) {}
+
     const total = subtotal - discount;
 
     // Load coupons from storage
@@ -161,6 +180,18 @@ class CartDrawer extends HTMLElement {
               <span class="total-val">${formatPrice(total)}</span>
             </div>
           </div>
+
+          <!-- Applied Coupon Info -->
+          ${appliedCoupon ? `
+            <div class="applied-coupon-badge" style="display: flex; align-items: center; justify-content: space-between; background: var(--primary-light); border: 1.5px solid var(--primary); padding: 8px 12px; border-radius: 12px; margin-bottom: 12px; font-size: 12.5px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 15px;">🎟️</span>
+                <span style="font-weight: 800; color: var(--primary);">${appliedCoupon.code}</span>
+                <span style="font-size: 10px; color: var(--text-gray); font-weight: 600;">(Appliqué)</span>
+              </div>
+              <button id="removeCouponBtn" style="background: none; border: none; font-size: 20px; font-weight: bold; cursor: pointer; color: var(--red); padding: 0 4px; line-height: 1; margin: 0; height: auto; width: auto;">&times;</button>
+            </div>
+          ` : ''}
 
           <!-- Promo Code -->
           <div class="promo-apply-row">
@@ -295,12 +326,56 @@ class CartDrawer extends HTMLElement {
     shadow.getElementById('promoApply').addEventListener('click', () => {
       const code = shadow.getElementById('promoInput').value.trim();
       if (code) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Promo code "${code}" applied! 🎉` }));
+        // Load coupons list
+        let coupons = [];
+        try {
+          const stored = localStorage.getItem('SWEETOS_coupons');
+          coupons = stored ? JSON.parse(stored) : [];
+        } catch(e) {}
+
+        const coupon = coupons.find(c => c.code.toUpperCase() === code.toUpperCase());
+        if (!coupon) {
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Code promo invalide / Invalid code.' }));
+          return;
+        }
+
+        if (coupon.status !== 'active') {
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Ce coupon est déjà expiré ou utilisé / Coupon expired.' }));
+          return;
+        }
+
+        // Validate expiration date
+        const today = new Date().toISOString().split('T')[0];
+        if (coupon.expiry && coupon.expiry < today) {
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Ce coupon a expiré / Coupon expired.' }));
+          return;
+        }
+
+        // Validate minimum order
+        const subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        if (coupon.minOrder && subtotal < coupon.minOrder) {
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Minimum d'achat requis : ${formatPrice(coupon.minOrder)} / Min order required.` }));
+          return;
+        }
+
+        // Apply!
+        sessionStorage.setItem('SWEETOS_applied_coupon', JSON.stringify(coupon));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon "${coupon.code}" appliqué ! 🎉` }));
         shadow.getElementById('promoInput').value = '';
+        this.render();
       } else {
         window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Please enter a promo code.' }));
       }
     });
+
+    const removeBtn = shadow.getElementById('removeCouponBtn');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        sessionStorage.removeItem('SWEETOS_applied_coupon');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Coupon retiré.' }));
+        this.render();
+      });
+    }
 
     shadow.getElementById('checkoutBtn').addEventListener('click', () => {
       if (this.cart.length === 0) {

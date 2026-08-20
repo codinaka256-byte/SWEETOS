@@ -450,8 +450,9 @@ class AdminPage extends HTMLElement {
       fetch('/api/categories').then(res => res.json()).catch(() => null),
       fetch('/api/brands').then(res => res.json()).catch(() => null),
       fetch('/api/reviews').then(res => res.json()).catch(() => null),
-      fetch('/api/orders').then(res => res.json()).catch(() => null)
-    ]).then(([products, categories, brands, reviews, orders]) => {
+      fetch('/api/orders').then(res => res.json()).catch(() => null),
+      fetch('/api/coupons').then(res => res.json()).catch(() => null)
+    ]).then(([products, categories, brands, reviews, orders, coupons]) => {
       let needsRender = false;
       if (products && products.length > 0) {
         this.products = products;
@@ -476,6 +477,11 @@ class AdminPage extends HTMLElement {
       if (orders && orders.length > 0) {
         this.orders = orders;
         localStorage.setItem('SWEETOS_all_orders', JSON.stringify(orders));
+        needsRender = true;
+      }
+      if (coupons && coupons.length > 0) {
+        this.coupons = coupons;
+        localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
         needsRender = true;
       }
       if (needsRender) {
@@ -673,6 +679,7 @@ class AdminPage extends HTMLElement {
       localStorage.setItem('SWEETOS_all_orders', JSON.stringify(this.orders));
     } else if (type === 'coupons') {
       localStorage.setItem('SWEETOS_coupons', JSON.stringify(this.coupons));
+      this.syncCouponsToServer();
     } else if (type === 'categories') {
       localStorage.setItem('SWEETOS_categories', JSON.stringify(this.categories));
       this.syncCategoriesToServer();
@@ -688,6 +695,25 @@ class AdminPage extends HTMLElement {
       localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(this.reviews));
       this.syncReviewsToServer();
     }
+  }
+
+  syncCouponsToServer() {
+    fetch('/api/coupons', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(this.coupons)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        console.log('Coupons synced to server successfully.');
+      } else {
+        console.error('Failed to sync coupons to server:', data.error);
+      }
+    })
+    .catch(err => console.error('Error syncing coupons to server:', err));
   }
 
   syncProductsToServer() {
@@ -818,13 +844,15 @@ class AdminPage extends HTMLElement {
       fetch('/api/categories').then(res => res.json()).catch(() => null),
       fetch('/api/brands').then(res => res.json()).catch(() => null),
       fetch('/api/reviews').then(res => res.json()).catch(() => null),
-      fetch('/api/orders').then(res => res.json()).catch(() => null)
-    ]).then(([products, categories, brands, reviews, orders]) => {
+      fetch('/api/orders').then(res => res.json()).catch(() => null),
+      fetch('/api/coupons').then(res => res.json()).catch(() => null)
+    ]).then(([products, categories, brands, reviews, orders, coupons]) => {
       if (products) this.products = products;
       if (categories) this.categories = categories;
       if (brands) this.brands = brands;
       if (reviews) this.reviews = reviews;
       if (orders) this.orders = orders;
+      if (coupons) this.coupons = coupons;
       
       this.render();
       this.attachListeners();
