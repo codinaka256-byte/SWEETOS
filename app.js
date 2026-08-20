@@ -693,8 +693,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (subtotal < 30000) {
+      const todayStr = new Date().toDateString();
+      const lastShown = localStorage.getItem('SWEETOS_cart_upsell_last_shown');
+      if (lastShown === todayStr) {
+        return; // Do not show again today
+      }
+
       const needed = 30000 - subtotal;
       setTimeout(() => {
+        // Mark as shown today immediately when triggered
+        localStorage.setItem('SWEETOS_cart_upsell_last_shown', todayStr);
         showCustomScreenModal({
           icon: '🛒',
           title: 'Offre Spéciale / Special Offer',
