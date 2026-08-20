@@ -546,7 +546,9 @@ export function attachAdminOrdersListeners(context, shadow) {
                     orderId: order.id,
                     amount: totalCFA,
                     scratched: false,
-                    couponWon: null
+                    couponWon: null,
+                    createdAt: Date.now(),
+                    expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
                   });
                   localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
                 }

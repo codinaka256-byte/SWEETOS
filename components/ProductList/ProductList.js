@@ -953,7 +953,15 @@ class ProductList extends HTMLElement {
       let scratchcardsList = [];
       try {
         const stored = localStorage.getItem('SWEETOS_user_scratchcards');
-        scratchcardsList = stored ? JSON.parse(stored) : [];
+        let rawList = stored ? JSON.parse(stored) : [];
+        const now = Date.now();
+        // Exclude scratchcards that are unscratched and past their 14-day expiry date
+        scratchcardsList = rawList.filter(card => {
+          if (!card.scratched && card.expiresAt && now > card.expiresAt) {
+            return false;
+          }
+          return true;
+        });
       } catch(e) {}
       
       if (this.currentCouponCode) {
