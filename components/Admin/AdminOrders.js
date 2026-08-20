@@ -519,9 +519,63 @@ export function attachAdminOrdersListeners(context, shadow) {
             title = `Commande #${order.id} expédiée !`;
             desc = `Votre commande #${order.id} a été expédiée. Numéro de suivi : ${trackingNum || 'N/A'}`;
           } else if (nextStatus === 'Livr' || nextStatus === 'Done' || nextStatus === 'Livre' || nextStatus.includes('Livr')) {
+            const currentHour = new Date().getHours();
+            let greeting = 'Bonjour';
+            if (currentHour >= 12 && currentHour < 18) {
+              greeting = 'Bon après-midi';
+            } else if (currentHour >= 18) {
+              greeting = 'Bonsoir';
+            }
             icon = '✅';
             title = `Commande #${order.id} livrée !`;
-            desc = `Félicitations, votre commande #${order.id} a été livrée avec succès.`;
+            desc = `${greeting} ! Merci infiniment pour votre achat chez SWEETOS. Votre commande #${order.id} a été livrée avec succès.<br>
+              <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                <button class="download-receipt-btn" data-order-id="${order.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Reçu 📄</button>
+                <button class="view-mystery-email-btn" data-order-id="${order.id}" style="background:#ff5630; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Mystery Box 🎁</button>
+              </div>`;
+
+            // Check if order qualifies for mystery box (total >= 2000)
+            const totalCFA = parseFloat(order.total) || 0;
+            if (totalCFA >= 2000) {
+              // Add a scratch card to storage
+              try {
+                let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+                if (!scratchcards.some(sc => sc.orderId === order.id)) {
+                  scratchcards.push({
+                    id: Date.now() + 1,
+                    orderId: order.id,
+                    amount: totalCFA,
+                    scratched: false,
+                    couponWon: null
+                  });
+                  localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+                }
+              } catch(e) {
+                console.error('Failed to create scratchcard:', e);
+              }
+
+              // Also add a simulated Email notification for the mystery box!
+              setTimeout(() => {
+                let customerNotifs2 = [];
+                try {
+                  customerNotifs2 = JSON.parse(localStorage.getItem(notifKey) || '[]');
+                } catch(e) {}
+                customerNotifs2.unshift({
+                  id: Date.now() + 2,
+                  type: 'email',
+                  icon: '📧',
+                  title: `Nouveau Message: Votre Boîte Mystère`,
+                  desc: `Vous avez reçu un e-mail concernant votre Boîte Mystère de la commande #${order.id}.<br>
+                    <div style="margin-top:8px;">
+                      <button class="open-email-modal-btn" data-order-id="${order.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Ouvrir l'E-mail 📩</button>
+                    </div>`,
+                  time: 'Just now',
+                  unread: true
+                });
+                localStorage.setItem(notifKey, JSON.stringify(customerNotifs2));
+                window.dispatchEvent(new CustomEvent('notifications:updated'));
+              }, 500);
+            }
           } else if (nextStatus === 'Cancelled') {
             icon = '❌';
             title = `Commande #${order.id} annulée`;

@@ -131,7 +131,7 @@ class NotificationDrawer extends HTMLElement {
                   <h4>${n.title}</h4>
                   <span class="notif-time">${n.time}</span>
                 </div>
-                <p class="notif-desc">${n.desc}</p>
+                <div class="notif-desc" style="font-size: 12px; color: var(--text-gray); line-height: 1.5; margin-top: 4px;">${n.desc}</div>
               </div>
               <button class="notif-delete-btn" data-id="${n.id}" title="Delete Alert">×</button>
             </div>
@@ -219,10 +219,169 @@ class NotificationDrawer extends HTMLElement {
           window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'orders' } }));
         } else if (target.type === 'system') {
           window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'profile' } }));
+        } else if (target.type === 'email') {
+          const parts = target.desc.match(/#([a-zA-Z0-9_-]+)/);
+          const orderId = parts ? parts[1] : '';
+          this.handleOpenEmailModal(orderId);
         }
 
         this.render();
       });
+    });
+
+    // Custom Button Listeners inside notifications
+    shadow.querySelectorAll('.download-receipt-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const orderId = btn.getAttribute('data-order-id');
+        this.downloadReceipt(orderId);
+      });
+    });
+
+    shadow.querySelectorAll('.view-mystery-email-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('notifications:toggle', { detail: { open: false } }));
+        window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'coupons' } }));
+      });
+    });
+
+    shadow.querySelectorAll('.open-email-modal-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const orderId = btn.getAttribute('data-order-id');
+        this.handleOpenEmailModal(orderId);
+      });
+    });
+  }
+
+  handleOpenEmailModal(orderId) {
+    let orders = [];
+    try {
+      orders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
+    } catch(e) {}
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order details not found!' }));
+      return;
+    }
+    const currentHour = new Date().getHours();
+    let greeting = 'Bonjour';
+    if (currentHour >= 12 && currentHour < 18) {
+      greeting = 'Bon après-midi';
+    } else if (currentHour >= 18) {
+      greeting = 'Bonsoir';
+    }
+    this.openMockEmailModal(order, greeting);
+  }
+
+  downloadReceipt(orderId) {
+    let orders = [];
+    try {
+      orders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
+    } catch(e) {}
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Commande introuvable / Order not found!' }));
+      return;
+    }
+    
+    const receiptContent = `
+========================================
+             RECEIPT / REÇU
+                SWEETOS
+========================================
+ID Commande: ${order.id}
+Date: ${order.date}
+Client: ${order.customerName}
+E-mail: ${order.customerEmail}
+Téléphone: ${order.customerPhone}
+Adresse: ${order.customerAddress}
+
+Articles commandés:
+${order.products ? order.products.map(p => `- ${p.name} (x${p.quantity}) : ${p.price * p.quantity} CFA`).join('\n') : order.items}
+
+Total: ${order.total} CFA
+Mode de paiement: ${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'COD'}
+Statut de livraison: ${order.status}
+========================================
+Merci infiniment pour votre achat chez SWEETOS !
+   `.trim();
+
+    const blob = new Blob([receiptContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `reçu-sweetos-${orderId}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Reçu téléchargé ! 📄' }));
+  }
+
+  openMockEmailModal(order, greeting) {
+    const shadow = this.shadowRoot;
+    let modal = shadow.getElementById('mock-email-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'mock-email-modal';
+      modal.style.position = 'fixed';
+      modal.style.top = '0';
+      modal.style.left = '0';
+      modal.style.width = '100%';
+      modal.style.height = '100%';
+      modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+      modal.style.zIndex = '9999';
+      modal.style.display = 'flex';
+      modal.style.alignItems = 'center';
+      modal.style.justifyContent = 'center';
+      modal.style.backdropFilter = 'blur(4px)';
+      shadow.appendChild(modal);
+    }
+    
+    modal.innerHTML = `
+      <div style="background: white; border-radius: 24px; width: 90%; max-width: 500px; padding: 35px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); font-family: 'Inter', sans-serif; position: relative; border: 1.5px solid var(--border); box-sizing: border-box; text-align: center;">
+        <button id="close-email-modal" style="position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 28px; cursor: pointer; color: var(--text-gray); font-weight: bold; line-height: 1; transition: color 0.2s;">&times;</button>
+        
+        <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; text-align: left; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box;">
+          <div>
+            <span style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Nouveau Message</span>
+            <span style="font-size: 13.5px; color: var(--text-dark); font-weight: 600;">De: <strong>rewards@sweetos.com</strong></span>
+          </div>
+          <span style="font-size: 24px;">📧</span>
+        </div>
+        
+        <div style="color: var(--text-dark); display: flex; flex-direction: column; gap: 16px; align-items: center; text-align: left;">
+          <h2 style="font-size: 22px; font-weight: 900; margin: 0; color: var(--primary); letter-spacing: -0.5px; text-align: center; width: 100%;">🎁 Votre Boîte Mystère est prête !</h2>
+          
+          <p style="font-size: 14.5px; line-height: 1.6; margin: 0; color: var(--text-dark); width: 100%;">
+            ${greeting} !<br><br>
+            Merci infiniment pour votre commande <strong>#${order.id}</strong> sur <strong>SWEETOS</strong>.<br>
+            Nous sommes ravis que vos articles aient été livrés avec succès.
+          </p>
+          
+          <div style="font-size: 72px; margin: 15px 0; text-align: center; width: 100%;">🎁</div>
+          
+          <p style="font-size: 13.5px; color: var(--text-gray); margin: 0; font-weight: 600; text-align: center; width: 100%;">
+            Pour vous remercier de votre fidélité, nous vous offrons une chance de gagner un coupon de réduction exclusif !
+          </p>
+          
+          <button id="open-scratchcard-btn" style="background: var(--primary); color: white; border: none; padding: 14px 28px; border-radius: 12px; font-size: 14px; font-weight: 850; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px var(--primary-light); width: 100%; display: block; box-sizing: border-box; text-align: center;">
+            Gratter ma Boîte Mystère →
+          </button>
+        </div>
+      </div>
+    `;
+    
+    modal.querySelector('#close-email-modal').addEventListener('click', () => {
+      modal.remove();
+    });
+    
+    modal.querySelector('#open-scratchcard-btn').addEventListener('click', () => {
+      modal.remove();
+      window.dispatchEvent(new CustomEvent('notifications:toggle', { detail: { open: false } }));
+      window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'coupons' } }));
     });
   }
 }

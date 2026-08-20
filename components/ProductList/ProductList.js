@@ -950,23 +950,22 @@ class ProductList extends HTMLElement {
       this.attachAboutPageListeners();
 
     } else if (this.currentPage === 'coupons') {
-      // Load coupons from storage
-      let couponsList = [];
+      let scratchcardsList = [];
       try {
-        const stored = localStorage.getItem('SWEETOS_coupons');
-        couponsList = stored ? JSON.parse(stored) : [];
+        const stored = localStorage.getItem('SWEETOS_user_scratchcards');
+        scratchcardsList = stored ? JSON.parse(stored) : [];
       } catch(e) {}
       
-      const activeCoupons = couponsList.filter(c => c.status === 'active');
-      
       if (this.currentCouponCode) {
-        // Detailed coupon view page!
-        const c = activeCoupons.find(item => item.code === this.currentCouponCode);
+        let couponsList = [];
+        try {
+          couponsList = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+        } catch(e) {}
+        const c = couponsList.find(item => item.code === this.currentCouponCode);
         if (c) {
           const discountText = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
           contentArea.innerHTML = `
             <div class="pdp-container animate-in" style="max-width: 600px; margin: 0 auto; padding-top: 20px;">
-              <!-- Back Button & Breadcrumbs -->
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; flex-wrap: wrap; gap: 12px;">
                 <button class="pdp-back-btn" id="coupon-back-btn">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; transform: scaleX(-1);"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
@@ -981,9 +980,7 @@ class ProductList extends HTMLElement {
                 </div>
               </div>
 
-              <!-- Big Voucher / Coupon Detailed Card -->
               <div class="glass-panel" style="border: 2px dashed var(--primary); padding: 40px; border-radius: 24px; text-align: center; background: rgba(255, 255, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.05); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 24px;">
-                <!-- Decorative Glows -->
                 <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: var(--primary-light); filter: blur(50px); border-radius: 50%; z-index: 1;"></div>
                 
                 <div style="font-size: 48px; position: relative; z-index: 2;">🎫</div>
@@ -1014,7 +1011,6 @@ class ProductList extends HTMLElement {
                   </div>
                 </div>
 
-                <!-- Action Buttons -->
                 <div style="display: flex; gap: 12px; width: 100%; margin-top: 16px; position: relative; z-index: 2;">
                   <button id="detail-coupon-apply-btn" style="flex: 1; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px var(--primary-light);">
                     Apply to Cart
@@ -1027,63 +1023,121 @@ class ProductList extends HTMLElement {
               </div>
             </div>
           `;
-          
           this.attachCouponDetailListeners(c);
         } else {
           this.currentCouponCode = null;
           this.renderPageContent();
         }
       } else {
-        // Coupons Listing View Page
-        let couponsGridHtml = '';
-        if (activeCoupons.length === 0) {
-          couponsGridHtml = `
-            <div class="glass-panel text-center animate-in" style="padding: 60px; border-radius: 16px; border: 1.5px solid var(--border); background: rgba(255, 255, 255, 0.4); text-align: center;">
-              <span style="font-size: 40px; display: block; margin-bottom: 16px;">🎟️</span>
-              <h3 style="font-size: 18px; font-weight: 800; color: var(--text-dark); margin: 0 0 8px 0;">Aucun Coupon Actif / No Active Coupons</h3>
-              <p style="font-size: 13.5px; color: var(--text-gray); margin: 0;">Revenez plus tard pour découvrir nos offres exclusives !</p>
+        let scratchCardsGridHtml = '';
+        if (scratchcardsList.length === 0) {
+          scratchCardsGridHtml = `
+            <div class="glass-panel text-center animate-in" style="padding: 50px; border-radius: 16px; border: 1.5px solid var(--border); background: rgba(255, 255, 255, 0.4); text-align: center; width: 100%;">
+              <span style="font-size: 36px; display: block; margin-bottom: 12px;">🎁</span>
+              <h4 style="font-size: 16px; font-weight: 800; color: var(--text-dark); margin: 0 0 6px 0;">Aucune Boîte Mystère / No Mystery Boxes</h4>
+              <p style="font-size: 13.5px; color: var(--text-gray); margin: 0;">Faites des achats sur notre boutique pour débloquer des boîtes mystères !</p>
             </div>
           `;
         } else {
-          couponsGridHtml = `
+          scratchCardsGridHtml = `
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;" class="animate-in">
-              ${activeCoupons.map(c => {
-                const discountText = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
-                return `
-                  <div class="coupon-card-store" data-coupon-code="${c.code}" style="position: relative; background: rgba(255, 255, 255, 0.4); border: 2px dashed var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: all 0.2s ease; min-height: 180px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
-                      <span style="font-size: 24px;">🎟️</span>
-                      <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 8px; text-transform: uppercase;">Actif</span>
+              ${scratchcardsList.map(card => {
+                if (!card.scratched) {
+                  return `
+                    <div style="position: relative; width: 280px; height: 180px; border-radius: 16px; overflow: hidden; border: 1.5px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.03);">
+                      <canvas class="scratch-canvas" data-scratchcard-id="${card.id}" width="280" height="180" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; z-index: 10;"></canvas>
+                      <div class="scratch-revealed-content" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; text-align: center; background: white; z-index: 5;">
+                        <!-- Decided dynamically when scratching completes -->
+                      </div>
                     </div>
-                    
-                    <div>
-                      <h4 style="font-size: 18px; font-weight: 850; color: var(--text-dark); margin: 0 0 6px 0;">${discountText}</h4>
-                      <code style="font-size: 14px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; background: white; padding: 4px 10px; border-radius: 6px; border: 1.5px solid var(--border); display: inline-block;">${c.code}</code>
-                    </div>
-
-                    <div style="border-top: 1px solid var(--border); padding-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text-gray); font-weight: 600;">
-                      <span>Exp: ${c.expiry}</span>
-                      <span style="color: var(--primary); font-weight: 800; display: flex; align-items: center; gap: 4px;">Voir détails →</span>
-                    </div>
-                  </div>
-                `;
+                  `;
+                } else {
+                  if (card.couponWon === 'lost') {
+                    return `
+                      <div style="width: 280px; height: 180px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; text-align: center; background: rgba(255,255,255,0.5); border: 1.5px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
+                        <span style="font-size: 32px; display: block; margin-bottom: 8px;">😢</span>
+                        <h4 style="font-size: 15px; font-weight: 850; color: var(--text-dark); margin: 0 0 4px 0;">Bonne chance la prochaine fois !</h4>
+                        <p style="font-size: 12.5px; color: var(--text-gray); margin: 0;">Oops! Good luck next time!</p>
+                      </div>
+                    `;
+                  } else {
+                    const c = card.couponWon;
+                    const discountText = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
+                    return `
+                      <div class="unlocked-coupon-card" data-coupon-code="${c.code}" style="width: 280px; height: 180px; border-radius: 16px; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; background: white; border: 2px dashed var(--primary); box-shadow: 0 4px 15px rgba(0,0,0,0.03); cursor: pointer; transition: all 0.2s;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                          <span style="font-size: 20px;">🎉 GAGNÉ !</span>
+                          <span style="font-size: 10px; font-weight: 800; color: var(--primary); background: var(--primary-light); padding: 3px 8px; border-radius: 6px; text-transform: uppercase;">Won</span>
+                        </div>
+                        <div>
+                          <h4 style="font-size: 16px; font-weight: 850; color: var(--text-dark); margin: 0 0 4px 0;">${discountText}</h4>
+                          <code style="font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; background: var(--primary-light); padding: 3px 8px; border-radius: 4px; display: inline-block;">${c.code}</code>
+                        </div>
+                        <div style="border-top: 1px solid var(--border); padding-top: 8px; font-size: 11px; color: var(--text-gray); font-weight: 600; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                          <span>Exp: ${c.expiry}</span>
+                          <span style="color: var(--primary); font-weight: 800;">Détails →</span>
+                        </div>
+                      </div>
+                    `;
+                  }
+                }
               }).join('')}
+            </div>
+          `;
+        }
+        
+        const wonCoupons = scratchcardsList.filter(sc => sc.scratched && sc.couponWon !== 'lost').map(sc => sc.couponWon);
+        let unlockedCouponsHtml = '';
+        if (wonCoupons.length > 0) {
+          unlockedCouponsHtml = `
+            <div style="margin-top: 40px; width: 100%;">
+              <h3 style="font-size: 18px; font-weight: 850; color: var(--text-dark); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                <span>🎫</span> Mes Coupons Débloqués / My Unlocked Coupons
+              </h3>
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;" class="animate-in">
+                ${wonCoupons.map(c => {
+                  const discountText = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
+                  return `
+                    <div class="unlocked-coupon-card" data-coupon-code="${c.code}" style="position: relative; background: rgba(255, 255, 255, 0.4); border: 2px dashed var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: all 0.2s ease; min-height: 180px; cursor: pointer;">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                        <span style="font-size: 24px;">🎟️</span>
+                        <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 8px; text-transform: uppercase;">Actif</span>
+                      </div>
+                      
+                      <div>
+                        <h4 style="font-size: 18px; font-weight: 850; color: var(--text-dark); margin: 0 0 6px 0;">${discountText}</h4>
+                        <code style="font-size: 14px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; background: white; padding: 4px 10px; border-radius: 6px; border: 1.5px solid var(--border); display: inline-block;">${c.code}</code>
+                      </div>
+
+                      <div style="border-top: 1px solid var(--border); padding-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text-gray); font-weight: 600;">
+                        <span>Exp: ${c.expiry}</span>
+                        <span style="color: var(--primary); font-weight: 800; display: flex; align-items: center; gap: 4px;">Détails →</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
             </div>
           `;
         }
 
         contentArea.innerHTML = `
           <div class="about-page-container animate-in" style="padding-bottom: 40px;">
-            <div class="page-hero-banner page-about animate-in" style="margin-bottom: 24px;">
+            <div class="page-hero-banner page-about animate-in" style="margin-bottom: 30px;">
               <div class="page-hero-glow"></div>
               <div class="page-hero-content">
-                <span class="page-hero-badge">🎁 OFFRES SPÉCIALES</span>
-                <h2>Coupons de réduction / Discount Vouchers</h2>
-                <p>Découvrez et partagez nos coupons de réduction actifs pour vos achats premium.</p>
+                <span class="page-hero-badge">🎁 BOÎTES MYSTÈRES</span>
+                <h2>Boîtes Mystères & Récompenses / Mystery Boxes & Rewards</h2>
+                <p>Débloquez et grattez des boîtes mystères après la livraison de vos commandes pour gagner des coupons.</p>
               </div>
             </div>
             
-            ${couponsGridHtml}
+            <h3 style="font-size: 18px; font-weight: 850; color: var(--text-dark); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+              <span>🎁</span> Mes Boîtes Mystères / My Mystery Boxes
+            </h3>
+            
+            ${scratchCardsGridHtml}
+            ${unlockedCouponsHtml}
           </div>
         `;
         
@@ -4319,12 +4373,140 @@ class ProductList extends HTMLElement {
 
   attachCouponsListListeners() {
     const shadow = this.shadowRoot;
-    shadow.querySelectorAll('.coupon-card-store').forEach(card => {
+    
+    shadow.querySelectorAll('.unlocked-coupon-card').forEach(card => {
       card.addEventListener('click', () => {
         const code = card.getAttribute('data-coupon-code');
         this.currentCouponCode = code;
         this.renderPageContent();
       });
+    });
+
+    shadow.querySelectorAll('.scratch-canvas').forEach(canvas => {
+      const cardId = parseInt(canvas.getAttribute('data-scratchcard-id'));
+      const ctx = canvas.getContext('2d');
+      
+      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      grad.addColorStop(0, '#cfd8dc');
+      grad.addColorStop(0.5, '#eceff1');
+      grad.addColorStop(1, '#b0bec5');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#37474f';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('GRATTEZ ICI / SCRATCH HERE', canvas.width / 2, canvas.height / 2 - 10);
+      ctx.font = '11px sans-serif';
+      ctx.fillText('🎁 Boîte Mystère 🎁', canvas.width / 2, canvas.height / 2 + 15);
+      
+      let isDrawing = false;
+      
+      const getMousePos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: (clientX - rect.left) * (canvas.width / rect.width),
+          y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+      };
+      
+      const scratch = (pos) => {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+        checkProgress();
+      };
+      
+      const checkProgress = () => {
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imgData.data;
+        let transparent = 0;
+        for (let i = 3; i < pixels.length; i += 4) {
+          if (pixels[i] === 0) {
+            transparent++;
+          }
+        }
+        const pct = (transparent / (pixels.length / 4)) * 100;
+        if (pct > 40) {
+          canvas.style.opacity = '0';
+          canvas.style.pointerEvents = 'none';
+          
+          try {
+            let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+            const idx = scratchcards.findIndex(sc => sc.id === cardId);
+            if (idx > -1 && !scratchcards[idx].scratched) {
+              scratchcards[idx].scratched = true;
+              
+              const totalCFA = scratchcards[idx].amount;
+              if (totalCFA >= 2000 && totalCFA <= 15000) {
+                scratchcards[idx].couponWon = 'lost';
+                window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Oops! Good luck next time! 😢' }));
+              } else {
+                const code = `MYSTERY${Math.floor(1000 + Math.random() * 9000)}`;
+                const newCoupon = {
+                  code: code,
+                  type: 'percentage',
+                  value: 15,
+                  minOrder: 10000,
+                  limit: 1,
+                  used: 0,
+                  expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                  status: 'active'
+                };
+                
+                let coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+                coupons.unshift(newCoupon);
+                localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
+                
+                fetch('/api/coupons', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(coupons)
+                }).catch(e => console.error('Failed to sync won coupon:', e));
+
+                scratchcards[idx].couponWon = newCoupon;
+                window.dispatchEvent(new CustomEvent('toast:show', { detail: `Félicitations ! Vous avez gagné le coupon : ${code} ! 🎉` }));
+              }
+              localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+              
+              setTimeout(() => {
+                this.renderPageContent();
+              }, 600);
+            }
+          } catch(e) {
+            console.error('Scratching error:', e);
+          }
+        }
+      };
+      
+      const startDrawing = (e) => {
+        isDrawing = true;
+        scratch(getMousePos(e));
+      };
+      
+      const draw = (e) => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        scratch(getMousePos(e));
+      };
+      
+      const stopDrawing = () => {
+        isDrawing = false;
+      };
+      
+      canvas.addEventListener('mousedown', startDrawing);
+      canvas.addEventListener('mousemove', draw);
+      window.addEventListener('mouseup', stopDrawing);
+      
+      canvas.addEventListener('touchstart', startDrawing);
+      canvas.addEventListener('touchmove', draw, { passive: false });
+      window.addEventListener('touchend', stopDrawing);
     });
   }
 
