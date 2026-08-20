@@ -6,11 +6,17 @@ export function renderAdminOrders(context) {
   }
 
   let list = [...context.orders];
+  if (context.statusFilter !== 'Deleted') {
+    list = list.filter(o => (o.status || '').toLowerCase() !== 'deleted');
+  } else {
+    list = list.filter(o => (o.status || '').toLowerCase() === 'deleted');
+  }
+
   if (context.searchQuery) {
     const q = context.searchQuery.toLowerCase();
     list = list.filter(o => o.id.toLowerCase().includes(q) || o.customerName.toLowerCase().includes(q));
   }
-  if (context.statusFilter !== 'All') {
+  if (context.statusFilter !== 'All' && context.statusFilter !== 'Deleted') {
     list = list.filter(o => {
       const s = (o.status || '').toLowerCase();
       const target = context.statusFilter.toLowerCase();
@@ -108,7 +114,7 @@ export function renderAdminOrders(context) {
 
     <!-- Quick Status Filters Pill Tabs Row -->
     <div class="status-tabs-row" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-      ${['All', 'Placed', 'Confirm', 'Processing', 'Shipping', 'Done', 'Cancelled'].map(status => {
+      ${['All', 'Placed', 'Confirm', 'Processing', 'Shipping', 'Done', 'Cancelled', 'Deleted'].map(status => {
         const isActive = context.statusFilter === status;
         const count = status === 'All' ? context.orders.length : context.orders.filter(o => {
           const s = (o.status || '').toLowerCase();
@@ -475,11 +481,17 @@ export function attachAdminOrdersListeners(context, shadow) {
   if (next) {
     next.addEventListener('click', () => {
       const list = context.orders.filter(o => {
+        if (context.statusFilter !== 'Deleted') {
+          if ((o.status || '').toLowerCase() === 'deleted') return false;
+        } else {
+          if ((o.status || '').toLowerCase() !== 'deleted') return false;
+        }
+
         if (context.searchQuery) {
           const q = context.searchQuery.toLowerCase();
           if (!o.id.toLowerCase().includes(q) && !o.customerName.toLowerCase().includes(q)) return false;
         }
-        if (context.statusFilter !== 'All') {
+        if (context.statusFilter !== 'All' && context.statusFilter !== 'Deleted') {
           const s = (o.status || '').toLowerCase();
           const target = context.statusFilter.toLowerCase();
           let match = false;

@@ -6135,14 +6135,14 @@ class ProductList extends HTMLElement {
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
         showDeleteOrderModal(this.shadowRoot, o, () => {
-          // 1. Remove from customer profile
+          // 1. Remove from customer profile view
           const profile = this.loadUserProfile();
           profile.orders = profile.orders.filter(order => order.id !== o.id);
           const profileKey = getProfileStorageKey();
           localStorage.setItem(profileKey, JSON.stringify(profile));
           localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
           
-          // 2. Remove from global SWEETOS_all_orders
+          // 2. Set status to 'Deleted' in global SWEETOS_all_orders (keeps in admin side)
           let allOrders = [];
           const savedAll = localStorage.getItem('SWEETOS_all_orders');
           if (savedAll) {
@@ -6150,10 +6150,13 @@ class ProductList extends HTMLElement {
               allOrders = JSON.parse(savedAll);
             } catch(e) {}
           }
-          allOrders = allOrders.filter(go => go.id !== o.id);
-          localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+          const globalOrder = allOrders.find(go => go.id === o.id);
+          if (globalOrder) {
+            globalOrder.status = 'Deleted';
+            localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+          }
           
-          // 3. Sync to server (deletes in Admin side)
+          // 3. Sync to server
           fetch('/api/orders', {
             method: 'POST',
             headers: {

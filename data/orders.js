@@ -1,8 +1,72 @@
 const orders = [
   {
+    "id": "ORD-100145",
+    "date": "20 août 2026",
+    "status": "Done",
+    "total": 2411,
+    "items": "Aero-Pad Numpad Pro (x4), Apex Desktop DAC Amp (x1)",
+    "products": [
+      {
+        "id": 5,
+        "name": "Aero-Pad Numpad Pro",
+        "price": 69,
+        "rating": 4.8,
+        "reviews": 43,
+        "category": "Keyboards",
+        "image": "./assets/keyboard.jpg",
+        "shortDesc": "Stand-alone mechanical numeric pad with custom dial.",
+        "description": "An elegant numeric keypad to match your compact setups. Sports 17 standard keys plus a programmable metallic volume slider. Features matching white case styling and ice-blue backlit animations.",
+        "specs": {
+          "Keys Count": "17 mechanical keys + 1 dial",
+          "Switches": "Aero-Ice Linear switches",
+          "Keycaps": "PBT double-shot legends",
+          "Backlighting": "Single ice-blue LED strip",
+          "Connectivity": "USB-C rechargeable wireless"
+        },
+        "homepageSections": [
+          "sec-deals",
+          "sec-2"
+        ],
+        "quantity": 4
+      },
+      {
+        "id": 14,
+        "name": "Apex Desktop DAC Amp",
+        "price": 135,
+        "rating": 4.9,
+        "reviews": 79,
+        "category": "Audio",
+        "image": "./assets/audio_dac.jpg",
+        "shortDesc": "Premium desktop audio converter with glowing blue dial indicator.",
+        "description": "Elevate your audio setup. The Apex DAC decodes ultra-high-resolution files with zero distortion. Built into a gorgeous sandblasted white aluminum frame, it features a heavy volume dial highlighted by a subtle glowing blue LED ring that changes intensity with output level. Perfect for high-impedance headphones.",
+        "specs": {
+          "DAC Chip": "ESS Sabre ES9038Q2M",
+          "Resolution": "Up to 32-bit / 384kHz PCM, DSD256 native",
+          "Output Ports": "3.5mm unbalanced, 4.4mm balanced, RCA line-out",
+          "Input Ports": "USB-C, Coaxial, Optical",
+          "Chassis Material": "Sandblasted white anodized aluminum"
+        },
+        "stock": 8,
+        "homepageSections": [
+          "sec-deals",
+          "sec-3"
+        ],
+        "quantity": 1
+      }
+    ],
+    "customerName": "chibuike kene",
+    "customerEmail": "chibuikekene@gmil.com",
+    "customerPhone": "+225 600 000 000",
+    "customerAddress": "Ivory Coast",
+    "customerZip": "",
+    "paymentMethod": "cod",
+    "userProfileKey": "SWEETOS_user_profile_chibuikekene_gmil_com",
+    "trackingNumber": ""
+  },
+  {
     "id": "ORD-651130",
     "date": "20 août 2026",
-    "status": "Cancelled",
+    "status": "Done",
     "total": 15080,
     "items": "chager (x7), Apex Desktop DAC Amp (x8)",
     "products": [
@@ -58,7 +122,7 @@ const orders = [
     "customerZip": "",
     "paymentMethod": "wave",
     "userProfileKey": "SWEETOS_user_profile_chibuikekene_gmil_com",
-    "trackingNumber": "2200"
+    "trackingNumber": ""
   }
 ];
 
