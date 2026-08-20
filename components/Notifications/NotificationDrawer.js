@@ -212,6 +212,14 @@ class NotificationDrawer extends HTMLElement {
       this.loadNotifications();
       this.render();
     });
+
+    window.addEventListener('storage', (e) => {
+      const key = getNotificationsStorageKey();
+      if (e.key === key) {
+        this.loadNotifications();
+        this.render();
+      }
+    });
   }
 
   attachDynamicListeners() {

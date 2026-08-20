@@ -253,7 +253,8 @@ const products = [
       "Output Ports": "3.5mm unbalanced, 4.4mm balanced, RCA line-out",
       "Input Ports": "USB-C, Coaxial, Optical",
       "Chassis Material": "Sandblasted white anodized aluminum"
-    }
+    },
+    "stock": 8
   },
   {
     "id": 15,
@@ -1009,7 +1010,7 @@ const products = [
     "comparePrice": 5000,
     "category": "Keyboards",
     "brand": "SWEETOS",
-    "stock": 10,
+    "stock": 17,
     "costPrice": 800,
     "description": "hp charger very fast and reliable",
     "status": "Active",

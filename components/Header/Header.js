@@ -418,6 +418,13 @@ class Header extends HTMLElement {
       this.syncNotificationBadge();
     });
 
+    window.addEventListener('storage', (e) => {
+      const key = getNotificationsStorageKey();
+      if (e.key === key) {
+        this.syncNotificationBadge();
+      }
+    });
+
     window.addEventListener('wishlist:updated', () => {
       this.syncWishlistBadge();
     });
