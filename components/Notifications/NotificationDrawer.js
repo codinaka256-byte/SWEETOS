@@ -70,8 +70,78 @@ class NotificationDrawer extends HTMLElement {
       ];
       localStorage.setItem(key, JSON.stringify(this.notifications));
     }
+    this.generateExpiringReminders();
     const totalUnread = this.notifications.filter(n => n.unread).length;
     window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
+  }
+
+  generateExpiringReminders() {
+    let scratchcards = [];
+    try {
+      scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+    } catch(e) {}
+    
+    const now = Date.now();
+    let updated = false;
+    
+    scratchcards.forEach(card => {
+      if (!card.scratched && card.expiresAt) {
+        const diffMs = card.expiresAt - now;
+        const daysRemaining = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+        
+        if (daysRemaining > 0 && daysRemaining <= 14) {
+          const uniqueId = `reminder-mystery-${card.id}-${daysRemaining}`;
+          if (!this.notifications.some(n => n.uniqueKey === uniqueId)) {
+            this.notifications.unshift({
+              id: Date.now() + Math.floor(Math.random() * 1000),
+              uniqueKey: uniqueId,
+              type: 'promo',
+              icon: '⏰',
+              title: `Rappel: Boîte Mystère expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}! 🎁`,
+              desc: `Votre boîte mystère de la commande #${card.orderId} va bientôt expirer. Grattez-la maintenant pour découvrir votre offre !`,
+              time: 'Just now',
+              unread: true
+            });
+            updated = true;
+          }
+        }
+      }
+    });
+
+    let coupons = [];
+    try {
+      coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+    } catch(e) {}
+    
+    coupons.forEach(c => {
+      const isWonCoupon = c.code.startsWith('LOYAL') || c.code.startsWith('SAVE');
+      if (isWonCoupon && c.status === 'active' && c.expiry) {
+        const expiryTime = new Date(c.expiry).getTime() + (24 * 60 * 60 * 1000) - 1000;
+        const diffMs = expiryTime - now;
+        const daysRemaining = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+        
+        if (daysRemaining > 0 && daysRemaining <= 7) {
+          const uniqueId = `reminder-coupon-${c.code}-${daysRemaining}`;
+          if (!this.notifications.some(n => n.uniqueKey === uniqueId)) {
+            this.notifications.unshift({
+              id: Date.now() + Math.floor(Math.random() * 1000),
+              uniqueKey: uniqueId,
+              type: 'promo',
+              icon: '⏰',
+              title: `Rappel Coupon: ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''}! 🎟️`,
+              desc: `Votre coupon de réduction exclusif ${c.code} (${c.value}% OFF) expire bientôt. Utilisez-le vite à la caisse !`,
+              time: 'Just now',
+              unread: true
+            });
+            updated = true;
+          }
+        }
+      }
+    });
+    
+    if (updated) {
+      this.saveNotifications();
+    }
   }
 
   saveNotifications() {
@@ -211,10 +281,14 @@ class NotificationDrawer extends HTMLElement {
 
         // 3. Handle page routing / actions
         if (target.type === 'promo') {
-          navigator.clipboard.writeText('WELCOME10').then(() => {
-            window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Promo code WELCOME10 copied to clipboard! 🎟️' }));
-          }).catch(() => {});
-          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+          if (target.uniqueKey && target.uniqueKey.startsWith('reminder-')) {
+            window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'coupons' } }));
+          } else {
+            navigator.clipboard.writeText('WELCOME10').then(() => {
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Promo code WELCOME10 copied to clipboard! 🎟️' }));
+            }).catch(() => {});
+            window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+          }
         } else if (target.type === 'shipping') {
           window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'orders' } }));
         } else if (target.type === 'system') {
