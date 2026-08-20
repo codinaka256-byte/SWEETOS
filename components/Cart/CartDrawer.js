@@ -88,7 +88,11 @@ class CartDrawer extends HTMLElement {
       const stored = localStorage.getItem('SWEETOS_coupons');
       couponsList = stored ? JSON.parse(stored) : [];
     } catch(e) {}
-    const activeCoupons = couponsList.filter(c => c.status === 'active');
+    // Filter to only display coupons that are active and won by scratching a mystery box
+    const activeCoupons = couponsList.filter(c => 
+      c.status === 'active' && 
+      (c.code.startsWith('LOYAL') || c.code.startsWith('SAVE'))
+    );
 
     container.innerHTML = `
       <div class="cart-wrapper">
@@ -334,7 +338,9 @@ class CartDrawer extends HTMLElement {
         } catch(e) {}
 
         const coupon = coupons.find(c => c.code.toUpperCase() === code.toUpperCase());
-        if (!coupon) {
+        const isWonCoupon = coupon && (coupon.code.startsWith('LOYAL') || coupon.code.startsWith('SAVE'));
+        
+        if (!coupon || !isWonCoupon) {
           window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Code promo invalide / Invalid code.' }));
           return;
         }
