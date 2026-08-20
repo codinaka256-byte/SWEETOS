@@ -3,7 +3,7 @@ import { showEditAddressModal } from '../Modals/EditAddressModal.js';
 import { showCancelOrderModal } from '../Modals/CancelOrderModal.js';
 import { showDeleteOrderModal } from '../Modals/DeleteOrderModal.js';
 import { getAuthPageHTML, attachAuthListeners } from '../Auth/AuthPage.js';
-import { getCartStorageKey, formatPrice } from '../../utils/storage.js';
+import { getCartStorageKey, getProfileStorageKey, formatPrice } from '../../utils/storage.js';
 import '../Admin/AdminPage.js';
 
 class ProductList extends HTMLElement {
@@ -278,7 +278,8 @@ class ProductList extends HTMLElement {
 
   // --- Functional User Profile Utility Methods ---
   loadUserProfile() {
-    const saved = localStorage.getItem('SWEETOS_user_profile');
+    const profileKey = getProfileStorageKey();
+    const saved = localStorage.getItem(profileKey);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -5148,12 +5149,24 @@ class ProductList extends HTMLElement {
       return true; // All Time
     });
 
-    // Calculate badge stats based on time-filtered orders
+    // Calculate badge stats based on time-filtered orders with status normalization
     const allCount = filteredByTime.length;
-    const processingCount = filteredByTime.filter(o => o.status === 'Processing').length;
-    const shippedCount = filteredByTime.filter(o => o.status === 'Shipped').length;
-    const deliveredCount = filteredByTime.filter(o => o.status === 'Delivered').length;
-    const cancelledCount = filteredByTime.filter(o => o.status === 'Cancelled').length;
+    const processingCount = filteredByTime.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      return s === 'pending' || s === 'en cours' || s === 'confirmé' || s === 'processing';
+    }).length;
+    const shippedCount = filteredByTime.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      return s === 'shipped' || s.includes('transit');
+    }).length;
+    const deliveredCount = filteredByTime.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      return s === 'livré' || s === 'delivered' || s === 'done' || s === 'livre';
+    }).length;
+    const cancelledCount = filteredByTime.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      return s === 'cancelled';
+    }).length;
 
     // Format Total Spent
     const totalSpent = filteredByTime.reduce((sum, o) => sum + o.total, 0);
@@ -5182,11 +5195,20 @@ class ProductList extends HTMLElement {
     if (badgeDeliv) badgeDeliv.textContent = deliveredCount;
     if (badgeCancel) badgeCancel.textContent = cancelledCount;
 
-    // Filter by search query & tab select
+    // Filter by search query & tab select with status mapping
     let finalFiltered = filteredByTime.filter(o => {
       // Tab filter mapping
       if (this.activeOrdersFilter !== 'All') {
-        if (o.status !== this.activeOrdersFilter) return false;
+        const s = (o.status || '').toLowerCase();
+        if (this.activeOrdersFilter === 'Processing') {
+          if (s !== 'pending' && s !== 'en cours' && s !== 'confirmé' && s !== 'processing') return false;
+        } else if (this.activeOrdersFilter === 'Shipped') {
+          if (s !== 'shipped' && !s.includes('transit')) return false;
+        } else if (this.activeOrdersFilter === 'Delivered') {
+          if (s !== 'livré' && s !== 'delivered' && s !== 'done' && s !== 'livre') return false;
+        } else if (this.activeOrdersFilter === 'Cancelled') {
+          if (s !== 'cancelled') return false;
+        }
       }
       // Search input matching
       if (this.ordersSearchQuery) {
