@@ -11,7 +11,16 @@ export function renderAdminOrders(context) {
     list = list.filter(o => o.id.toLowerCase().includes(q) || o.customerName.toLowerCase().includes(q));
   }
   if (context.statusFilter !== 'All') {
-    list = list.filter(o => o.status === context.statusFilter);
+    list = list.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      const target = context.statusFilter.toLowerCase();
+      if (target === 'placed') return s === 'placed' || s === 'pending';
+      if (target === 'confirm') return s === 'confirm' || s === 'confirmé';
+      if (target === 'processing') return s === 'processing' || s === 'en cours';
+      if (target === 'shipping') return s === 'shipping' || s === 'shipped';
+      if (target === 'done') return s === 'done' || s === 'livré' || s === 'delivered';
+      return s === target;
+    });
   }
 
   const totalItems = list.length;
@@ -21,9 +30,18 @@ export function renderAdminOrders(context) {
 
   // Summary Metrics calculations
   const totalCount = context.orders.length;
-  const pendingCount = context.orders.filter(o => o.status === 'Pending').length;
-  const activeCount = context.orders.filter(o => o.status === 'Confirmé' || o.status === 'En cours' || o.status === 'Shipped').length;
-  const completedCount = context.orders.filter(o => o.status === 'Livré').length;
+  const pendingCount = context.orders.filter(o => {
+    const s = (o.status || '').toLowerCase();
+    return s === 'placed' || s === 'pending';
+  }).length;
+  const activeCount = context.orders.filter(o => {
+    const s = (o.status || '').toLowerCase();
+    return s === 'confirm' || s === 'confirmé' || s === 'processing' || s === 'en cours' || s === 'shipping' || s === 'shipped';
+  }).length;
+  const completedCount = context.orders.filter(o => {
+    const s = (o.status || '').toLowerCase();
+    return s === 'done' || s === 'livré' || s === 'delivered';
+  }).length;
 
   return `
     <style>
@@ -90,9 +108,18 @@ export function renderAdminOrders(context) {
 
     <!-- Quick Status Filters Pill Tabs Row -->
     <div class="status-tabs-row" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-      ${['All', 'Pending', 'Confirmé', 'En cours', 'Shipped', 'Livré', 'Cancelled'].map(status => {
+      ${['All', 'Placed', 'Confirm', 'Processing', 'Shipping', 'Done', 'Cancelled'].map(status => {
         const isActive = context.statusFilter === status;
-        const count = status === 'All' ? context.orders.length : context.orders.filter(o => o.status === status).length;
+        const count = status === 'All' ? context.orders.length : context.orders.filter(o => {
+          const s = (o.status || '').toLowerCase();
+          const target = status.toLowerCase();
+          if (target === 'placed') return s === 'placed' || s === 'pending';
+          if (target === 'confirm') return s === 'confirm' || s === 'confirmé';
+          if (target === 'processing') return s === 'processing' || s === 'en cours';
+          if (target === 'shipping') return s === 'shipping' || s === 'shipped';
+          if (target === 'done') return s === 'done' || s === 'livré' || s === 'delivered';
+          return s === target;
+        }).length;
         
         let pillColor = 'var(--text-dark)';
         let pillBackground = 'rgba(255,255,255,0.7)';
@@ -360,16 +387,16 @@ export function renderAdminOrderDetails(context) {
           <div class="form-group">
             <label>Update Order Status</label>
             <select id="order-status-dropdown" class="admin-input">
-              <option value="Pending" ${order.status === 'Pending' ? 'selected' : ''}>Pending</option>
-              <option value="En cours" ${order.status === 'En cours' ? 'selected' : ''}>En cours</option>
-              <option value="Confirmé" ${order.status === 'Confirmé' ? 'selected' : ''}>Confirmé</option>
-              <option value="Shipped" ${order.status === 'Shipped' ? 'selected' : ''}>Shipped (In transit)</option>
-              <option value="Livré" ${order.status === 'Livré' ? 'selected' : ''}>Livré (Delivered)</option>
+              <option value="Placed" ${order.status === 'Placed' || order.status === 'Pending' ? 'selected' : ''}>Placed</option>
+              <option value="Confirm" ${order.status === 'Confirm' || order.status === 'Confirmé' ? 'selected' : ''}>Confirm</option>
+              <option value="Processing" ${order.status === 'Processing' || order.status === 'En cours' ? 'selected' : ''}>Processing</option>
+              <option value="Shipping" ${order.status === 'Shipping' || order.status === 'Shipped' ? 'selected' : ''}>Shipping (In transit)</option>
+              <option value="Done" ${order.status === 'Done' || order.status === 'Livré' ? 'selected' : ''}>Done (Delivered)</option>
               <option value="Cancelled" ${order.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
             </select>
           </div>
           
-          <div class="form-group" id="tracking-num-group" style="display: ${order.status === 'Shipped' ? 'block' : 'none'};">
+          <div class="form-group" id="tracking-num-group" style="display: ${(order.status === 'Shipping' || order.status === 'Shipped') ? 'block' : 'none'};">
             <label>Tracking Number</label>
             <input type="text" id="order-tracking-num" class="admin-input" placeholder="e.g. WV-ABJ-89234" value="${order.trackingNumber || ''}">
           </div>
@@ -452,7 +479,18 @@ export function attachAdminOrdersListeners(context, shadow) {
           const q = context.searchQuery.toLowerCase();
           if (!o.id.toLowerCase().includes(q) && !o.customerName.toLowerCase().includes(q)) return false;
         }
-        if (context.statusFilter !== 'All' && o.status !== context.statusFilter) return false;
+        if (context.statusFilter !== 'All') {
+          const s = (o.status || '').toLowerCase();
+          const target = context.statusFilter.toLowerCase();
+          let match = false;
+          if (target === 'placed') match = (s === 'placed' || s === 'pending');
+          else if (target === 'confirm') match = (s === 'confirm' || s === 'confirmé');
+          else if (target === 'processing') match = (s === 'processing' || s === 'en cours');
+          else if (target === 'shipping') match = (s === 'shipping' || s === 'shipped');
+          else if (target === 'done') match = (s === 'done' || s === 'livré' || s === 'delivered');
+          else match = (s === target);
+          if (!match) return false;
+        }
         return true;
       });
       const totalPages = Math.ceil(list.length / context.itemsPerPage) || 1;
@@ -469,7 +507,7 @@ export function attachAdminOrdersListeners(context, shadow) {
   const trackGroup = shadow.getElementById('tracking-num-group');
   if (statusDrop && trackGroup) {
     statusDrop.addEventListener('change', (e) => {
-      if (e.target.value === 'Shipped') {
+      if (e.target.value === 'Shipping' || e.target.value === 'Shipped') {
         trackGroup.style.display = 'block';
       } else {
         trackGroup.style.display = 'none';
@@ -486,8 +524,8 @@ export function attachAdminOrdersListeners(context, shadow) {
         const nextStatus = statusDrop.value;
         const trackingNum = shadow.getElementById('order-tracking-num').value.trim();
 
-        if (nextStatus === 'Shipped' && !trackingNum) {
-          window.showAlert('A tracking number is required to update this order status to Shipped.', 'Tracking Required');
+        if ((nextStatus === 'Shipping' || nextStatus === 'Shipped') && !trackingNum) {
+          window.showAlert('A tracking number is required to update this order status to Shipping.', 'Tracking Required');
           return;
         }
 
@@ -514,7 +552,7 @@ export function attachAdminOrdersListeners(context, shadow) {
           let title = `Mise à jour commande #${order.id}`;
           let desc = `Le statut de votre commande #${order.id} a été mis à jour : ${nextStatus}.`;
           
-          if (nextStatus === 'Shipped') {
+          if (nextStatus === 'Shipping' || nextStatus === 'Shipped') {
             icon = '🚚';
             title = `Commande #${order.id} expédiée !`;
             desc = `Votre commande #${order.id} a été expédiée. Numéro de suivi : ${trackingNum || 'N/A'}`;

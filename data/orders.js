@@ -2,7 +2,7 @@ const orders = [
   {
     "id": "ORD-651130",
     "date": "20 août 2026",
-    "status": "En cours",
+    "status": "Shipped",
     "total": 15080,
     "items": "chager (x7), Apex Desktop DAC Amp (x8)",
     "products": [
@@ -57,7 +57,8 @@ const orders = [
     "customerAddress": "Ivory Coast",
     "customerZip": "",
     "paymentMethod": "wave",
-    "userProfileKey": "SWEETOS_user_profile_chibuikekene_gmil_com"
+    "userProfileKey": "SWEETOS_user_profile_chibuikekene_gmil_com",
+    "trackingNumber": "2200"
   }
 ];
 
