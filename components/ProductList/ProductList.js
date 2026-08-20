@@ -6050,7 +6050,9 @@ class ProductList extends HTMLElement {
                       Mark as Received
                   </button>
                 ` : ''}
-                <button class="action-btn delete modal-delete-btn" style="background:#fff; color:#ef4444; border-color:#fecaca;" title="Remove Record">Remove</button>
+                ${(o.status !== 'Done' && o.status !== 'Livré') ? `
+                  <button class="action-btn delete modal-delete-btn" style="background:#fff; color:#ef4444; border-color:#fecaca;" title="Remove Record">Remove</button>
+                ` : ''}
             </div>
         </div>
       </div>
