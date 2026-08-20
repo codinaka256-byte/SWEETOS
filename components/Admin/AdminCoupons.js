@@ -55,6 +55,9 @@ export function renderAdminCoupons(context) {
                 </td>
                 <td>
                   <div class="row-actions">
+                    <button class="share-coupon-whatsapp-btn" data-coupon-code="${c.code}" data-coupon-type="${c.type}" data-coupon-value="${c.value}" data-coupon-min="${c.minOrder || 0}" data-coupon-expiry="${c.expiry}" style="background: rgba(37, 211, 102, 0.1); border-color: rgba(37, 211, 102, 0.2); color: #25d366;" title="Share to WhatsApp">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="width: 14px; height: 14px; flex-shrink: 0;"><path d="M17.472 14.382c-.022-.08-.124-.184-.282-.232-.078-.024-.464-.232-.536-.252-.072-.02-.124-.03-.178.05-.054.082-.21.26-.258.312-.048.052-.096.06-.178.02a1.866 1.866 0 0 1-.502-.308c-.287-.25-.482-.56-.538-.65-.056-.092-.006-.142.04-.188.04-.04.096-.11.144-.168.048-.058.064-.1.096-.168.032-.068.016-.128-.008-.178-.024-.05-.178-.436-.244-.594-.064-.158-.13-.136-.178-.138-.046-.002-.098-.002-.15-.002a.287.287 0 0 0-.208.098c-.072.078-.276.27-.276.658 0 .388.282.764.32.816.04.052.556.85 1.348 1.192.188.082.336.13.45.166.19.06.362.052.498.032.152-.022.464-.19.53-.374.066-.184.066-.342.046-.374-.022-.03-.078-.05-.156-.088zm-5.467 1.162a6.3 6.3 0 0 1-3.237-.893l-.233-.14-2.404.63 2.443-2.38-.152-.243a6.262 6.262 0 0 1-.958-3.326c0-3.468 2.82-6.29 6.29-6.29 3.47 0 6.29 2.822 6.29 6.29 0 3.47-2.82 6.29-6.29 6.29zm0-13.82c-4.148 0-7.527 3.38-7.527 7.527 0 1.326.347 2.62 1.006 3.766L4 19.5l4.636-1.216a7.487 7.487 0 0 0 3.37.804c4.148 0 7.527-3.378 7.527-7.527 0-4.15-3.38-7.527-7.527-7.527z"/></svg>
+                    </button>
                     <button class="edit-coupon-action-btn" data-coupon-code="${c.code}">
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; flex-shrink: 0;"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                     </button>
@@ -146,6 +149,25 @@ export function attachAdminCouponsListeners(context, shadow) {
         shadow.getElementById('coup-limit').value = coup.limit || 100;
         shadow.getElementById('coup-expiry').value = coup.expiry;
       }
+    });
+  });
+
+  // WhatsApp Share action
+  shadow.querySelectorAll('.share-coupon-whatsapp-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const code = btn.getAttribute('data-coupon-code');
+      const type = btn.getAttribute('data-coupon-type');
+      const val = btn.getAttribute('data-coupon-value');
+      const min = btn.getAttribute('data-coupon-min');
+      const expiry = btn.getAttribute('data-coupon-expiry');
+
+      const discountText = type === 'percentage' ? `${val}% OFF` : `${val} FCFA OFF`;
+      
+      const message = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${code}*\nRéduction : *${discountText}*\n${parseInt(min) > 0 ? `Minimum d'achat : *${min} FCFA*\n` : ''}Date d'expiration : *${expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
+      
+      const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
     });
   });
 
