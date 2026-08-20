@@ -4493,7 +4493,7 @@ class ProductList extends HTMLElement {
                   minOrder: 5000,
                   limit: 1,
                   used: 0,
-                  expiry: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 days expiry
+                  expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days expiry
                   status: 'active'
                 };
                 
