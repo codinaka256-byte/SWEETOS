@@ -677,6 +677,7 @@ class AdminPage extends HTMLElement {
       this.syncProductsToServer();
     } else if (type === 'orders') {
       localStorage.setItem('SWEETOS_all_orders', JSON.stringify(this.orders));
+      this.syncOrdersToServer();
     } else if (type === 'coupons') {
       localStorage.setItem('SWEETOS_coupons', JSON.stringify(this.coupons));
       this.syncCouponsToServer();
@@ -847,12 +848,30 @@ class AdminPage extends HTMLElement {
       fetch('/api/orders').then(res => res.json()).catch(() => null),
       fetch('/api/coupons').then(res => res.json()).catch(() => null)
     ]).then(([products, categories, brands, reviews, orders, coupons]) => {
-      if (products) this.products = products;
-      if (categories) this.categories = categories;
-      if (brands) this.brands = brands;
-      if (reviews) this.reviews = reviews;
-      if (orders) this.orders = orders;
-      if (coupons) this.coupons = coupons;
+      if (products) {
+        this.products = products;
+        localStorage.setItem('SWEETOS_products', JSON.stringify(products));
+      }
+      if (categories) {
+        this.categories = categories;
+        localStorage.setItem('SWEETOS_categories', JSON.stringify(categories));
+      }
+      if (brands) {
+        this.brands = brands;
+        localStorage.setItem('SWEETOS_brands', JSON.stringify(brands));
+      }
+      if (reviews) {
+        this.reviews = reviews;
+        localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
+      }
+      if (orders) {
+        this.orders = orders;
+        localStorage.setItem('SWEETOS_all_orders', JSON.stringify(orders));
+      }
+      if (coupons) {
+        this.coupons = coupons;
+        localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
+      }
       
       this.render();
       this.attachListeners();
@@ -939,6 +958,10 @@ class AdminPage extends HTMLElement {
   }
 
   renderTabContent() {
+    if (this.lastTab !== this.currentTab) {
+      this.currentPageIndex = 1;
+      this.lastTab = this.currentTab;
+    }
     switch (this.currentTab) {
       case 'dashboard':
         return renderAdminDashboard(this);

@@ -6047,7 +6047,35 @@ class ProductList extends HTMLElement {
           const targetOrder = profile.orders.find(order => order.id === o.id);
           if (targetOrder) {
             targetOrder.address = newAddress;
+            
+            // 1. Save customer profile to correct key
+            const profileKey = getProfileStorageKey();
+            localStorage.setItem(profileKey, JSON.stringify(profile));
             localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+            
+            // 2. Update address in global SWEETOS_all_orders
+            let allOrders = [];
+            const savedAll = localStorage.getItem('SWEETOS_all_orders');
+            if (savedAll) {
+              try {
+                allOrders = JSON.parse(savedAll);
+              } catch(e) {}
+            }
+            const globalOrder = allOrders.find(go => go.id === o.id);
+            if (globalOrder) {
+              globalOrder.customerAddress = newAddress;
+              localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+            }
+            
+            // 3. Sync to server
+            fetch('/api/orders', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(allOrders)
+            }).catch(e => console.error('Failed to sync updated order address:', e));
+
             window.dispatchEvent(new CustomEvent('toast:show', { detail: `Address updated for Order ${o.id}!` }));
             overlay.classList.remove('open');
             this.injectOrdersDashboardList();
@@ -6065,7 +6093,35 @@ class ProductList extends HTMLElement {
           const targetOrder = profile.orders.find(order => order.id === o.id);
           if (targetOrder) {
             targetOrder.status = 'Cancelled';
+            
+            // 1. Save customer profile to correct key
+            const profileKey = getProfileStorageKey();
+            localStorage.setItem(profileKey, JSON.stringify(profile));
             localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+            
+            // 2. Update order status in global SWEETOS_all_orders
+            let allOrders = [];
+            const savedAll = localStorage.getItem('SWEETOS_all_orders');
+            if (savedAll) {
+              try {
+                allOrders = JSON.parse(savedAll);
+              } catch(e) {}
+            }
+            const globalOrder = allOrders.find(go => go.id === o.id);
+            if (globalOrder) {
+              globalOrder.status = 'Cancelled';
+              localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+            }
+            
+            // 3. Sync to server
+            fetch('/api/orders', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(allOrders)
+            }).catch(e => console.error('Failed to sync cancelled order status:', e));
+
             window.dispatchEvent(new CustomEvent('toast:show', { detail: `Order ${o.id} cancelled successfully.` }));
             overlay.classList.remove('open');
             this.injectOrdersDashboardList();
@@ -6081,6 +6137,8 @@ class ProductList extends HTMLElement {
         showDeleteOrderModal(this.shadowRoot, o, () => {
           const profile = this.loadUserProfile();
           profile.orders = profile.orders.filter(order => order.id !== o.id);
+          const profileKey = getProfileStorageKey();
+          localStorage.setItem(profileKey, JSON.stringify(profile));
           localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
           window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order record removed.' }));
           overlay.classList.remove('open');
