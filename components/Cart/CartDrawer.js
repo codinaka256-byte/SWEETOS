@@ -70,7 +70,7 @@ class CartDrawer extends HTMLElement {
         <!-- Header -->
         <div class="cart-header">
           <div class="cart-header-left">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0052cc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="cart-bag-icon" style="width: 22px; height: 22px; flex-shrink: 0; display: inline-block;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="cart-bag-icon" style="width: 22px; height: 22px; flex-shrink: 0; display: inline-block;">
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
               <line x1="3" y1="6" x2="21" y2="6"></line>
               <path d="M16 10a4 4 0 0 1-8 0"></path>
@@ -85,7 +85,7 @@ class CartDrawer extends HTMLElement {
         <div class="cart-items-area custom-scroll">
           ${this.cart.length === 0 ? `
             <div class="empty-state">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0052cc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="empty-icon" style="width: 48px; height: 48px; flex-shrink: 0; display: inline-block;">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="empty-icon" style="width: 48px; height: 48px; flex-shrink: 0; display: inline-block;">
                 <circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle>
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
               </svg>

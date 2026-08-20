@@ -80,10 +80,10 @@
 }
 
 .close-btn:hover {
-  border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
+  box-shadow: 0 0 12px var(--primary-light);
   transform: scale(1.05);
 }
 
@@ -224,7 +224,7 @@
   border-radius: 6px;
   border: 1px solid rgba(0, 0, 0, 0.05);
   background: #ffffff;
-  color: #0052cc !important; /* Royal Blue */
+  color: var(--primary) !important;
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
@@ -233,10 +233,10 @@
 }
 
 .dec-btn:hover, .inc-btn:hover {
-  background: #0052cc !important;
-  border-color: #0052cc !important;
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
   color: #ffffff !important;
-  box-shadow: 0 0 8px rgba(0, 82, 204, 0.3);
+  box-shadow: 0 0 8px var(--primary-light);
 }
 
 .qty-val {
@@ -250,7 +250,7 @@
 .cart-item-price {
   font-size: 14.5px;
   font-weight: 800;
-  color: #0052cc; /* primary brand blue */
+  color: var(--primary); /* primary brand blue */
 }
 
 /* Wishlist and delete action buttons */
@@ -314,14 +314,14 @@
 }
 
 .promo-apply-row input:focus {
-  border-color: #0052cc; /* Blue focus */
-  box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.15);
+  border-color: var(--primary); /* Blue focus */
   background: #ffffff;
+  outline: none;
 }
 
 .promo-apply-row button {
   height: 44px;
-  background: #6366f1; /* purple/indigo */
+  background: var(--primary); /* purple/indigo */
   color: #ffffff;
   font-weight: 800;
   border-radius: 12px;
@@ -330,12 +330,12 @@
   cursor: pointer;
   font-size: 13.5px;
   transition: all 0.3s;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 4px 12px var(--primary-light);
 }
 
 .promo-apply-row button:hover {
-  background: #4f46e5;
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.25);
+  background: var(--primary-accent);
+  box-shadow: 0 6px 16px var(--primary-light);
 }
 
 /* Totals styling */
@@ -383,8 +383,8 @@
 .total-val {
   font-size: 22px;
   font-weight: 900;
-  color: #0052cc;
-  filter: drop-shadow(0 2px 4px rgba(0, 82, 204, 0.1));
+  color: var(--primary);
+  filter: drop-shadow(0 2px 4px var(--primary-light));
 }
 
 /* Premium gradient checkout button */
@@ -392,7 +392,7 @@
   width: 100%;
   height: 52px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #5850ec 0%, #6366f1 100%) !important; /* Deep Purple gradient */
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-accent) 100%) !important;
   color: #ffffff !important;
   font-size: 16px;
   font-weight: 900;
@@ -403,14 +403,14 @@
   cursor: pointer;
   border: none;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 8px 24px var(--primary-light);
   margin-bottom: 16px;
 }
 
 .checkout-submit-btn:hover {
   opacity: 0.95;
   transform: translateY(-1.5px);
-  box-shadow: 0 12px 35px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 12px 35px var(--primary-light);
 }
 
 .checkout-submit-btn:active {
@@ -470,12 +470,12 @@
 }
 
 .cart-bag-icon {
-  color: #0052cc;
+  color: var(--primary);
   flex-shrink: 0;
 }
 
 .cart-badge-count-pill {
-  background: #6366f1; /* Deep purple badge */
+  background: var(--primary); /* Deep purple badge */
   color: #ffffff;
   padding: 4px 10px;
   border-radius: 9999px;
