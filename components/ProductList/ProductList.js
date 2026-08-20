@@ -575,31 +575,11 @@ class ProductList extends HTMLElement {
         } else if (s.type === 'grid') {
           homepageSectionsHTML += `
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="brand-grouped-header-banner" style="
-                background: linear-gradient(135deg, #1c1c1e 0%, #3a3a43 100%);
-                border-radius: 24px;
-                padding: 36px 40px;
-                color: white;
-                margin-bottom: 28px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.06);
-                position: relative;
-                overflow: hidden;
-                display: flex;
-                align-items: center;
-                gap: 28px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-              ">
-                <div style="position: absolute; top: -50%; right: -20%; width: 300px; height: 300px; background: rgba(0, 82, 204, 0.12); filter: blur(80px); border-radius: 50%; pointer-events: none; z-index: 1;"></div>
-                <div style="background: rgba(255,255,255,0.08); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 20px; font-size: 32px; flex-shrink: 0; position: relative; z-index: 2; border: 1px solid rgba(255,255,255,0.1);">📦</div>
-                <div style="display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 2; flex: 1;">
-                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                      <h4 style="font-size: 24px; font-weight: 850; margin: 0; letter-spacing: -0.5px; color: white;">${s.name}</h4>
-                      <span style="font-size: 12px; font-weight: 700; color: #00b4d8; background: rgba(255, 255, 255, 0.15); padding: 4px 10px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px;">${s.category} Layouts</span>
-                    </div>
-                  </div>
-                  <p style="font-size: 14px; color: #cbd5e1; margin: 0; line-height: 1.5; max-width: 750px;">Designed to perfection. Premium minimalist ecosystem hardware, reference Retina displays, and workspace integrations.</p>
-                </div>
+              <div class="section-header" style="margin-bottom: 24px;">
+                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin: 0; display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: -0.5px;">
+                  <span>${s.name}</span>
+                  ${s.category ? `<span style="font-size: 11px; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 4px;">${s.category}</span>` : ''}
+                </h3>
               </div>
               <div class="home-grid-4" id="grid-dynamic-${s.id}"></div>
             </div>

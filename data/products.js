@@ -16,7 +16,8 @@ const products = [
       "Backlighting": "Per-key ice-blue LEDs with 16 dynamic modes",
       "Connectivity": "USB-C, Bluetooth 5.2, or 2.4Ghz wireless",
       "Hot-swap Support": "Yes, 3-pin & 5-pin compatible"
-    }
+    },
+    "stock": 58
   },
   {
     "id": 2,
@@ -179,7 +180,8 @@ const products = [
       "Encoders": "2 rotary knob encoders with detents",
       "Software": "QMK/VIA compatible layers",
       "Frame": "Frosted white acrylic with ice-blue backglow"
-    }
+    },
+    "stock": 5
   },
   {
     "id": 11,
