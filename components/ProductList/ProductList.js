@@ -6042,6 +6042,14 @@ class ProductList extends HTMLElement {
                       Cancel
                   </button>
                 ` : ''}
+                ${(o.status === 'Shipping' || o.status === 'Shipped') ? `
+                  <button class="action-btn modal-confirm-delivery-btn" style="background:var(--primary); color:white; border-color:var(--primary);">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                      Mark as Received
+                  </button>
+                ` : ''}
                 <button class="action-btn delete modal-delete-btn" style="background:#fff; color:#ef4444; border-color:#fecaca;" title="Remove Record">Remove</button>
             </div>
         </div>
@@ -6233,6 +6241,63 @@ class ProductList extends HTMLElement {
           overlay.classList.remove('open');
           this.injectOrdersDashboardList();
         });
+      });
+    }
+
+    // Confirm Delivery click
+    const confirmDeliveryBtn = overlay.querySelector('.modal-confirm-delivery-btn');
+    if (confirmDeliveryBtn) {
+      confirmDeliveryBtn.addEventListener('click', () => {
+        // 1. Update customer profile status to 'Done'
+        const profile = this.loadUserProfile();
+        const targetOrder = profile.orders.find(order => order.id === o.id);
+        if (targetOrder) {
+          targetOrder.status = 'Done';
+          const profileKey = getProfileStorageKey();
+          localStorage.setItem(profileKey, JSON.stringify(profile));
+          localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+          
+          // 2. Update status to 'Done' in global SWEETOS_all_orders
+          let allOrders = [];
+          const savedAll = localStorage.getItem('SWEETOS_all_orders');
+          if (savedAll) {
+            try {
+              allOrders = JSON.parse(savedAll);
+            } catch(e) {}
+          }
+          const globalOrder = allOrders.find(go => go.id === o.id);
+          if (globalOrder) {
+            globalOrder.status = 'Done';
+            localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+          }
+          
+          // 3. Sync to server
+          fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(allOrders)
+          })
+          .then(() => {
+            // 4. Broadcast custom alert to admin panel
+            fetch('/api/broadcast-alert', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                type: 'orders',
+                message: `Order ${o.id} has been marked as Received (Done) by the customer!`
+              })
+            }).catch(e => console.error('Failed to broadcast received order alert:', e));
+          })
+          .catch(e => console.error('Failed to sync received order status:', e));
+
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order marked as Received! Thank you! 🎁' }));
+          overlay.classList.remove('open');
+          this.injectOrdersDashboardList();
+        }
       });
     }
   }

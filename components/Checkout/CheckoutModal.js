@@ -827,6 +827,17 @@ class CheckoutModal extends HTMLElement {
         .then(data => {
           if (data.success) {
             console.log('Order registered on server.');
+            // Broadcast custom alert to admin panel
+            fetch('/api/broadcast-alert', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                type: 'orders',
+                message: `New Order ${orderId} placed by ${this.formData.name || 'Guest User'} (${formatPrice(orderTotal)})!`
+              })
+            }).catch(e => console.error('Failed to broadcast new order alert:', e));
           }
         })
         .catch(err => console.error('Failed to register order on server:', err));

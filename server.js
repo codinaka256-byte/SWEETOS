@@ -320,10 +320,30 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: 'Invalid orders structure on server' }));
       }
     });
+  }
+
+  // 1g. API: POST /api/broadcast-alert
+  if (req.method === 'POST' && req.url === '/api/broadcast-alert') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body);
+        const { type, message } = payload;
+        broadcastAlert(type || 'orders', message || 'Database updated');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
     return;
   }
 
-  // 1g. API: POST /api/coupons
+  // 1h. API: POST /api/coupons
   if (req.method === 'POST' && req.url === '/api/coupons') {
     let body = '';
     req.on('data', chunk => {
