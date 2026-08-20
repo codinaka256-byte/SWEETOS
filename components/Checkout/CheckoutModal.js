@@ -367,8 +367,8 @@ class CheckoutModal extends HTMLElement {
           </div>
         `;
       } else if (this.selectedPaymentMethod === 'cod') {
-        paymentTitle = 'Commande confirmée ! 📦';
-        paymentSub = 'Votre commande a été reçue et est en cours de préparation.';
+        paymentTitle = 'Commande reçue ! 📦';
+        paymentSub = 'Votre commande a été reçue et est en attente de confirmation par l\'administrateur.';
         paymentInstructions = `
           <div class="success-payment-instructions" style="margin: 20px 0; padding: 20px; background: #f0fdf4; border-radius: 16px; border: 1px solid #bbf7d0; text-align: left;">
             <h4 style="font-size: 14px; font-weight: 800; color: #14532d; margin: 0 0 6px 0; display:flex; align-items:center; gap:8px;">
@@ -399,8 +399,8 @@ class CheckoutModal extends HTMLElement {
             </svg>
           </div>
 
-          <h1>Commande confirmée ! 📦</h1>
-          <p class="subtitle">Merci pour votre achat chez SWEETOS. Votre commande a été bien reçue et est en cours de préparation avec le plus grand soin.</p>
+          <h1>Commande enregistrée ! 📦</h1>
+          <p class="subtitle">Merci pour votre achat chez SWEETOS. Votre commande a été bien reçue et est en attente de confirmation par l'administrateur.</p>
 
           <div class="order-badge">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle; display:inline-block; margin-right:4px;">
@@ -869,7 +869,7 @@ class CheckoutModal extends HTMLElement {
             type: 'shipping',
             icon: '📦',
             title: `Commande ${orderId} passée`,
-            desc: `Merci ${this.formData.name || 'Cher client'} ! Votre commande ${orderId} d'un montant de ${formatPrice(orderTotal)} est confirmée.`,
+            desc: `Merci ${this.formData.name || 'Cher client'} ! Votre commande ${orderId} d'un montant de ${formatPrice(orderTotal)} a été reçue et est en attente de confirmation.`,
             time: 'À l\'instant',
             unread: true
           };
