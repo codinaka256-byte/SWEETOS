@@ -1410,6 +1410,7 @@ class ProductList extends HTMLElement {
       const hasMoreReviews = filteredReviews.length > this.visibleReviewsCount;
 
       const wishlist = this.loadWishlistFromStorage();
+      const isWishlisted = wishlist.some(item => item.id === p.id);
       const stockVal = p.stock !== undefined ? p.stock : 34;
       const thresholdVal = p.threshold || 5;
       const isOutOfStock = stockVal === 0;
