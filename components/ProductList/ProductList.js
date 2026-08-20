@@ -6294,6 +6294,79 @@ class ProductList extends HTMLElement {
           })
           .catch(e => console.error('Failed to sync received order status:', e));
 
+          // 5. Generate Mystery Box scratchcard if total >= 2000 CFA
+          const totalCFA = parseFloat(targetOrder.total) || 0;
+          if (totalCFA >= 2000) {
+            try {
+              let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+              if (!scratchcards.some(sc => sc.orderId === targetOrder.id)) {
+                scratchcards.push({
+                  id: Date.now() + 1,
+                  orderId: targetOrder.id,
+                  amount: totalCFA,
+                  scratched: false,
+                  couponWon: null,
+                  createdAt: Date.now(),
+                  expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
+                });
+                localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+              }
+            } catch(e) {
+              console.error('Failed to create scratchcard on customer side:', e);
+            }
+            
+            // Add customer notifications
+            if (profile.email) {
+              const safeKey = profile.email.replace(/[^a-zA-Z0-9]/g, '_');
+              const notifKey = `SWEETOS_notifications_${safeKey}`;
+              
+              let customerNotifs = [];
+              try {
+                customerNotifs = JSON.parse(localStorage.getItem(notifKey) || '[]');
+              } catch(e) {}
+              
+              const currentHour = new Date().getHours();
+              let greeting = 'Bonjour';
+              if (currentHour >= 12 && currentHour < 18) {
+                greeting = 'Bon après-midi';
+              } else if (currentHour >= 18) {
+                greeting = 'Bonsoir';
+              }
+              
+              // Push delivered notification
+              customerNotifs.unshift({
+                id: Date.now(),
+                type: 'alert',
+                icon: '✅',
+                title: `Commande #${targetOrder.id} livrée !`,
+                desc: `${greeting} ! Merci infiniment pour votre achat chez SWEETOS. Votre commande #${targetOrder.id} a été livrée avec succès.<br>
+                  <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                    <button class="download-receipt-btn" data-order-id="${targetOrder.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Reçu 📄</button>
+                    <button class="view-mystery-email-btn" data-order-id="${targetOrder.id}" style="background:#ff5630; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Mystery Box 🎁</button>
+                  </div>`,
+                time: 'Just now',
+                unread: true
+              });
+              
+              // Push simulated email notification
+              customerNotifs.unshift({
+                id: Date.now() + 2,
+                type: 'email',
+                icon: '📧',
+                title: `Nouveau Message: Votre Boîte Mystère`,
+                desc: `Vous avez reçu un e-mail concernant votre Boîte Mystère de la commande #${targetOrder.id}.<br>
+                  <div style="margin-top:8px;">
+                    <button class="open-email-modal-btn" data-order-id="${targetOrder.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Ouvrir l'E-mail 📩</button>
+                  </div>`,
+                time: 'Just now',
+                unread: true
+              });
+              
+              localStorage.setItem(notifKey, JSON.stringify(customerNotifs));
+              window.dispatchEvent(new CustomEvent('notifications:updated'));
+            }
+          }
+
           window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order marked as Received! Thank you! 🎁' }));
           overlay.classList.remove('open');
           this.injectOrdersDashboardList();
