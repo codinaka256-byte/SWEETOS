@@ -114,7 +114,10 @@ export function renderAdminCoupons(context) {
           <form id="coupon-crud-form" style="display:flex; flex-direction:column; gap:12px;">
             <div class="form-group">
               <label>Coupon Code (Unique, uppercase)</label>
-              <input type="text" id="coup-code" required class="admin-input" placeholder="e.g. PROMO25" autocomplete="off">
+              <div style="display:flex; gap:8px;">
+                <input type="text" id="coup-code" required class="admin-input" placeholder="e.g. PROMO25" autocomplete="off" style="flex:1;">
+                <button type="button" id="auto-gen-coupon-btn" class="admin-btn admin-btn-secondary" style="margin:0; font-size:12px; font-weight:800; padding:10px 14px; white-space:nowrap;">Générer / Auto Gen</button>
+              </div>
             </div>
             <div class="form-group">
               <label>Discount Type</label>
@@ -158,6 +161,18 @@ export function attachAdminCouponsListeners(context, shadow) {
       context.attachListeners();
     });
   });
+
+  // Auto Gen Coupon Code button listener
+  const autoGenBtn = shadow.getElementById('auto-gen-coupon-btn');
+  if (autoGenBtn) {
+    autoGenBtn.addEventListener('click', () => {
+      const codeInput = shadow.getElementById('coup-code');
+      if (codeInput) {
+        const randomCode = 'SWEET-' + Math.floor(100000 + Math.random() * 900000);
+        codeInput.value = randomCode;
+      }
+    });
+  }
 
   // Add Coupon open modal btn
   const addBtn = shadow.getElementById('add-coupon-btn');
