@@ -59,7 +59,8 @@ export function renderAdminCoupons(context) {
               <th>Discount Type</th>
               <th>Discount Value</th>
               <th>Min. Order Requirement</th>
-              <th>Usage statistics</th>
+              <th>Usage limits</th>
+              <th>Stock Remaining</th>
               <th>Expiration</th>
               <th>Status</th>
               <th>Action</th>
@@ -68,7 +69,7 @@ export function renderAdminCoupons(context) {
           <tbody>
             ${list.length === 0 ? `
               <tr>
-                <td colspan="8" class="text-center py-6 text-slate-400">No coupons registered yet.</td>
+                <td colspan="9" class="text-center py-6 text-slate-400">No coupons registered yet.</td>
               </tr>
             ` : list.map(c => `
               <tr>
@@ -77,6 +78,11 @@ export function renderAdminCoupons(context) {
                 <td><strong>${c.type === 'percentage' ? `${c.value}% Off` : formatPrice(c.value)}</strong></td>
                 <td><span>${formatPrice(c.minOrder || 0)}</span></td>
                 <td><span>${c.used || 0} / ${c.limit || '∞'} uses</span></td>
+                <td>
+                  <strong style="color: ${c.stock !== undefined && c.stock <= 2 ? 'var(--red)' : 'var(--primary)'};">
+                    ${c.stock !== undefined ? `${c.stock} left` : '∞'}
+                  </strong>
+                </td>
                 <td><span>${c.expiry}</span></td>
                 <td>
                   <span class="status-badge status-${c.status === 'active' ? 'green' : 'yellow'}">
@@ -136,7 +142,11 @@ export function renderAdminCoupons(context) {
             </div>
             <div class="form-group">
               <label>Usage limits per customer</label>
-              <input type="number" id="coup-limit" class="admin-input" value="100">
+              <input type="number" id="coup-limit" class="admin-input" value="1">
+            </div>
+            <div class="form-group">
+              <label>Coupon Stock / Available Quantity</label>
+              <input type="number" id="coup-stock" required class="admin-input" value="10">
             </div>
             <div class="form-group">
               <label>Valid date expiry (YYYY-MM-DD)</label>
@@ -200,7 +210,8 @@ export function attachAdminCouponsListeners(context, shadow) {
         shadow.getElementById('coup-type').value = coup.type;
         shadow.getElementById('coup-val').value = coup.value;
         shadow.getElementById('coup-min').value = coup.minOrder || 0;
-        shadow.getElementById('coup-limit').value = coup.limit || 100;
+        shadow.getElementById('coup-limit').value = coup.limit !== undefined ? coup.limit : 1;
+        shadow.getElementById('coup-stock').value = coup.stock !== undefined ? coup.stock : 10;
         shadow.getElementById('coup-expiry').value = coup.expiry;
       }
     });
@@ -278,7 +289,8 @@ export function attachAdminCouponsListeners(context, shadow) {
       const type = shadow.getElementById('coup-type').value;
       const value = parseFloat(shadow.getElementById('coup-val').value);
       const minOrder = parseFloat(shadow.getElementById('coup-min').value) || 0;
-      const limit = parseInt(shadow.getElementById('coup-limit').value) || 100;
+      const limit = parseInt(shadow.getElementById('coup-limit').value) || 1;
+      const stock = parseInt(shadow.getElementById('coup-stock').value) || 10;
       const expiry = shadow.getElementById('coup-expiry').value;
       const errorMsg = shadow.getElementById('coup-error-msg');
 
@@ -296,13 +308,14 @@ export function attachAdminCouponsListeners(context, shadow) {
           c.value = value;
           c.minOrder = minOrder;
           c.limit = limit;
+          c.stock = stock;
           c.expiry = expiry;
           context.saveDatabase('coupons');
           window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon ${code} updated.` }));
         }
       } else {
         context.coupons.unshift({
-          code, type, value, minOrder, limit, used: 0, expiry, status: "active"
+          code, type, value, minOrder, limit, stock, used: 0, expiry, status: "active"
         });
         context.saveDatabase('coupons');
         window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon ${code} created successfully!` }));

@@ -4498,6 +4498,18 @@ class ProductList extends HTMLElement {
                 };
                 
                 let coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+                const parentCoupon = coupons.find(c => 
+                  c.status === 'active' && 
+                  c.type === 'percentage' && 
+                  c.value === couponValue &&
+                  c.stock !== undefined
+                );
+                if (parentCoupon) {
+                  parentCoupon.stock = Math.max(0, parentCoupon.stock - 1);
+                  if (parentCoupon.stock === 0) {
+                    parentCoupon.status = 'expired';
+                  }
+                }
                 coupons.unshift(newCoupon);
                 localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
                 

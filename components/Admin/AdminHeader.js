@@ -9,9 +9,10 @@ export function renderAdminHeader(context) {
     subtitle = "Welcome back! Here's what's happening with your store.";
   }
 
-  // Load alerts from low stock & active orders
+  // Load alerts from low stock, coupon stock & active orders
   const lowStock = context.products.filter(p => p.stock !== undefined && p.stock <= (p.threshold || 5));
   const pendingOrders = context.orders.filter(o => o.status === 'Pending' || o.status === 'En cours');
+  const lowCoupons = (context.coupons || []).filter(c => c.stock !== undefined && c.stock <= 2);
   
   const readAlertsStr = localStorage.getItem('SWEETOS_admin_read_alerts') || '[]';
   let readAlerts = [];
@@ -20,6 +21,23 @@ export function renderAdminHeader(context) {
   } catch(e) {}
 
   const alerts = [];
+  
+  // Coupon alerts first
+  lowCoupons.forEach(c => {
+    const alertId = `coupon-stock-${c.code}`;
+    const isRead = readAlerts.includes(alertId);
+    const message = c.stock === 0
+      ? `Coupon Finished: Pool "${c.code}" (${c.value}% Off) is completely empty!`
+      : `Low Coupon Stock: Pool "${c.code}" (${c.value}% Off) has only ${c.stock} left.`;
+    alerts.push({
+      id: alertId,
+      type: 'coupon',
+      message: message,
+      time: 'Coupon Alert',
+      unread: !isRead
+    });
+  });
+
   lowStock.forEach(p => {
     const alertId = `stock-${p.id || p.sku}`;
     const isRead = readAlerts.includes(alertId);
@@ -31,6 +49,7 @@ export function renderAdminHeader(context) {
       unread: !isRead
     });
   });
+
   pendingOrders.forEach(o => {
     const alertId = `order-${o.id}`;
     const isRead = readAlerts.includes(alertId);
@@ -76,14 +95,16 @@ export function renderAdminHeader(context) {
               ${alerts.length === 0 ? `
                 <div class="empty-notif">No new alerts.</div>
               ` : alerts.map(a => `
-                <div class="notif-item ${a.type} ${a.unread ? 'unread' : 'read'}" data-id="${a.id}" data-tab="${a.type === 'stock' ? 'inventory' : 'orders'}" style="cursor: pointer; opacity: ${a.unread ? '1' : '0.6'}; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background 0.2s;">
+                <div class="notif-item ${a.type} ${a.unread ? 'unread' : 'read'}" data-id="${a.id}" data-tab="${a.type === 'stock' ? 'inventory' : (a.type === 'coupon' ? 'coupons' : 'orders')}" style="cursor: pointer; opacity: ${a.unread ? '1' : '0.6'}; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); transition: background 0.2s;">
                   <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;">
                     <div class="notif-icon-circle" style="flex-shrink: 0;">
                       ${a.type === 'stock' ? `
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 12px; height: 12px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                      ` : (a.type === 'coupon' ? `
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px;"><path d="M21 12H3m0 0a9 9 0 1 1 18 0v0A9 9 0 0 1 3 12zm8-5h2m-2 10h2m-6-5h12"></path></svg>
                       ` : `
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                      `}
+                      `)}
                     </div>
                     <div class="notif-details" style="min-width: 0; flex: 1;">
                       <p style="margin: 0; font-weight: ${a.unread ? '700' : '500'}; color: var(--text-dark); line-height: 1.4; font-size: 12.5px;">${a.message}</p>
