@@ -1557,8 +1557,12 @@ export function attachAdminSettingsListeners(context, shadow) {
   // Database Maintenance reset operations (NEW)
   const wipeProductsBtn = shadow.getElementById('db-wipe-products-btn');
   if (wipeProductsBtn) {
-    wipeProductsBtn.addEventListener('click', () => {
-      if (confirm('⚠️ Are you absolutely sure you want to delete ALL products? This action is permanent and will sync with the server database.')) {
+    wipeProductsBtn.addEventListener('click', async () => {
+      const confirmed = await window.showConfirm(
+        'Are you absolutely sure you want to delete ALL products? This action is permanent and will sync with the server database.',
+        'Wipe Products'
+      );
+      if (confirmed) {
         context.products = [];
         context.saveDatabase('products');
         window.dispatchEvent(new CustomEvent('toast:show', { detail: 'All products successfully erased.' }));
@@ -1570,8 +1574,12 @@ export function attachAdminSettingsListeners(context, shadow) {
 
   const wipeCategoriesBtn = shadow.getElementById('db-wipe-categories-btn');
   if (wipeCategoriesBtn) {
-    wipeCategoriesBtn.addEventListener('click', () => {
-      if (confirm('⚠️ Are you absolutely sure you want to delete ALL categories? This action is permanent and will sync with the server database.')) {
+    wipeCategoriesBtn.addEventListener('click', async () => {
+      const confirmed = await window.showConfirm(
+        'Are you absolutely sure you want to delete ALL categories? This action is permanent and will sync with the server database.',
+        'Wipe Categories'
+      );
+      if (confirmed) {
         context.categories = [];
         context.saveDatabase('categories');
         window.dispatchEvent(new CustomEvent('toast:show', { detail: 'All categories successfully erased.' }));
@@ -1583,8 +1591,12 @@ export function attachAdminSettingsListeners(context, shadow) {
 
   const wipeBrandsBtn = shadow.getElementById('db-wipe-brands-btn');
   if (wipeBrandsBtn) {
-    wipeBrandsBtn.addEventListener('click', () => {
-      if (confirm('⚠️ Are you absolutely sure you want to delete ALL brands? This action is permanent and will sync with the server database.')) {
+    wipeBrandsBtn.addEventListener('click', async () => {
+      const confirmed = await window.showConfirm(
+        'Are you absolutely sure you want to delete ALL brands? This action is permanent and will sync with the server database.',
+        'Wipe Brands'
+      );
+      if (confirmed) {
         context.brands = [];
         context.saveDatabase('brands');
         window.dispatchEvent(new CustomEvent('toast:show', { detail: 'All brands successfully erased.' }));
@@ -1596,8 +1608,12 @@ export function attachAdminSettingsListeners(context, shadow) {
 
   const wipeAllBtn = shadow.getElementById('db-wipe-all-btn');
   if (wipeAllBtn) {
-    wipeAllBtn.addEventListener('click', () => {
-      if (confirm('🚨🚨🚨 DANGER! You are about to perform a FULL SYSTEM WIPE of products, categories, and brands. This cannot be undone. Do you wish to proceed?')) {
+    wipeAllBtn.addEventListener('click', async () => {
+      const confirmed = await window.showConfirm(
+        'DANGER! You are about to perform a FULL SYSTEM WIPE of products, categories, and brands. This cannot be undone. Do you wish to proceed?',
+        'Full System Wipe'
+      );
+      if (confirmed) {
         context.products = [];
         context.categories = [];
         context.brands = [];
