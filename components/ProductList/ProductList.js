@@ -1322,11 +1322,13 @@ class ProductList extends HTMLElement {
             </div>
 
             <!-- Tab pills -->
-            <div class="orders-tab-pills-row">
+            <div class="orders-tab-pills-row" style="gap: 8px; flex-wrap: wrap;">
               <button class="order-pill-btn active" data-filter="All">All <span class="pill-badge" id="badge-all">0</span></button>
+              <button class="order-pill-btn" data-filter="Placed">Placed <span class="pill-badge" id="badge-placed">0</span></button>
+              <button class="order-pill-btn" data-filter="Confirm">Confirm <span class="pill-badge" id="badge-confirm">0</span></button>
               <button class="order-pill-btn" data-filter="Processing">Processing <span class="pill-badge" id="badge-processing">0</span></button>
-              <button class="order-pill-btn" data-filter="Shipped">Shipped <span class="pill-badge" id="badge-shipped">0</span></button>
-              <button class="order-pill-btn" data-filter="Delivered">Delivered <span class="pill-badge" id="badge-delivered">0</span></button>
+              <button class="order-pill-btn" data-filter="Shipping">Shipping <span class="pill-badge" id="badge-shipping">0</span></button>
+              <button class="order-pill-btn" data-filter="Done">Done <span class="pill-badge" id="badge-done">0</span></button>
               <button class="order-pill-btn" data-filter="Cancelled">Cancelled <span class="pill-badge" id="badge-cancelled">0</span></button>
             </div>
           </div>
@@ -5151,15 +5153,23 @@ class ProductList extends HTMLElement {
 
     // Calculate badge stats based on time-filtered orders with status normalization
     const allCount = filteredByTime.length;
+    const placedCount = filteredByTime.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      return s === 'placed' || s === 'pending';
+    }).length;
+    const confirmCount = filteredByTime.filter(o => {
+      const s = (o.status || '').toLowerCase();
+      return s === 'confirmé' || s === 'confirmed';
+    }).length;
     const processingCount = filteredByTime.filter(o => {
       const s = (o.status || '').toLowerCase();
-      return s === 'pending' || s === 'en cours' || s === 'confirmé' || s === 'processing';
+      return s === 'en cours' || s === 'processing';
     }).length;
-    const shippedCount = filteredByTime.filter(o => {
+    const shippingCount = filteredByTime.filter(o => {
       const s = (o.status || '').toLowerCase();
       return s === 'shipped' || s.includes('transit');
     }).length;
-    const deliveredCount = filteredByTime.filter(o => {
+    const doneCount = filteredByTime.filter(o => {
       const s = (o.status || '').toLowerCase();
       return s === 'livré' || s === 'delivered' || s === 'done' || s === 'livre';
     }).length;
@@ -5178,21 +5188,25 @@ class ProductList extends HTMLElement {
     const statSpent = this.shadowRoot.getElementById('stat-total-spent');
 
     if (statOrders) statOrders.textContent = allCount;
-    if (statTransit) statTransit.textContent = shippedCount;
+    if (statTransit) statTransit.textContent = shippingCount;
     if (statProc) statProc.textContent = processingCount;
     if (statSpent) statSpent.textContent = formatPrice(totalSpent);
 
     // Update badge values on tab buttons
     const badgeAll = this.shadowRoot.getElementById('badge-all');
+    const badgePlaced = this.shadowRoot.getElementById('badge-placed');
+    const badgeConfirm = this.shadowRoot.getElementById('badge-confirm');
     const badgeProc = this.shadowRoot.getElementById('badge-processing');
-    const badgeShip = this.shadowRoot.getElementById('badge-shipped');
-    const badgeDeliv = this.shadowRoot.getElementById('badge-delivered');
+    const badgeShip = this.shadowRoot.getElementById('badge-shipping');
+    const badgeDone = this.shadowRoot.getElementById('badge-done');
     const badgeCancel = this.shadowRoot.getElementById('badge-cancelled');
 
     if (badgeAll) badgeAll.textContent = allCount;
+    if (badgePlaced) badgePlaced.textContent = placedCount;
+    if (badgeConfirm) badgeConfirm.textContent = confirmCount;
     if (badgeProc) badgeProc.textContent = processingCount;
-    if (badgeShip) badgeShip.textContent = shippedCount;
-    if (badgeDeliv) badgeDeliv.textContent = deliveredCount;
+    if (badgeShip) badgeShip.textContent = shippingCount;
+    if (badgeDone) badgeDone.textContent = doneCount;
     if (badgeCancel) badgeCancel.textContent = cancelledCount;
 
     // Filter by search query & tab select with status mapping
@@ -5200,11 +5214,15 @@ class ProductList extends HTMLElement {
       // Tab filter mapping
       if (this.activeOrdersFilter !== 'All') {
         const s = (o.status || '').toLowerCase();
-        if (this.activeOrdersFilter === 'Processing') {
-          if (s !== 'pending' && s !== 'en cours' && s !== 'confirmé' && s !== 'processing') return false;
-        } else if (this.activeOrdersFilter === 'Shipped') {
+        if (this.activeOrdersFilter === 'Placed') {
+          if (s !== 'placed' && s !== 'pending') return false;
+        } else if (this.activeOrdersFilter === 'Confirm') {
+          if (s !== 'confirmé' && s !== 'confirmed') return false;
+        } else if (this.activeOrdersFilter === 'Processing') {
+          if (s !== 'en cours' && s !== 'processing') return false;
+        } else if (this.activeOrdersFilter === 'Shipping') {
           if (s !== 'shipped' && !s.includes('transit')) return false;
-        } else if (this.activeOrdersFilter === 'Delivered') {
+        } else if (this.activeOrdersFilter === 'Done') {
           if (s !== 'livré' && s !== 'delivered' && s !== 'done' && s !== 'livre') return false;
         } else if (this.activeOrdersFilter === 'Cancelled') {
           if (s !== 'cancelled') return false;
@@ -5374,11 +5392,13 @@ class ProductList extends HTMLElement {
     let step2Class = '';
     let step3Class = '';
     let step4Class = '';
+    let step5Class = '';
     
     let step1Content = '1';
     let step2Content = '2';
     let step3Content = '3';
     let step4Content = '4';
+    let step5Content = '5';
 
     const checkIcon = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
@@ -5391,14 +5411,14 @@ class ProductList extends HTMLElement {
       step1Content = '1';
     } else if (statusLower === 'confirmé' || statusLower === 'confirmed') {
       statusText = 'Confirmé';
-      progressWidth = '33.3%';
+      progressWidth = '25%';
       step1Class = 'completed';
       step1Content = checkIcon;
       step2Class = 'active';
       step2Content = '2';
     } else if (statusLower === 'en cours' || statusLower === 'processing') {
       statusText = 'En cours';
-      progressWidth = '66.6%';
+      progressWidth = '50%';
       step1Class = 'completed';
       step1Content = checkIcon;
       step2Class = 'completed';
@@ -5407,7 +5427,7 @@ class ProductList extends HTMLElement {
       step3Content = '3';
     } else if (statusLower === 'shipped') {
       statusText = 'Expédié';
-      progressWidth = '100%';
+      progressWidth = '75%';
       step1Class = 'completed';
       step1Content = checkIcon;
       step2Class = 'completed';
@@ -5427,6 +5447,8 @@ class ProductList extends HTMLElement {
       step3Content = checkIcon;
       step4Class = 'completed';
       step4Content = checkIcon;
+      step5Class = 'completed';
+      step5Content = checkIcon;
     } else {
       statusText = o.status;
       progressWidth = '0%';
@@ -5864,22 +5886,27 @@ class ProductList extends HTMLElement {
                         
                         <div class="step ${step1Class}">
                             <div class="step-circle">${step1Content}</div>
-                            <span class="step-label">Placed</span>
+                            <span class="step-label">PLACED</span>
                         </div>
                         
                         <div class="step ${step2Class}">
                             <div class="step-circle">${step2Content}</div>
-                            <span class="step-label">Confirmed</span>
+                            <span class="step-label">CONFIRM</span>
                         </div>
                         
                         <div class="step ${step3Class}">
                             <div class="step-circle">${step3Content}</div>
-                            <span class="step-label">Processing</span>
+                            <span class="step-label">PROCESSING</span>
                         </div>
                         
                         <div class="step ${step4Class}">
                             <div class="step-circle">${step4Content}</div>
-                            <span class="step-label">Done</span>
+                            <span class="step-label">SHIPPING</span>
+                        </div>
+
+                        <div class="step ${step5Class}">
+                            <div class="step-circle">${step5Content}</div>
+                            <span class="step-label">DONE</span>
                         </div>
                     </div>
                 </div>
