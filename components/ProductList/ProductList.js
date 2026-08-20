@@ -6135,12 +6135,34 @@ class ProductList extends HTMLElement {
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
         showDeleteOrderModal(this.shadowRoot, o, () => {
+          // 1. Remove from customer profile
           const profile = this.loadUserProfile();
           profile.orders = profile.orders.filter(order => order.id !== o.id);
           const profileKey = getProfileStorageKey();
           localStorage.setItem(profileKey, JSON.stringify(profile));
           localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order record removed.' }));
+          
+          // 2. Remove from global SWEETOS_all_orders
+          let allOrders = [];
+          const savedAll = localStorage.getItem('SWEETOS_all_orders');
+          if (savedAll) {
+            try {
+              allOrders = JSON.parse(savedAll);
+            } catch(e) {}
+          }
+          allOrders = allOrders.filter(go => go.id !== o.id);
+          localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+          
+          // 3. Sync to server (deletes in Admin side)
+          fetch('/api/orders', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(allOrders)
+          }).catch(e => console.error('Failed to sync deleted order status:', e));
+
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order record deleted.' }));
           overlay.classList.remove('open');
           this.injectOrdersDashboardList();
         });
