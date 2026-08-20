@@ -44,28 +44,10 @@ class NotificationDrawer extends HTMLElement {
           id: 1,
           type: 'promo',
           icon: '🎁',
-          title: `Welcome, ${userName}! 🎉`,
-          desc: 'Use coupon code WELCOME10 at checkout to save 10% on your first premium desk setup accessories order.',
+          title: `Welcome to SWEETOS! 🎉`,
+          desc: `Welcome to SWEETOS!`,
           time: 'Just now',
           unread: true
-        },
-        {
-          id: 2,
-          type: 'shipping',
-          icon: '📦',
-          title: 'SWEETOS Order Tracker Active',
-          desc: 'Get live shipping updates, packaging tracking codes, and delivery notifications right here in your dashboard.',
-          time: '1 day ago',
-          unread: false
-        },
-        {
-          id: 3,
-          type: 'system',
-          icon: '🛡ï¸',
-          title: 'Account Protected',
-          desc: 'Your shipping address, orders database, and credentials are encrypted and isolated to keep your profile secure.',
-          time: '3 days ago',
-          unread: false
         }
       ];
       localStorage.setItem(key, JSON.stringify(this.notifications));
