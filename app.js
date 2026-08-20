@@ -539,6 +539,173 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
   };
 
+  // --- 🌌 CUSTOM SCREEN MODAL SYSTEM 🌌 ---
+  const showCustomScreenModal = (options) => {
+    if (document.getElementById('custom-screen-modal')) {
+      document.getElementById('custom-screen-modal').remove();
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'custom-screen-modal';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(9, 13, 22, 0.4)';
+    modal.style.backdropFilter = 'blur(16px)';
+    modal.style.webkitBackdropFilter = 'blur(16px)';
+    modal.style.zIndex = '100000';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.padding = '20px';
+    modal.style.boxSizing = 'border-box';
+
+    modal.innerHTML = `
+      <div style="background: rgba(255, 255, 255, 0.85); border: 1.5px solid rgba(255, 255, 255, 0.5); border-radius: 24px; width: 100%; max-width: 440px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.15); text-align: center; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px; font-family: 'Outfit', sans-serif;">
+        <div style="font-size: 40px;">${options.icon || '🌌'}</div>
+        <h3 style="font-size: 20px; font-weight: 850; color: #090d16; margin: 0;">${options.title}</h3>
+        <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin: 0;">${options.message}</p>
+        <div style="display: flex; gap: 12px; margin-top: 8px; justify-content: center; width: 100%;">
+          ${options.cancelLabel ? `
+            <button id="screen-modal-cancel" style="flex: 1; background: #e5e7eb; border: 1.5px solid #d1d5db; color: #374151; padding: 12px 20px; border-radius: 12px; font-size: 13.5px; font-weight: 800; cursor: pointer; transition: all 0.2s;">
+              ${options.cancelLabel}
+            </button>
+          ` : ''}
+          <button id="screen-modal-ok" style="flex: 1; background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 12px; font-size: 13.5px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px var(--primary-light);">
+            ${options.okLabel || 'OK'}
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const close = () => {
+      modal.style.opacity = '0';
+      modal.style.transition = 'opacity 0.2s';
+      setTimeout(() => modal.remove(), 200);
+    };
+
+    if (options.cancelLabel) {
+      modal.querySelector('#screen-modal-cancel').addEventListener('click', () => {
+        close();
+        if (options.onCancel) options.onCancel();
+      });
+    }
+
+    modal.querySelector('#screen-modal-ok').addEventListener('click', () => {
+      close();
+      if (options.onOk) options.onOk();
+    });
+  };
+
+  // 1. Guest User Welcome Dialog
+  const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
+  const guestDismissed = sessionStorage.getItem('SWEETOS_guest_welcome_dismissed');
+  if (!loggedInUserStr && !guestDismissed) {
+    sessionStorage.setItem('SWEETOS_guest_welcome_dismissed', 'true');
+    setTimeout(() => {
+      showCustomScreenModal({
+        icon: '🌌',
+        title: 'Welcome to SWEETOS',
+        message: 'Welcome to SWEETOS! Login or register to enjoy it fully.',
+        okLabel: 'Login / Register',
+        cancelLabel: 'Later',
+        onOk: () => {
+          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'auth' } }));
+        }
+      });
+    }, 1000);
+  }
+
+  // 2. Coupon / Mystery Box Reminder on load
+  if (loggedInUserStr) {
+    const couponReminderDismissed = sessionStorage.getItem('SWEETOS_coupon_reminder_dismissed');
+    if (!couponReminderDismissed) {
+      sessionStorage.setItem('SWEETOS_coupon_reminder_dismissed', 'true');
+      
+      let scratchcards = [];
+      try {
+        scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+      } catch(e) {}
+      
+      let coupons = [];
+      try {
+        coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+      } catch(e) {}
+      
+      const hasUnscratched = scratchcards.some(card => !card.scratched);
+      const activeWonCoupons = coupons.filter(c => 
+        (c.code.startsWith('LOYAL') || c.code.startsWith('SAVE')) && 
+        c.status === 'active'
+      );
+      
+      if (hasUnscratched || activeWonCoupons.length > 0) {
+        let discountPercent = 5;
+        if (activeWonCoupons.length > 0) {
+          discountPercent = Math.max(...activeWonCoupons.map(c => c.value));
+        } else {
+          const maxAmount = scratchcards.filter(c => !c.scratched).reduce((max, c) => Math.max(max, c.amount), 0);
+          if (maxAmount >= 50000) {
+            discountPercent = 10;
+          }
+        }
+        
+        setTimeout(() => {
+          showCustomScreenModal({
+            icon: '🎁',
+            title: 'Exclusive Rewards Awaiting!',
+            message: `Shop now to get ${discountPercent}% off depending on the coupon you have!`,
+            okLabel: 'Shop Now',
+            cancelLabel: 'Cancel',
+            onOk: () => {
+              window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog' } }));
+            }
+          });
+        }, 1500);
+      }
+    }
+  }
+
+  // 3. Cart Threshold Upsell Dialog on adding product
+  window.addEventListener('cart:add', (e) => {
+    const productAdded = e.detail;
+    let currentCart = [];
+    try {
+      currentCart = JSON.parse(localStorage.getItem(getCartStorageKey()) || '[]');
+    } catch(err) {}
+    
+    const existing = currentCart.find(item => item.id === productAdded.id);
+    const addedQty = existing ? existing.quantity + 1 : 1;
+    
+    let subtotal = 0;
+    currentCart.forEach(item => {
+      if (item.id === productAdded.id) {
+        subtotal += parseFloat(item.price) * addedQty;
+      } else {
+        subtotal += parseFloat(item.price) * item.quantity;
+      }
+    });
+    if (!existing) {
+      subtotal += parseFloat(productAdded.price);
+    }
+    
+    if (subtotal < 30000) {
+      const needed = 30000 - subtotal;
+      setTimeout(() => {
+        showCustomScreenModal({
+          icon: '🛒',
+          title: 'Offre Spéciale / Special Offer',
+          message: `Ajoutez encore ${needed.toLocaleString()} CFA pour atteindre 30 000 CFA et débloquer une boîte mystère à la livraison ! Ne ratez pas cette opportunité.`,
+          okLabel: 'Continuer mes achats / Shop More',
+          cancelLabel: 'Fermer / Close'
+        });
+      }, 500);
+    }
+  });
+
   bindSwipeToClose(cartEl, closeCart, 'right');
   bindSwipeToClose(notifEl, closeNotifications, 'right');
   bindSwipeToClose(sidebarEl, closeSidebarMobile, 'left');
