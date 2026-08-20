@@ -4442,19 +4442,58 @@ class ProductList extends HTMLElement {
               scratchcards[idx].scratched = true;
               
               const totalCFA = scratchcards[idx].amount;
-              if (totalCFA >= 2000 && totalCFA <= 15000) {
+              
+              const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
+              let userEmail = 'guest@sweetos.com';
+              if (loggedInUserStr) {
+                try {
+                  userEmail = JSON.parse(loggedInUserStr).email;
+                } catch(e) {}
+              }
+              
+              let allOrders = [];
+              try {
+                allOrders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
+              } catch(e) {}
+              const qualifyingOrders = allOrders.filter(o => 
+                o.customerEmail === userEmail && 
+                (o.status === 'Livré' || o.status === 'Done') && 
+                parseFloat(o.total) >= 10000
+              );
+              
+              let couponValue = 0;
+              let couponCodePrefix = 'OFF';
+              
+              if (qualifyingOrders.length >= 3) {
+                couponValue = 5;
+                couponCodePrefix = 'LOYAL5';
+              } else if (totalCFA >= 20000 && totalCFA <= 40000) {
+                couponValue = 5;
+                couponCodePrefix = 'SAVE5';
+              } else if (totalCFA >= 50000 && totalCFA <= 100000) {
+                couponValue = 10;
+                couponCodePrefix = 'SAVE10';
+              } else if (totalCFA > 100000 && totalCFA <= 150000) {
+                couponValue = 20;
+                couponCodePrefix = 'SAVE20';
+              } else if (totalCFA > 150000) {
+                couponValue = 30;
+                couponCodePrefix = 'SAVE30';
+              }
+              
+              if (couponValue === 0) {
                 scratchcards[idx].couponWon = 'lost';
                 window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Oops! Good luck next time! 😢' }));
               } else {
-                const code = `MYSTERY${Math.floor(1000 + Math.random() * 9000)}`;
+                const code = `${couponCodePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
                 const newCoupon = {
                   code: code,
                   type: 'percentage',
-                  value: 15,
-                  minOrder: 10000,
+                  value: couponValue,
+                  minOrder: 5000,
                   limit: 1,
                   used: 0,
-                  expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                  expiry: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 days expiry
                   status: 'active'
                 };
                 
@@ -4471,7 +4510,7 @@ class ProductList extends HTMLElement {
                 }).catch(e => console.error('Failed to sync won coupon:', e));
 
                 scratchcards[idx].couponWon = newCoupon;
-                window.dispatchEvent(new CustomEvent('toast:show', { detail: `Félicitations ! Vous avez gagné le coupon : ${code} ! 🎉` }));
+                window.dispatchEvent(new CustomEvent('toast:show', { detail: `Félicitations ! Vous avez gagné un coupon de ${couponValue}% : ${code} ! 🎉` }));
               }
               localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
               

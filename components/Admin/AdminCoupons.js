@@ -1,14 +1,21 @@
 import { formatPrice } from '../../utils/storage.js';
 
 export function renderAdminCoupons(context) {
+  context.couponValueFilter = context.couponValueFilter || 'All';
   let list = [...context.coupons];
   if (context.searchQuery) {
     const q = context.searchQuery.toLowerCase();
     list = list.filter(c => c.code.toLowerCase().includes(q));
   }
+  
+  const originalList = [...list];
+  if (context.couponValueFilter !== 'All') {
+    const targetVal = parseInt(context.couponValueFilter);
+    list = list.filter(c => c.type === 'percentage' && c.value === targetVal);
+  }
 
   return `
-    <div class="admin-table-filters-bar">
+    <div class="admin-table-filters-bar" style="margin-bottom: 16px;">
       <div class="search-box">
         <input type="text" id="coupon-search" placeholder="Search coupon code..." value="${context.searchQuery}">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; flex-shrink: 0;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -18,6 +25,29 @@ export function renderAdminCoupons(context) {
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; flex-shrink: 0;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         <span>Add Coupon</span>
       </button>
+    </div>
+
+    <!-- Category sub-tabs to view different coupon groups (5%, 10%, 20%, 30%) -->
+    <div class="coupon-category-tabs-row" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+      ${['All', '5%', '10%', '20%', '30%'].map(filterVal => {
+        const isActive = context.couponValueFilter === filterVal;
+        return `
+          <button class="coupon-filter-pill-btn" data-filter="${filterVal}" style="
+            background: ${isActive ? 'var(--primary)' : 'rgba(255, 255, 255, 0.4)'};
+            color: ${isActive ? 'white' : 'var(--text-dark)'};
+            border: 1.5px solid ${isActive ? 'var(--primary)' : 'var(--border)'};
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: ${isActive ? '0 4px 12px var(--primary-light)' : 'none'};
+          ">
+            <span>${filterVal === 'All' ? 'All Coupons' : filterVal + ' Off'}</span>
+          </button>
+        `;
+      }).join('')}
     </div>
 
     <div class="admin-table-panel glass-panel mt-4">
@@ -120,6 +150,15 @@ export function renderAdminCoupons(context) {
 }
 
 export function attachAdminCouponsListeners(context, shadow) {
+  // Pill Filters Listeners
+  shadow.querySelectorAll('.coupon-filter-pill-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      context.couponValueFilter = btn.getAttribute('data-filter');
+      context.render();
+      context.attachListeners();
+    });
+  });
+
   // Add Coupon open modal btn
   const addBtn = shadow.getElementById('add-coupon-btn');
   if (addBtn) {
