@@ -39,6 +39,9 @@ export function renderAdminSettings(context) {
         <a href="#" class="settings-nav-item ${currentSubTab === 'appearance' ? 'active' : ''}" data-subtab="appearance">
           <span>Appearance Settings</span>
         </a>
+        <a href="#" class="settings-nav-item ${currentSubTab === 'reset' ? 'active' : ''}" data-subtab="reset" style="border-top: 1px solid rgba(255,255,255,0.05); margin-top: 8px; color: #ef4444;">
+          <span>Database Maintenance ⚠️</span>
+        </a>
       </nav>
 
       <!-- Subtab Content viewport -->
@@ -844,6 +847,57 @@ function renderSettingsSubtabContent(context, subtab) {
           <button type="submit" class="admin-btn admin-btn-primary mt-4">Save Appearance Settings</button>
         </form>
       `;
+    case 'reset':
+      return `
+        <h3>Database Maintenance & Reset</h3>
+        <p class="section-desc">Erase, clean, or wipe specific database tables (products, categories, or brands). This action cannot be undone and will sync with the server database.</p>
+        
+        <div style="display:flex; flex-direction:column; gap:20px; margin-top:20px;">
+          <!-- Erase Products Card -->
+          <div class="glass-panel" style="padding:20px; border-radius:16px; border:1px solid rgba(239, 68, 68, 0.2); display:flex; justify-content:space-between; align-items:center; background: rgba(239, 68, 68, 0.02);">
+            <div>
+              <h4 style="margin:0 0 4px 0; color:var(--text-dark); font-weight:800;">ERASE ALL CATALOG PRODUCTS</h4>
+              <p style="margin:0; font-size:12.5px; color:var(--text-gray);">Wipes every product listed in your store catalog (${context.products.length} products total).</p>
+            </div>
+            <button class="admin-btn" id="db-wipe-products-btn" style="background:#ef4444; color:white; border:none; padding:10px 16px; border-radius:8px; font-weight:700; cursor:pointer; transition: opacity 0.2s;">
+              Wipe Products
+            </button>
+          </div>
+
+          <!-- Erase Categories Card -->
+          <div class="glass-panel" style="padding:20px; border-radius:16px; border:1px solid rgba(239, 68, 68, 0.2); display:flex; justify-content:space-between; align-items:center; background: rgba(239, 68, 68, 0.02);">
+            <div>
+              <h4 style="margin:0 0 4px 0; color:var(--text-dark); font-weight:800;">ERASE ALL CATEGORIES</h4>
+              <p style="margin:0; font-size:12.5px; color:var(--text-gray);">Clears every custom category configured for product categorization (${context.categories.length} categories total).</p>
+            </div>
+            <button class="admin-btn" id="db-wipe-categories-btn" style="background:#ef4444; color:white; border:none; padding:10px 16px; border-radius:8px; font-weight:700; cursor:pointer; transition: opacity 0.2s;">
+              Wipe Categories
+            </button>
+          </div>
+
+          <!-- Erase Brands Card -->
+          <div class="glass-panel" style="padding:20px; border-radius:16px; border:1px solid rgba(239, 68, 68, 0.2); display:flex; justify-content:space-between; align-items:center; background: rgba(239, 68, 68, 0.02);">
+            <div>
+              <h4 style="margin:0 0 4px 0; color:var(--text-dark); font-weight:800;">ERASE ALL BRANDS</h4>
+              <p style="margin:0; font-size:12.5px; color:var(--text-gray);">Wipes all manufacturer/partner brand entries from the brand directory (${context.brands ? context.brands.length : 0} brands total).</p>
+            </div>
+            <button class="admin-btn" id="db-wipe-brands-btn" style="background:#ef4444; color:white; border:none; padding:10px 16px; border-radius:8px; font-weight:700; cursor:pointer; transition: opacity 0.2s;">
+              Wipe Brands
+            </button>
+          </div>
+
+          <!-- Wipe Everything Card -->
+          <div class="glass-panel" style="padding:20px; background:rgba(239, 68, 68, 0.06); border-radius:16px; border:2px dashed #ef4444; display:flex; justify-content:space-between; align-items:center; margin-top: 10px;">
+            <div>
+              <h4 style="margin:0 0 4px 0; color:#ef4444; font-weight:900;">FULL SYSTEM WIPE</h4>
+              <p style="margin:0; font-size:12.5px; color:var(--text-gray);">Clear products, categories, AND brands simultaneously to restart store configuration from scratch.</p>
+            </div>
+            <button class="admin-btn" id="db-wipe-all-btn" style="background:#ef4444; color:white; border:none; padding:12px 20px; border-radius:8px; font-weight:850; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px; transition: opacity 0.2s;">
+              Wipe Entire Store
+            </button>
+          </div>
+        </div>
+      `;
     default:
       return '';
   }
@@ -1496,6 +1550,65 @@ export function attachAdminSettingsListeners(context, shadow) {
       } catch (err) {
         console.error('Error saving appearance options:', err);
         window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Error: ' + err.message }));
+      }
+    });
+  }
+
+  // Database Maintenance reset operations (NEW)
+  const wipeProductsBtn = shadow.getElementById('db-wipe-products-btn');
+  if (wipeProductsBtn) {
+    wipeProductsBtn.addEventListener('click', () => {
+      if (confirm('⚠️ Are you absolutely sure you want to delete ALL products? This action is permanent and will sync with the server database.')) {
+        context.products = [];
+        context.saveDatabase('products');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'All products successfully erased.' }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  }
+
+  const wipeCategoriesBtn = shadow.getElementById('db-wipe-categories-btn');
+  if (wipeCategoriesBtn) {
+    wipeCategoriesBtn.addEventListener('click', () => {
+      if (confirm('⚠️ Are you absolutely sure you want to delete ALL categories? This action is permanent and will sync with the server database.')) {
+        context.categories = [];
+        context.saveDatabase('categories');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'All categories successfully erased.' }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  }
+
+  const wipeBrandsBtn = shadow.getElementById('db-wipe-brands-btn');
+  if (wipeBrandsBtn) {
+    wipeBrandsBtn.addEventListener('click', () => {
+      if (confirm('⚠️ Are you absolutely sure you want to delete ALL brands? This action is permanent and will sync with the server database.')) {
+        context.brands = [];
+        context.saveDatabase('brands');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'All brands successfully erased.' }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  }
+
+  const wipeAllBtn = shadow.getElementById('db-wipe-all-btn');
+  if (wipeAllBtn) {
+    wipeAllBtn.addEventListener('click', () => {
+      if (confirm('🚨🚨🚨 DANGER! You are about to perform a FULL SYSTEM WIPE of products, categories, and brands. This cannot be undone. Do you wish to proceed?')) {
+        context.products = [];
+        context.categories = [];
+        context.brands = [];
+        
+        context.saveDatabase('products');
+        context.saveDatabase('categories');
+        context.saveDatabase('brands');
+        
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Full system database wipe completed.' }));
+        context.render();
+        context.attachListeners();
       }
     });
   }
