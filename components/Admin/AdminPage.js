@@ -858,7 +858,7 @@ class AdminPage extends HTMLElement {
         ${renderAdminSidebar(this)}
         <main class="admin-main">
           ${renderAdminHeader(this)}
-          <div class="admin-viewport">
+          <div class="admin-viewport custom-scroll">
             ${this.renderTabContent()}
           </div>
         </main>
