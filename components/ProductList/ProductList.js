@@ -1190,7 +1190,19 @@ class ProductList extends HTMLElement {
       const hasMoreReviews = filteredReviews.length > this.visibleReviewsCount;
 
       const wishlist = this.loadWishlistFromStorage();
-      const isWishlisted = wishlist.some(item => item.id === p.id);
+      const stockVal = p.stock !== undefined ? p.stock : 34;
+      const thresholdVal = p.threshold || 5;
+      const isOutOfStock = stockVal === 0;
+      const isLowStock = stockVal <= thresholdVal && stockVal > 0;
+      
+      let stockLineHtml = '';
+      if (isOutOfStock) {
+        stockLineHtml = `<span class="pdp-stock-status-line" style="color: #ff5630; font-weight: 750; margin-top: 12px; display: block;">✕ Rupture de Stock / Out of Stock</span>`;
+      } else if (isLowStock) {
+        stockLineHtml = `<span class="pdp-stock-status-line" style="color: #ffab00; font-weight: 750; margin-top: 12px; display: block;">⚠️ Stock Faible / Low Stock (Only ${stockVal} left!)</span>`;
+      } else {
+        stockLineHtml = `<span class="pdp-stock-status-line" style="color: #36b37e; font-weight: 750; margin-top: 12px; display: block;">✓ En Stock / In Stock (${stockVal} available)</span>`;
+      }
 
       contentArea.innerHTML = `
         <div class="pdp-container">
@@ -1292,8 +1304,8 @@ class ProductList extends HTMLElement {
                 </div>
 
                 <!-- Add to Cart Pill Button -->
-                <button class="pdp-action-add-to-cart-pill" id="pdp-add-cart-btn">
-                  ADD TO CART →
+                <button class="pdp-action-add-to-cart-pill" id="pdp-add-cart-btn" ${isOutOfStock ? 'disabled style="opacity: 0.55; cursor: not-allowed; pointer-events: none;"' : ''}>
+                  ${isOutOfStock ? 'OUT OF STOCK' : 'ADD TO CART →'}
                 </button>
 
                 <!-- Circle Wishlist Button -->
@@ -1333,11 +1345,11 @@ class ProductList extends HTMLElement {
               </div>
 
               <!-- Full Width Buy It Now Button -->
-              <button class="pdp-action-buy-it-now-pill" id="pdp-buy-now-btn">
-                BUY IT NOW
+              <button class="pdp-action-buy-it-now-pill" id="pdp-buy-now-btn" ${isOutOfStock ? 'disabled style="opacity: 0.55; cursor: not-allowed; pointer-events: none;"' : ''}>
+                ${isOutOfStock ? 'OUT OF STOCK' : 'BUY IT NOW'}
               </button>
 
-              <span class="pdp-stock-status-line">✓ In Stock (34 available)</span>
+              ${stockLineHtml}
 
               <!-- Trust Benefits row -->
               <div class="pdp-trust-benefits">

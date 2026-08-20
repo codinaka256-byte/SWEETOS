@@ -16,6 +16,9 @@ export function renderAdminInventory(context) {
 
   const totalItems = list.length;
   const totalPages = Math.ceil(totalItems / context.itemsPerPage) || 1;
+  if (context.currentPageIndex > totalPages) {
+    context.currentPageIndex = totalPages;
+  }
   const startIndex = (context.currentPageIndex - 1) * context.itemsPerPage;
   const paginatedList = list.slice(startIndex, startIndex + context.itemsPerPage);
 
@@ -293,9 +296,14 @@ export function renderAdminInventory(context) {
                       </div>
                     </td>
                     <td>
-                      <span class="${badgeClass}">
-                        ${badgeText}
-                      </span>
+                      <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+                        <span class="${badgeClass}">
+                          ${badgeText}
+                        </span>
+                        <span style="font-size: 11px; font-weight: 600; color: #94a3b8; text-align: left; margin-left: 2px;">
+                          Alert at &le; ${p.threshold || 5}
+                        </span>
+                      </div>
                     </td>
                     <td>
                       <div class="qty-adjuster">
