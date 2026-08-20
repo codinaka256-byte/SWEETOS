@@ -368,7 +368,7 @@ export function renderAdminInventory(context) {
 
     <!-- INLINE STOCK ADJUST MODAL -->
     <div class="modal-backdrop ${context.showStockModal ? 'show' : ''}" id="stock-adjust-modal" style="z-index:1100;">
-      <div class="modal-wrapper product-form-dark-wrapper glass-panel animate-in" style="max-width:400px; background: var(--white); box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid var(--border); padding: 0;">
+      <div class="modal-wrapper glass-panel animate-in" style="max-width:400px; background: var(--white); box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid var(--border); padding: 0;">
         <div class="modal-header" style="padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
           <h3 style="margin:0; font-size:16px; font-weight: 850; color: var(--text-dark);">Quick Stock Adjustment</h3>
           <button class="modal-close-btn" id="close-stock-modal-btn" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-light);">&times;</button>
