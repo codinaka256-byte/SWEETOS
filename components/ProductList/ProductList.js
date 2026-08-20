@@ -195,11 +195,26 @@ class ProductList extends HTMLElement {
         }
       }));
     });
+    // Listen to cross-tab updates to sync products, categories, and brands reactively
+    this._storageListener = (e) => {
+      if (e.key === 'SWEETOS_products') {
+        try {
+          this.products = JSON.parse(e.newValue || '[]');
+          this.renderPageContent();
+        } catch (err) {}
+      } else if (e.key === 'SWEETOS_categories' || e.key === 'SWEETOS_brands') {
+        this.renderPageContent();
+      }
+    };
+    window.addEventListener('storage', this._storageListener);
   }
 
   disconnectedCallback() {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
+    }
+    if (this._storageListener) {
+      window.removeEventListener('storage', this._storageListener);
     }
   }
 

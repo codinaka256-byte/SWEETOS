@@ -77,6 +77,27 @@ document.addEventListener('DOMContentLoaded', () => {
     applyBrandingSettings();
   });
 
+  // Listen to cross-tab storage changes to sync branding/theme reactively
+  window.addEventListener('storage', (e) => {
+    if (e.key && e.key.startsWith('SWEETOS_')) {
+      if (
+        e.key.includes('brand_color') || 
+        e.key === 'SWEETOS_font_family' || 
+        e.key === 'SWEETOS_theme_mode'
+      ) {
+        applyBrandingSettings();
+      }
+      
+      if (
+        e.key === 'SWEETOS_hero_title' || 
+        e.key === 'SWEETOS_hero_subtitle' || 
+        e.key === 'SWEETOS_store_entrance_image'
+      ) {
+        window.dispatchEvent(new CustomEvent('branding:updated'));
+      }
+    }
+  });
+
   // Select DOM Elements
   const cartEl = document.getElementById('global-cart-drawer');
   const notifEl = document.getElementById('global-notification-drawer');
