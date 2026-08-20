@@ -631,6 +631,51 @@ function printOrderReceipt(order) {
   const storeAddress = localStorage.getItem('SWEETOS_store_addr') || 'Abidjan, Cocody Mermoz';
   const currency = localStorage.getItem('SWEETOS_currency') || 'CFA';
   
+  let clientName = order.customerName || order.name;
+  let clientPhone = order.customerPhone || order.phone;
+  let clientEmail = order.email || order.customerEmail;
+  let clientAddress = order.customerAddress || order.address;
+
+  // Let's try to resolve from profile key if present
+  let resolvedProfile = null;
+  const emailKey = clientEmail || (order.email ? order.email : '');
+  if (emailKey) {
+    const safeKey = emailKey.replace(/[^a-zA-Z0-9]/g, '_');
+    const profileSaved = localStorage.getItem(`SWEETOS_user_profile_${safeKey}`) || localStorage.getItem(`SWEETOS_user_profile`);
+    if (profileSaved) {
+      try {
+        resolvedProfile = JSON.parse(profileSaved);
+      } catch(e) {}
+    }
+  } else {
+    const profileSaved = localStorage.getItem(`SWEETOS_user_profile`);
+    if (profileSaved) {
+      try {
+        resolvedProfile = JSON.parse(profileSaved);
+      } catch(e) {}
+    }
+  }
+
+  if (resolvedProfile) {
+    if (!clientName) {
+      clientName = `${resolvedProfile.firstName || ''} ${resolvedProfile.lastName || ''}`.trim();
+    }
+    if (!clientPhone) {
+      clientPhone = resolvedProfile.phone;
+    }
+    if (!clientEmail) {
+      clientEmail = resolvedProfile.email;
+    }
+    if (!clientAddress) {
+      clientAddress = resolvedProfile.address;
+    }
+  }
+
+  clientName = clientName || 'Client Invité';
+  clientPhone = clientPhone || 'N/A';
+  clientEmail = clientEmail || 'N/A';
+  clientAddress = clientAddress || 'N/A';
+  
   const localFormatPrice = (price) => {
     let symbol = currency;
     if (currency === 'USD') symbol = '$';
@@ -846,12 +891,12 @@ function printOrderReceipt(order) {
           <div class="info-block">
             <div class="info-title">Facturé à (Client)</div>
             <div style="font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 4px;">
-              ${order.customerName || order.name || 'Client Invité'}
+              ${clientName}
             </div>
             <div style="font-size: 13px; color: #64748b; line-height: 1.4;">
-              Téléphone: ${order.customerPhone || order.phone || 'N/A'}<br>
-              Email: ${order.email || order.customerEmail || 'N/A'}<br>
-              Adresse: ${order.customerAddress || order.address || 'N/A'}
+              Téléphone: ${clientPhone}<br>
+              Email: ${clientEmail}<br>
+              Adresse: ${clientAddress}
             </div>
           </div>
           <div class="info-block">
