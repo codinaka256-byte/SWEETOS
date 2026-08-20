@@ -5122,6 +5122,69 @@ class ProductList extends HTMLElement {
 
   // --- Functional Orders Dashboard Handlers ---
   injectOrdersDashboardList() {
+    const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
+    if (!loggedIn) {
+      this.renderOrdersDashboardList();
+      return;
+    }
+    
+    let userEmail = "";
+    try {
+      userEmail = JSON.parse(loggedIn).email;
+    } catch(e) {}
+    
+    if (!userEmail) {
+      this.renderOrdersDashboardList();
+      return;
+    }
+
+    // Fetch latest orders from server to synchronize status
+    fetch('/api/orders')
+      .then(res => res.json())
+      .then(serverOrders => {
+        if (Array.isArray(serverOrders)) {
+          const profile = this.loadUserProfile();
+          let profileChanged = false;
+          
+          if (!profile.orders) profile.orders = [];
+          
+          // 1. Update existing orders in profile with latest status from server
+          profile.orders.forEach(po => {
+            const latest = serverOrders.find(so => so.id === po.id);
+            if (latest) {
+              if (po.status !== latest.status || po.trackingNumber !== latest.trackingNumber) {
+                po.status = latest.status;
+                po.trackingNumber = latest.trackingNumber;
+                profileChanged = true;
+              }
+            }
+          });
+          
+          // 2. Fetch missing orders that belong to this customer
+          serverOrders.forEach(so => {
+            if (so.customerEmail === userEmail && (so.status || '').toLowerCase() !== 'deleted') {
+              if (!profile.orders.some(po => po.id === so.id)) {
+                profile.orders.unshift(so);
+                profileChanged = true;
+              }
+            }
+          });
+          
+          if (profileChanged) {
+            const profileKey = getProfileStorageKey();
+            localStorage.setItem(profileKey, JSON.stringify(profile));
+            localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+          }
+        }
+        this.renderOrdersDashboardList();
+      })
+      .catch(err => {
+        console.error('Failed to sync orders from server on dashboard open:', err);
+        this.renderOrdersDashboardList();
+      });
+  }
+
+  renderOrdersDashboardList() {
     const container = this.shadowRoot.getElementById('orders-dashboard-list');
     if (!container) return;
     container.innerHTML = '';
