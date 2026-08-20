@@ -382,10 +382,51 @@ class AdminPage extends HTMLElement {
     }
   }
 
+  setupToastListener() {
+    const shadow = this.shadowRoot;
+    this._toastListener = (e) => {
+      const container = shadow.getElementById('admin-toast-container');
+      if (!container) return;
+      
+      const toast = document.createElement('div');
+      
+      let isError = false;
+      let isAlert = false;
+      let isKey = false;
+      
+      if (e.detail) {
+        const detailLower = e.detail.toLowerCase();
+        isError = detailLower.includes('error') || detailLower.includes('incorrect') || detailLower.includes('invalid');
+        isAlert = detailLower.includes('bell') || detailLower.includes('live alert');
+        isKey = detailLower.includes('key') || detailLower.includes('password');
+      }
+
+      toast.className = `admin-toast ${isError ? 'error' : 'success'}`;
+      
+      let icon = '✅';
+      if (isError) icon = '❌';
+      else if (isAlert) icon = '🔔';
+      else if (isKey) icon = '🔑';
+      
+      toast.innerHTML = `<span>${icon}</span> <span>${e.detail || ''}</span>`;
+      container.appendChild(toast);
+      
+      setTimeout(() => toast.classList.add('show'), 10);
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    };
+    
+    window.addEventListener('toast:show', this._toastListener);
+  }
+
   connectedCallback() {
     this.checkSessionValidity();
     this.render();
     this.attachListeners();
+    this.setupToastListener();
 
     this._storageEventListener = (e) => {
       if (e.key === 'SWEETOS_admin_session_version') {
@@ -820,7 +861,10 @@ class AdminPage extends HTMLElement {
     }
     
     // 3. Render HTML content inside container
-    container.innerHTML = !this.isAuthenticated ? this.renderLogin() : this.renderDashboardLayout();
+    container.innerHTML = `
+      ${!this.isAuthenticated ? this.renderLogin() : this.renderDashboardLayout()}
+      <div class="admin-toast-container" id="admin-toast-container"></div>
+    `;
   }
 
   renderLogin() {
@@ -964,6 +1008,9 @@ class AdminPage extends HTMLElement {
   disconnectedCallback() {
     if (this._storageEventListener) {
       window.removeEventListener('storage', this._storageEventListener);
+    }
+    if (this._toastListener) {
+      window.removeEventListener('toast:show', this._toastListener);
     }
   }
 
