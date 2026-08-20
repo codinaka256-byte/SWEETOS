@@ -547,8 +547,9 @@ export function attachAdminOrdersListeners(context, shadow) {
         context.saveDatabase('orders');
 
         // Create customer notification
-        if (order.email) {
-          const safeKey = order.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const clientEmail = order.customerEmail || order.email;
+        if (clientEmail) {
+          const safeKey = clientEmail.replace(/[^a-zA-Z0-9]/g, '_');
           const notifKey = `SWEETOS_notifications_${safeKey}`;
           
           let customerNotifs = [];
@@ -655,7 +656,7 @@ export function attachAdminOrdersListeners(context, shadow) {
           if (loggedInUserStr) {
             try {
               const loggedIn = JSON.parse(loggedInUserStr);
-              if (loggedIn.email === order.email) {
+              if (loggedIn.email === clientEmail) {
                 const totalUnread = customerNotifs.filter(n => n.unread).length;
                 window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
               }
