@@ -768,25 +768,50 @@ class CheckoutModal extends HTMLElement {
         localStorage.setItem(profileKey, JSON.stringify(profile));
         localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
 
-        // Save order globally for admin dashboard
-        let allOrders = [];
-        const savedAll = localStorage.getItem('SWEETOS_all_orders');
-        if (savedAll) {
-          try {
-            allOrders = JSON.parse(savedAll);
-          } catch(e) {}
-        }
-        allOrders.unshift({
-          ...newOrder,
-          customerName: this.formData.name || "Guest User",
-          customerEmail: this.formData.email || "guest@sweetos.com",
-          customerPhone: this.formData.phone || "",
-          customerAddress: this.formData.address || "",
-          customerZip: this.formData.zip || "",
-          paymentMethod: this.selectedPaymentMethod || "cod",
-          userProfileKey: profileKey // to propagate state back to user orders tab!
-        });
-        localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+        // Fetch latest orders from server first to prevent overwriting with stale local orders!
+        fetch('/api/orders')
+          .then(res => res.json())
+          .then(serverOrders => {
+            let allOrders = Array.isArray(serverOrders) ? serverOrders : [];
+            allOrders.unshift({
+              ...newOrder,
+              customerName: this.formData.name || "Guest User",
+              customerEmail: this.formData.email || "guest@sweetos.com",
+              customerPhone: this.formData.phone || "",
+              customerAddress: this.formData.address || "",
+              customerZip: this.formData.zip || "",
+              paymentMethod: this.selectedPaymentMethod || "cod",
+              userProfileKey: profileKey
+            });
+            localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+
+            // Sync to server (which will trigger real-time SSE notifications)
+            return fetch('/api/orders', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(allOrders)
+            });
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              console.log('Order registered on server.');
+              // Broadcast custom alert to admin panel
+              fetch('/api/broadcast-alert', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  type: 'orders',
+                  message: `New Order ${orderId} placed by ${this.formData.name || 'Guest User'} (${formatPrice(orderTotal)})!`
+                })
+              }).catch(e => console.error('Failed to broadcast new order alert:', e));
+            }
+          })
+          .catch(err => console.error('Failed to register order on server:', err));
 
         // Mark applied coupon as used/expired
         try {
@@ -814,33 +839,6 @@ class CheckoutModal extends HTMLElement {
         } catch(e) {
           console.error('Failed to update used coupon status:', e);
         }
-
-        // Sync order to server (which will trigger real-time SSE notifications)
-        fetch('/api/orders', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(allOrders)
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            console.log('Order registered on server.');
-            // Broadcast custom alert to admin panel
-            fetch('/api/broadcast-alert', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                type: 'orders',
-                message: `New Order ${orderId} placed by ${this.formData.name || 'Guest User'} (${formatPrice(orderTotal)})!`
-              })
-            }).catch(e => console.error('Failed to broadcast new order alert:', e));
-          }
-        })
-        .catch(err => console.error('Failed to register order on server:', err));
 
         window.dispatchEvent(new CustomEvent('orders:updated'));
 

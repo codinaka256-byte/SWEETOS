@@ -6127,28 +6127,26 @@ class ProductList extends HTMLElement {
             localStorage.setItem(profileKey, JSON.stringify(profile));
             localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
             
-            // 2. Update address in global SWEETOS_all_orders
-            let allOrders = [];
-            const savedAll = localStorage.getItem('SWEETOS_all_orders');
-            if (savedAll) {
-              try {
-                allOrders = JSON.parse(savedAll);
-              } catch(e) {}
-            }
-            const globalOrder = allOrders.find(go => go.id === o.id);
-            if (globalOrder) {
-              globalOrder.customerAddress = newAddress;
-              localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
-            }
-            
-            // 3. Sync to server
-            fetch('/api/orders', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(allOrders)
-            }).catch(e => console.error('Failed to sync updated order address:', e));
+            // 2. Fetch latest orders from server, update and POST back
+            fetch('/api/orders')
+              .then(res => res.json())
+              .then(serverOrders => {
+                let allOrders = Array.isArray(serverOrders) ? serverOrders : [];
+                const globalOrder = allOrders.find(go => go.id === o.id);
+                if (globalOrder) {
+                  globalOrder.customerAddress = newAddress;
+                }
+                localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+
+                return fetch('/api/orders', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(allOrders)
+                });
+              })
+              .catch(e => console.error('Failed to sync updated order address:', e));
 
             window.dispatchEvent(new CustomEvent('toast:show', { detail: `Address updated for Order ${o.id}!` }));
             overlay.classList.remove('open');
@@ -6173,28 +6171,26 @@ class ProductList extends HTMLElement {
             localStorage.setItem(profileKey, JSON.stringify(profile));
             localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
             
-            // 2. Update order status in global SWEETOS_all_orders
-            let allOrders = [];
-            const savedAll = localStorage.getItem('SWEETOS_all_orders');
-            if (savedAll) {
-              try {
-                allOrders = JSON.parse(savedAll);
-              } catch(e) {}
-            }
-            const globalOrder = allOrders.find(go => go.id === o.id);
-            if (globalOrder) {
-              globalOrder.status = 'Cancelled';
-              localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
-            }
-            
-            // 3. Sync to server
-            fetch('/api/orders', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(allOrders)
-            }).catch(e => console.error('Failed to sync cancelled order status:', e));
+            // 2. Fetch latest orders from server, update and POST back
+            fetch('/api/orders')
+              .then(res => res.json())
+              .then(serverOrders => {
+                let allOrders = Array.isArray(serverOrders) ? serverOrders : [];
+                const globalOrder = allOrders.find(go => go.id === o.id);
+                if (globalOrder) {
+                  globalOrder.status = 'Cancelled';
+                }
+                localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+
+                return fetch('/api/orders', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(allOrders)
+                });
+              })
+              .catch(e => console.error('Failed to sync cancelled order status:', e));
 
             window.dispatchEvent(new CustomEvent('toast:show', { detail: `Order ${o.id} cancelled successfully.` }));
             overlay.classList.remove('open');
@@ -6216,28 +6212,26 @@ class ProductList extends HTMLElement {
           localStorage.setItem(profileKey, JSON.stringify(profile));
           localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
           
-          // 2. Set status to 'Deleted' in global SWEETOS_all_orders (keeps in admin side)
-          let allOrders = [];
-          const savedAll = localStorage.getItem('SWEETOS_all_orders');
-          if (savedAll) {
-            try {
-              allOrders = JSON.parse(savedAll);
-            } catch(e) {}
-          }
-          const globalOrder = allOrders.find(go => go.id === o.id);
-          if (globalOrder) {
-            globalOrder.status = 'Deleted';
-            localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
-          }
-          
-          // 3. Sync to server
-          fetch('/api/orders', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(allOrders)
-          }).catch(e => console.error('Failed to sync deleted order status:', e));
+           // 2. Fetch latest orders from server, update and POST back
+           fetch('/api/orders')
+             .then(res => res.json())
+             .then(serverOrders => {
+               let allOrders = Array.isArray(serverOrders) ? serverOrders : [];
+               const globalOrder = allOrders.find(go => go.id === o.id);
+               if (globalOrder) {
+                 globalOrder.status = 'Deleted';
+               }
+               localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+
+               return fetch('/api/orders', {
+                 method: 'POST',
+                 headers: {
+                   'Content-Type': 'application/json'
+                 },
+                 body: JSON.stringify(allOrders)
+               });
+             })
+             .catch(e => console.error('Failed to sync deleted order status:', e));
 
           window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order record deleted.' }));
           overlay.classList.remove('open');
@@ -6259,42 +6253,39 @@ class ProductList extends HTMLElement {
           localStorage.setItem(profileKey, JSON.stringify(profile));
           localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
           
-          // 2. Update status to 'Done' in global SWEETOS_all_orders
-          let allOrders = [];
-          const savedAll = localStorage.getItem('SWEETOS_all_orders');
-          if (savedAll) {
-            try {
-              allOrders = JSON.parse(savedAll);
-            } catch(e) {}
-          }
-          const globalOrder = allOrders.find(go => go.id === o.id);
-          if (globalOrder) {
-            globalOrder.status = 'Done';
-            localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
-          }
-          
-          // 3. Sync to server
-          fetch('/api/orders', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(allOrders)
-          })
-          .then(() => {
-            // 4. Broadcast custom alert to admin panel
-            fetch('/api/broadcast-alert', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                type: 'orders',
-                message: `Order ${o.id} has been marked as Received (Done) by the customer!`
-              })
-            }).catch(e => console.error('Failed to broadcast received order alert:', e));
-          })
-          .catch(e => console.error('Failed to sync received order status:', e));
+          // 2. Fetch latest orders from server, update and POST back
+          fetch('/api/orders')
+            .then(res => res.json())
+            .then(serverOrders => {
+              let allOrders = Array.isArray(serverOrders) ? serverOrders : [];
+              const globalOrder = allOrders.find(go => go.id === o.id);
+              if (globalOrder) {
+                globalOrder.status = 'Done';
+              }
+              localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+
+              return fetch('/api/orders', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(allOrders)
+              });
+            })
+            .then(() => {
+              // 3. Broadcast custom alert to admin panel
+              fetch('/api/broadcast-alert', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  type: 'orders',
+                  message: `Order ${o.id} has been marked as Received (Done) by the customer!`
+                })
+              }).catch(e => console.error('Failed to broadcast received order alert:', e));
+            })
+            .catch(e => console.error('Failed to sync received order status:', e));
 
           // 5. Generate Mystery Box scratchcard if total >= 2000 CFA
           const totalCFA = parseFloat(targetOrder.total) || 0;
