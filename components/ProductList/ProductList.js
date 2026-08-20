@@ -1214,15 +1214,22 @@ class ProductList extends HTMLElement {
 
       contentArea.innerHTML = `
         <div class="pdp-container">
-          <!-- PDP Breadcrumbs -->
-          <div class="pdp-breadcrumb">
-            <span class="pdp-crumb-item" id="crumb-home">Home</span>
-            <span class="pdp-crumb-sep">›</span>
-            <span class="pdp-crumb-item" id="crumb-catalog">Catalog</span>
-            <span class="pdp-crumb-sep">›</span>
-            <span class="pdp-crumb-item" id="crumb-cat-name">${p.category}</span>
-            <span class="pdp-crumb-sep">›</span>
-            <span class="pdp-crumb-current">${p.name}</span>
+          <!-- Back button & Breadcrumbs Row -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 16px; flex-wrap: wrap;">
+            <button class="pdp-back-btn" id="pdp-back-btn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; transform: scaleX(-1);"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+              Retour / Back
+            </button>
+            
+            <div class="pdp-breadcrumb" style="margin-bottom: 0;">
+              <span class="pdp-crumb-item" id="crumb-home">Home</span>
+              <span class="pdp-crumb-sep">›</span>
+              <span class="pdp-crumb-item" id="crumb-catalog">Catalog</span>
+              <span class="pdp-crumb-sep">›</span>
+              <span class="pdp-crumb-item" id="crumb-cat-name">${p.category}</span>
+              <span class="pdp-crumb-sep">›</span>
+              <span class="pdp-crumb-current">${p.name}</span>
+            </div>
           </div>
 
           <div class="pdp-grid">
@@ -3004,6 +3011,21 @@ class ProductList extends HTMLElement {
 
   attachPdpListeners(product) {
     const shadow = this.shadowRoot;
+
+    // Back button
+    const backBtn = shadow.getElementById('pdp-back-btn');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        if (document.referrer || window.history.length > 1) {
+          window.history.back();
+        } else {
+          this.currentPage = 'catalog';
+          this.currentCategory = 'All';
+          this.renderPageContent();
+          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog', category: 'All' } }));
+        }
+      });
+    }
 
     // Breadcrumbs
     shadow.getElementById('crumb-home').addEventListener('click', () => {
