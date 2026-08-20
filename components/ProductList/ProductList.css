@@ -4773,3 +4773,9 @@ input:checked + .toggle-slider:before {
 .category-pill-btn .pill-icon, .brand-pill-btn .pill-icon {
   font-size: 14px;
 }
+
+.coupon-card-store:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary) !important;
+  box-shadow: 0 8px 25px var(--primary-light) !important;
+}

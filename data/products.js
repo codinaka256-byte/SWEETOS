@@ -181,7 +181,7 @@ const products = [
       "Software": "QMK/VIA compatible layers",
       "Frame": "Frosted white acrylic with ice-blue backglow"
     },
-    "stock": 5
+    "stock": 6
   },
   {
     "id": 11,

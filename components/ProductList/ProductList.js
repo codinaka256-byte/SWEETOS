@@ -91,6 +91,12 @@ class ProductList extends HTMLElement {
           this.currentPage = 'pdp';
           this.currentProductId = pId;
         }
+      } else if (route.startsWith('coupons/')) {
+        this.currentPage = 'coupons';
+        this.currentCouponCode = route.split('/')[1];
+      } else if (route === 'coupons') {
+        this.currentPage = 'coupons';
+        this.currentCouponCode = null;
       } else if (route === 'terms') {
         this.currentPage = 'terms';
       } else if (route === 'about-us' || route === 'about') {
@@ -119,6 +125,8 @@ class ProductList extends HTMLElement {
     let hash = '#/';
     if (this.currentPage === 'pdp' && this.currentProductId) {
       hash += 'product/' + this.currentProductId;
+    } else if (this.currentPage === 'coupons') {
+      hash += 'coupons' + (this.currentCouponCode ? '/' + this.currentCouponCode : '');
     } else if (this.currentPage === 'catalog' && this.currentCategory && this.currentCategory !== 'All') {
       hash += 'catalog/' + encodeURIComponent(this.currentCategory);
     } else if (this.currentPage === 'home') {
@@ -407,6 +415,7 @@ class ProductList extends HTMLElement {
     else if (this.currentPage === 'refund') pageLabel = 'Refund Policy';
     else if (this.currentPage === 'contact') pageLabel = 'Contact Us';
     else if (this.currentPage === 'checkout') pageLabel = 'Checkout Form';
+    else if (this.currentPage === 'coupons') pageLabel = 'Coupons & Offers';
     
     try {
       this.logCustomerActivity(pageLabel);
@@ -934,6 +943,147 @@ class ProductList extends HTMLElement {
       this.activeAboutTab = this.currentPage;
       this.injectAboutTabContent();
       this.attachAboutPageListeners();
+
+    } else if (this.currentPage === 'coupons') {
+      // Load coupons from storage
+      let couponsList = [];
+      try {
+        const stored = localStorage.getItem('SWEETOS_coupons');
+        couponsList = stored ? JSON.parse(stored) : [];
+      } catch(e) {}
+      
+      const activeCoupons = couponsList.filter(c => c.status === 'active');
+      
+      if (this.currentCouponCode) {
+        // Detailed coupon view page!
+        const c = activeCoupons.find(item => item.code === this.currentCouponCode);
+        if (c) {
+          const discountText = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
+          contentArea.innerHTML = `
+            <div class="pdp-container animate-in" style="max-width: 600px; margin: 0 auto; padding-top: 20px;">
+              <!-- Back Button & Breadcrumbs -->
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; flex-wrap: wrap; gap: 12px;">
+                <button class="pdp-back-btn" id="coupon-back-btn">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; transform: scaleX(-1);"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                  Retour / Back
+                </button>
+                <div class="pdp-breadcrumb" style="margin: 0;">
+                  <span class="pdp-crumb-item" id="coupon-crumb-home">Home</span>
+                  <span class="pdp-crumb-sep">›</span>
+                  <span class="pdp-crumb-item" id="coupon-crumb-list">Coupons</span>
+                  <span class="pdp-crumb-sep">›</span>
+                  <span class="pdp-crumb-current">${c.code}</span>
+                </div>
+              </div>
+
+              <!-- Big Voucher / Coupon Detailed Card -->
+              <div class="glass-panel" style="border: 2px dashed var(--primary); padding: 40px; border-radius: 24px; text-align: center; background: rgba(255, 255, 255, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.05); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 24px;">
+                <!-- Decorative Glows -->
+                <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: var(--primary-light); filter: blur(50px); border-radius: 50%; z-index: 1;"></div>
+                
+                <div style="font-size: 48px; position: relative; z-index: 2;">🎫</div>
+                
+                <div style="position: relative; z-index: 2;">
+                  <h2 style="font-size: 28px; font-weight: 850; color: var(--text-dark); margin: 0 0 8px 0;">${discountText}</h2>
+                  <p style="font-size: 14px; color: var(--text-gray); font-weight: 600; margin: 0;">Promo Code Voucher</p>
+                </div>
+
+                <div style="background: white; border: 1.5px solid var(--border); padding: 16px 32px; border-radius: 16px; font-size: 24px; font-weight: 900; letter-spacing: 2px; color: var(--primary); display: inline-block; cursor: pointer; position: relative; z-index: 2; box-shadow: 0 4px 12px rgba(0,0,0,0.03);" id="detail-coupon-code-box" title="Click to copy code">
+                  ${c.code}
+                </div>
+
+                <div style="width: 100%; border-top: 1.5px solid var(--border); margin: 10px 0; position: relative; z-index: 2;"></div>
+
+                <div style="text-align: left; width: 100%; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; color: var(--text-dark); position: relative; z-index: 2;">
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-light); font-weight: 600;">Minimum Order:</span>
+                    <strong style="font-weight: 750;">${c.minOrder ? `${formatPrice(c.minOrder)}` : 'No minimum order'}</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-light); font-weight: 600;">Expires On:</span>
+                    <strong style="font-weight: 750;">${c.expiry}</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between;">
+                    <span style="color: var(--text-light); font-weight: 600;">Status:</span>
+                    <span style="font-weight: 800; color: #36b37e; text-transform: uppercase;">Active</span>
+                  </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 12px; width: 100%; margin-top: 16px; position: relative; z-index: 2;">
+                  <button id="detail-coupon-apply-btn" style="flex: 1; background: var(--primary); color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; font-size: 14px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px var(--primary-light);">
+                    Apply to Cart
+                  </button>
+                  <button id="detail-coupon-share-btn" style="background: #25d366; color: white; border: none; padding: 14px 20px; border-radius: 12px; font-weight: 850; font-size: 14px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px;" title="Partager sur WhatsApp">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width: 18px; height: 18px;"><path d="M17.472 14.382c-.022-.08-.124-.184-.282-.232-.078-.024-.464-.232-.536-.252-.072-.02-.124-.03-.178.05-.054.082-.21.26-.258.312-.048.052-.096.06-.178.02a1.866 1.866 0 0 1-.502-.308c-.287-.25-.482-.56-.538-.65-.056-.092-.006-.142.04-.188.04-.04.096-.11.144-.168.048-.058.064-.1.096-.168.032-.068.016-.128-.008-.178-.024-.05-.178-.436-.244-.594-.064-.158-.13-.136-.178-.138-.046-.002-.098-.002-.15-.002a.287.287 0 0 0-.208.098c-.072.078-.276.27-.276.658 0 .388.282.764.32.816.04.052.556.85 1.348 1.192.188.082.336.13.45.166.19.06.362.052.498.032.152-.022.464-.19.53-.374.066-.184.066-.342.046-.374-.022-.03-.078-.05-.156-.088zm-5.467 1.162a6.3 6.3 0 0 1-3.237-.893l-.233-.14-2.404.63 2.443-2.38-.152-.243a6.262 6.262 0 0 1-.958-3.326c0-3.468 2.82-6.29 6.29-6.29 3.47 0 6.29 2.822 6.29 6.29 0 3.47-2.82 6.29-6.29 6.29zm0-13.82c-4.148 0-7.527 3.38-7.527 7.527 0 1.326.347 2.62 1.006 3.766L4 19.5l4.636-1.216a7.487 7.487 0 0 0 3.37.804c4.148 0 7.527-3.378 7.527-7.527 0-4.15-3.38-7.527-7.527-7.527z"/></svg>
+                    Partager / Share
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+          
+          this.attachCouponDetailListeners(c);
+        } else {
+          this.currentCouponCode = null;
+          this.renderPageContent();
+        }
+      } else {
+        // Coupons Listing View Page
+        let couponsGridHtml = '';
+        if (activeCoupons.length === 0) {
+          couponsGridHtml = `
+            <div class="glass-panel text-center animate-in" style="padding: 60px; border-radius: 16px; border: 1.5px solid var(--border); background: rgba(255, 255, 255, 0.4); text-align: center;">
+              <span style="font-size: 40px; display: block; margin-bottom: 16px;">🎟️</span>
+              <h3 style="font-size: 18px; font-weight: 800; color: var(--text-dark); margin: 0 0 8px 0;">Aucun Coupon Actif / No Active Coupons</h3>
+              <p style="font-size: 13.5px; color: var(--text-gray); margin: 0;">Revenez plus tard pour découvrir nos offres exclusives !</p>
+            </div>
+          `;
+        } else {
+          couponsGridHtml = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;" class="animate-in">
+              ${activeCoupons.map(c => {
+                const discountText = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
+                return `
+                  <div class="coupon-card-store" data-coupon-code="${c.code}" style="position: relative; background: rgba(255, 255, 255, 0.4); border: 2px dashed var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: all 0.2s ease; min-height: 180px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                      <span style="font-size: 24px;">🎟️</span>
+                      <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 8px; text-transform: uppercase;">Actif</span>
+                    </div>
+                    
+                    <div>
+                      <h4 style="font-size: 18px; font-weight: 850; color: var(--text-dark); margin: 0 0 6px 0;">${discountText}</h4>
+                      <code style="font-size: 14px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; background: white; padding: 4px 10px; border-radius: 6px; border: 1.5px solid var(--border); display: inline-block;">${c.code}</code>
+                    </div>
+
+                    <div style="border-top: 1px solid var(--border); padding-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text-gray); font-weight: 600;">
+                      <span>Exp: ${c.expiry}</span>
+                      <span style="color: var(--primary); font-weight: 800; display: flex; align-items: center; gap: 4px;">Voir détails →</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }
+
+        contentArea.innerHTML = `
+          <div class="about-page-container animate-in" style="padding-bottom: 40px;">
+            <div class="page-hero-banner page-about animate-in" style="margin-bottom: 24px;">
+              <div class="page-hero-glow"></div>
+              <div class="page-hero-content">
+                <span class="page-hero-badge">🎁 OFFRES SPÉCIALES</span>
+                <h2>Coupons de réduction / Discount Vouchers</h2>
+                <p>Découvrez et partagez nos coupons de réduction actifs pour vos achats premium.</p>
+              </div>
+            </div>
+            
+            ${couponsGridHtml}
+          </div>
+        `;
+        
+        this.attachCouponsListListeners();
+      }
 
     } else if (this.currentPage === 'profile') {
       contentArea.innerHTML = `
@@ -4160,6 +4310,90 @@ class ProductList extends HTMLElement {
     });
 
     this.attachAboutTabListeners();
+  }
+
+  attachCouponsListListeners() {
+    const shadow = this.shadowRoot;
+    shadow.querySelectorAll('.coupon-card-store').forEach(card => {
+      card.addEventListener('click', () => {
+        const code = card.getAttribute('data-coupon-code');
+        this.currentCouponCode = code;
+        this.renderPageContent();
+      });
+    });
+  }
+
+  attachCouponDetailListeners(coupon) {
+    const shadow = this.shadowRoot;
+    
+    // Back to Coupons list
+    const backBtn = shadow.getElementById('coupon-back-btn');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        this.currentCouponCode = null;
+        this.renderPageContent();
+      });
+    }
+
+    // Breadcrumbs home
+    const crumbHome = shadow.getElementById('coupon-crumb-home');
+    if (crumbHome) {
+      crumbHome.addEventListener('click', () => {
+        this.currentPage = 'home';
+        this.currentCouponCode = null;
+        this.renderPageContent();
+        window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+      });
+    }
+
+    // Breadcrumbs list
+    const crumbList = shadow.getElementById('coupon-crumb-list');
+    if (crumbList) {
+      crumbList.addEventListener('click', () => {
+        this.currentCouponCode = null;
+        this.renderPageContent();
+      });
+    }
+
+    // Copy to clipboard
+    const codeBox = shadow.getElementById('detail-coupon-code-box');
+    if (codeBox) {
+      codeBox.addEventListener('click', () => {
+        navigator.clipboard.writeText(coupon.code).then(() => {
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Code promo "${coupon.code}" copié ! 📋` }));
+        });
+      });
+    }
+
+    // Apply coupon
+    const applyBtn = shadow.getElementById('detail-coupon-apply-btn');
+    if (applyBtn) {
+      applyBtn.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('cart:toggle', { detail: { open: true } }));
+        setTimeout(() => {
+          const drawer = document.querySelector('cart-drawer');
+          if (drawer && drawer.shadowRoot) {
+            const input = drawer.shadowRoot.getElementById('promoInput');
+            const apply = drawer.shadowRoot.getElementById('promoApply');
+            if (input && apply) {
+              input.value = coupon.code;
+              apply.click();
+            }
+          }
+        }, 150);
+      });
+    }
+
+    // Share to WhatsApp
+    const shareBtn = shadow.getElementById('detail-coupon-share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => {
+        const discountText = coupon.type === 'percentage' ? `${coupon.value}% OFF` : `${coupon.value} OFF`;
+        const message = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${coupon.code}*\nRéduction : *${discountText}*\nDate d'expiration : *${coupon.expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+      });
+    }
   }
 
   logCustomerActivity(pageName) {
