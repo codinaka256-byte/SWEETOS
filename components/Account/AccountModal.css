@@ -238,6 +238,10 @@
 
 /* Responsive details */
 @media (max-width: 768px) {
+  .modal-container {
+    padding: 24px;
+    max-width: 95%;
+  }
   .profile-layout {
     grid-template-columns: 1fr;
     gap: 30px;
@@ -247,5 +251,18 @@
     border-bottom: 1px solid rgba(0, 82, 204, 0.08);
     padding-right: 0;
     padding-bottom: 30px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-container {
+    padding: 16px;
+  }
+  .user-fullname {
+    font-size: 1.2rem;
+  }
+  .avatar-large {
+    width: 60px;
+    height: 60px;
   }
 }
