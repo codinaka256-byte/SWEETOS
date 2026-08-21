@@ -531,207 +531,261 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
       const firstname = payload.given_name || fullName.split(' ')[0] || 'Google';
       const lastname = payload.family_name || fullName.split(' ').slice(1).join(' ') || 'User';
 
-      // Check if user already has a completed profile in LocalStorage
-      const profileKey = `SWEETOS_profile_${email}`;
-      const existingProfileStr = localStorage.getItem(profileKey);
-      let existingProfile = null;
-      if (existingProfileStr) {
-        try {
-          existingProfile = JSON.parse(existingProfileStr);
-        } catch (e) {}
-      }
-
-      const completeLoginWithDetails = (phone, address) => {
-        // Save user to LocalStorage session
-        localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
-
-        // Set profile
-        const userProfileKey = getProfileStorageKey();
-        const profile = {
-          firstName: firstname,
-          lastName: lastname,
-          email: email,
-          phone: phone || "+225 000 000 000",
-          bio: "Google Authenticated Profile.",
-          address: address || "",
-          theme: "Ice Blue",
-          twoFactor: false,
-          marketingEmails: true,
-          smsUpdates: false,
-          addresses: address ? [address] : [],
-          orders: existingProfile ? (existingProfile.orders || []) : []
-        };
-        localStorage.setItem(profileKey, JSON.stringify(profile));
-        localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
-
-        // Push user to customer credentials list
-        let savedCreds = [];
-        try {
-          savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
-        } catch (err) {}
-
-        const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email);
-        const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-        if (existingCredIdx === -1) {
-          savedCreds.push({
-            email: email,
-            password: "google_oauth_bypass",
-            fullname: fullName,
-            phone: phone || "+225 000 000 000",
-            country: address ? (address.split(',').pop().trim()) : "Ivory Coast",
-            joinedDate: joinedDate
-          });
-          localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
-        }
-
-        // Dispatch event to sync state across views
-        window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
-        
-        onLoginSuccess();
-      };
-
-      if (existingProfile && existingProfile.phone && existingProfile.address) {
-        // User already has filled out their profile. Login directly.
-        completeLoginWithDetails(existingProfile.phone, existingProfile.address);
-      } else {
-        // User is new or hasn't completed their profile. Show modal.
-        const detailsModal = shadow.getElementById('google-details-modal');
-        if (detailsModal) {
-          detailsModal.style.display = 'flex';
+      // 1. Fetch user profile from database to check if they completed it before
+      fetch(`/api/profile?email=${encodeURIComponent(email)}`)
+        .then(res => res.json())
+        .then(data => {
+          const dbProfile = data.profile;
           
-          const phoneInput = shadow.getElementById('google-phone');
-          const countryInput = shadow.getElementById('google-country');
-          const stateInput = shadow.getElementById('google-state');
-          const townInput = shadow.getElementById('google-town');
-          const addressHidden = shadow.getElementById('google-address');
+          const completeLoginWithDetails = (phone, address) => {
+            // Save user to LocalStorage session
+            localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email, name: fullName }));
 
-          const countryContainer = shadow.getElementById('country-container');
-          const stateContainer = shadow.getElementById('state-container');
-          const townContainer = shadow.getElementById('town-container');
-
-          const stateOptions = shadow.getElementById('state-options');
-          const townOptions = shadow.getElementById('town-options');
-
-          const countryDatabase = {
-            "+225": {
-              name: "Côte d'Ivoire",
-              states: {
-                "Lagunes (Abidjan)": ["Cocody", "Plateau", "Yopougon", "Marcory", "Koumassi", "Treichville", "Abobo", "Bingerville", "Port-Bouët", "Songon"],
-                "Yamoussoukro": ["Yamoussoukro Ville", "Morofé", "Zaher", "Assabou", "Dioulabougou"],
-                "Vallée du Bandama (Bouaké)": ["Bouaké Ville", "Ahougnansou", "Air France", "Broukro", "N'Gattakro"],
-                "Haut-Sassandra (Daloa)": ["Daloa Ville", "Tazibouo", "Gbeuliville", "Orly", "Loboguiguia"],
-                "Poro (Korhogo)": ["Korhogo Ville", "Koko", "Soba", "Tchékélézo"],
-                "Tonkpi (Man)": ["Man Ville", "Dompleu", "Gbépleu", "Kassiapleu"],
-                "San-Pédro": ["San-Pédro Ville", "Bardot", "Balmer", "Nitoro"]
-              }
-            },
-            "+233": {
-              name: "Ghana",
-              states: {
-                "Greater Accra": ["Accra", "Tema", "Madina", "East Legon", "Osu", "Spintex"],
-                "Ashanti": ["Kumasi", "Obuasi", "Konongo", "Ejisu"],
-                "Western": ["Sekondi-Takoradi", "Tarkwa", "Axim"]
-              }
-            },
-            "+234": {
-              name: "Nigeria",
-              states: {
-                "Lagos": ["Ikeja", "Lekki", "Victoria Island", "Surulere", "Yaba", "Epe"],
-                "Abuja (FCT)": ["Garki", "Wuse", "Maitama", "Asokoro", "Gwarinpa"],
-                "Rivers": ["Port Harcourt", "Obio-Akpor", "Bonny"]
-              }
-            },
-            "+221": {
-              name: "Sénégal",
-              states: {
-                "Dakar": ["Dakar Plateau", "Almadies", "Mermoz", "Medina", "Yoff", "Pikine", "Guédiawaye"],
-                "Thiès": ["Thiès Ville", "Mbour", "Saly", "Joal-Fadiouth"],
-                "Saint-Louis": ["Saint-Louis Ville", "Richard-Toll", "Dagana"]
-              }
-            }
-          };
-
-          let matchedKey = null;
-
-          phoneInput.addEventListener('input', () => {
-            const rawVal = phoneInput.value.trim().replace(/\s+/g, '');
-            matchedKey = null;
+            const safeKey = email.replace(/[^a-zA-Z0-9]/g, '_');
+            const userProfileKey = `SWEETOS_user_profile_${safeKey}`;
             
-            for (const key in countryDatabase) {
-              if (rawVal.startsWith(key)) {
-                matchedKey = key;
-                break;
-              }
+            const profile = {
+              firstName: firstname,
+              lastName: lastname,
+              email: email,
+              phone: phone || (dbProfile ? dbProfile.phone : "") || "+225 000 000 000",
+              bio: (dbProfile ? dbProfile.bio : "") || "Google Authenticated Profile.",
+              address: address || (dbProfile ? dbProfile.address : "") || "",
+              theme: (dbProfile ? dbProfile.theme : "Ice Blue") || "Ice Blue",
+              twoFactor: false,
+              marketingEmails: true,
+              smsUpdates: false,
+              addresses: address ? [address] : (dbProfile ? dbProfile.addresses : []) || [],
+              orders: (dbProfile ? dbProfile.orders : []) || []
+            };
+            
+            localStorage.setItem(userProfileKey, JSON.stringify(profile));
+            localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+
+            // Sync back to database
+            fetch('/api/profile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, profileData: profile })
+            }).catch(err => console.error('Failed to sync completed profile to database:', err));
+
+            // Sync credentials list
+            let savedCreds = [];
+            try {
+              savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
+            } catch (err) {}
+
+            const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email);
+            const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+            if (existingCredIdx === -1) {
+              savedCreds.push({
+                email: email,
+                password: "google_oauth_bypass",
+                fullname: fullName,
+                phone: phone || "+225 000 000 000",
+                country: address ? (address.split(',').pop().trim()) : "Ivory Coast",
+                joinedDate: joinedDate
+              });
+              localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
             }
 
-            if (matchedKey) {
-              const dbEntry = countryDatabase[matchedKey];
-              countryInput.value = dbEntry.name;
-              countryInput.setAttribute('readonly', 'true');
-              countryInput.style.background = "#f8fafc";
-              countryContainer.style.display = 'flex';
-              
-              // Load states list options
-              stateOptions.innerHTML = Object.keys(dbEntry.states).map(s => `<option value="${s}"></option>`).join('');
-              stateContainer.style.display = 'flex';
-            } else {
-              // Manual override for unknown country codes
-              if (rawVal.startsWith('+') && rawVal.length >= 4) {
-                countryInput.value = "";
-                countryInput.removeAttribute('readonly');
-                countryInput.style.background = "white";
-                countryContainer.style.display = 'flex';
-                stateContainer.style.display = 'flex';
-                stateOptions.innerHTML = '';
-              } else {
-                countryContainer.style.display = 'none';
-                stateContainer.style.display = 'none';
-                townContainer.style.display = 'none';
-              }
-            }
-          });
-
-          stateInput.addEventListener('input', () => {
-            const selectedState = stateInput.value.trim();
-            if (matchedKey && countryDatabase[matchedKey].states[selectedState]) {
-              const towns = countryDatabase[matchedKey].states[selectedState];
-              townOptions.innerHTML = towns.map(t => `<option value="${t}"></option>`).join('');
-              townContainer.style.display = 'flex';
-            } else {
-              if (selectedState.length > 0) {
-                townOptions.innerHTML = '';
-                townContainer.style.display = 'flex';
-              } else {
-                townContainer.style.display = 'none';
-              }
-            }
-          });
-
-          townInput.addEventListener('input', () => {
-            const town = townInput.value.trim();
-            const state = stateInput.value.trim();
-            const country = countryInput.value.trim();
-            addressHidden.value = `${town}, ${state}, ${country}`;
-          });
-
-          const detailsForm = shadow.getElementById('google-details-form');
-          detailsForm.onsubmit = (e) => {
-            e.preventDefault();
-            const phone = phoneInput.value.trim();
-            const town = townInput.value.trim();
-            const state = stateInput.value.trim();
-            const country = countryInput.value.trim();
-            const compiledAddress = `${town}, ${state}, ${country}`;
-
-            detailsModal.style.display = 'none';
-            completeLoginWithDetails(phone, compiledAddress);
+            // Dispatch event to sync state across views
+            window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+            window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
+            
+            onLoginSuccess();
           };
-        } else {
-          // Fallback if modal is missing
-          completeLoginWithDetails("+225 000 000 000", "");
-        }
-      }
+
+          if (dbProfile && dbProfile.phone && dbProfile.address) {
+            // User already has completed their profile in database! Bypass modal.
+            completeLoginWithDetails(dbProfile.phone, dbProfile.address);
+          } else {
+            // User is new or missing profile: show modal
+            const detailsModal = shadow.getElementById('google-details-modal');
+            if (detailsModal) {
+              detailsModal.style.display = 'flex';
+              
+              const phoneInput = shadow.getElementById('google-phone');
+              const countryInput = shadow.getElementById('google-country');
+              const stateInput = shadow.getElementById('google-state');
+              const townInput = shadow.getElementById('google-town');
+              const addressHidden = shadow.getElementById('google-address');
+
+              const countryContainer = shadow.getElementById('country-container');
+              const stateContainer = shadow.getElementById('state-container');
+              const townContainer = shadow.getElementById('town-container');
+
+              const stateOptions = shadow.getElementById('state-options');
+              const townOptions = shadow.getElementById('town-options');
+
+              // Hidden initially
+              countryContainer.style.display = 'none';
+              stateContainer.style.display = 'none';
+              townContainer.style.display = 'none';
+
+              const countryDatabase = {
+                "+225": {
+                  name: "Côte d'Ivoire",
+                  states: {
+                    "Lagunes (Abidjan)": ["Cocody", "Plateau", "Yopougon", "Marcory", "Koumassi", "Treichville", "Abobo", "Bingerville", "Port-Bouët", "Songon"],
+                    "Yamoussoukro": ["Yamoussoukro Ville", "Morofé", "Zaher", "Assabou", "Dioulabougou"],
+                    "Vallée du Bandama (Bouaké)": ["Bouaké Ville", "Ahougnansou", "Air France", "Broukro", "N'Gattakro"],
+                    "Haut-Sassandra (Daloa)": ["Daloa Ville", "Tazibouo", "Gbeuliville", "Orly", "Loboguiguia"],
+                    "Poro (Korhogo)": ["Korhogo Ville", "Koko", "Soba", "Tchékélézo"],
+                    "Tonkpi (Man)": ["Man Ville", "Dompleu", "Gbépleu", "Kassiapleu"],
+                    "San-Pédro": ["San-Pédro Ville", "Bardot", "Balmer", "Nitoro"]
+                  }
+                },
+                "+233": {
+                  name: "Ghana",
+                  states: {
+                    "Greater Accra": ["Accra", "Tema", "Madina", "East Legon", "Osu", "Spintex"],
+                    "Ashanti": ["Kumasi", "Obuasi", "Konongo", "Ejisu"],
+                    "Western": ["Sekondi-Takoradi", "Tarkwa", "Axim"]
+                  }
+                },
+                "+234": {
+                  name: "Nigeria",
+                  states: {
+                    "Lagos": ["Ikeja", "Lekki", "Victoria Island", "Surulere", "Yaba", "Epe"],
+                    "Abuja (FCT)": ["Garki", "Wuse", "Maitama", "Asokoro", "Gwarinpa"],
+                    "Rivers": ["Port Harcourt", "Obio-Akpor", "Bonny"]
+                  }
+                },
+                "+221": {
+                  name: "Sénégal",
+                  states: {
+                    "Dakar": ["Dakar Plateau", "Almadies", "Mermoz", "Medina", "Yoff", "Pikine", "Guédiawaye"],
+                    "Thiès": ["Thiès Ville", "Mbour", "Saly", "Joal-Fadiouth"],
+                    "Saint-Louis": ["Saint-Louis Ville", "Richard-Toll", "Dagana"]
+                  }
+                }
+              };
+
+              let matchedKey = null;
+
+              phoneInput.addEventListener('input', () => {
+                const rawVal = phoneInput.value.trim().replace(/\s+/g, '');
+                matchedKey = null;
+                
+                for (const key in countryDatabase) {
+                  if (rawVal.startsWith(key)) {
+                    matchedKey = key;
+                    break;
+                  }
+                }
+
+                if (matchedKey) {
+                  const dbEntry = countryDatabase[matchedKey];
+                  countryInput.value = dbEntry.name;
+                  countryInput.setAttribute('readonly', 'true');
+                  countryInput.style.background = "#f8fafc";
+                  countryContainer.style.display = 'flex';
+                  
+                  // Load states list options
+                  stateOptions.innerHTML = Object.keys(dbEntry.states).map(s => `<option value="${s}"></option>`).join('');
+                  stateContainer.style.display = 'flex';
+                } else {
+                  // Manual override for unknown country codes
+                  if (rawVal.startsWith('+') && rawVal.length >= 4) {
+                    countryInput.value = "";
+                    countryInput.removeAttribute('readonly');
+                    countryInput.style.background = "white";
+                    countryContainer.style.display = 'flex';
+                    stateContainer.style.display = 'flex';
+                    stateOptions.innerHTML = '';
+                  } else {
+                    countryContainer.style.display = 'none';
+                    stateContainer.style.display = 'none';
+                    townContainer.style.display = 'none';
+                  }
+                }
+              });
+
+              stateInput.addEventListener('input', () => {
+                const selectedState = stateInput.value.trim();
+                if (matchedKey && countryDatabase[matchedKey].states[selectedState]) {
+                  const towns = countryDatabase[matchedKey].states[selectedState];
+                  townOptions.innerHTML = towns.map(t => `<option value="${t}"></option>`).join('');
+                  townContainer.style.display = 'flex';
+                } else {
+                  if (selectedState.length > 0) {
+                    townOptions.innerHTML = '';
+                    townContainer.style.display = 'flex';
+                  } else {
+                    townContainer.style.display = 'none';
+                  }
+                }
+              });
+
+              townInput.addEventListener('input', () => {
+                const town = townInput.value.trim();
+                const state = stateInput.value.trim();
+                const country = countryInput.value.trim();
+                addressHidden.value = `${town}, ${state}, ${country}`;
+              });
+
+              const detailsForm = shadow.getElementById('google-details-form');
+              detailsForm.onsubmit = (e) => {
+                e.preventDefault();
+                const phone = phoneInput.value.trim();
+                const town = townInput.value.trim();
+                const state = stateInput.value.trim();
+                const country = countryInput.value.trim();
+                const compiledAddress = `${town}, ${state}, ${country}`;
+
+                detailsModal.style.display = 'none';
+                completeLoginWithDetails(phone, compiledAddress);
+              };
+            } else {
+              // Fallback if modal is missing
+              completeLoginWithDetails("+225 000 000 000", "");
+            }
+          }
+        })
+        .catch(err => {
+          console.error('Database profile check failed, falling back to localStorage check:', err);
+          const safeKey = email.replace(/[^a-zA-Z0-9]/g, '_');
+          const localProfileStr = localStorage.getItem(`SWEETOS_user_profile_${safeKey}`);
+          
+          const completeLoginWithDetails = (phone, address) => {
+            localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email, name: fullName }));
+            const userProfileKey = `SWEETOS_user_profile_${safeKey}`;
+            const profile = {
+              firstName: firstname,
+              lastName: lastname,
+              email: email,
+              phone: phone || "+225 000 000 000",
+              bio: "Google Authenticated Profile.",
+              address: address || "",
+              theme: "Ice Blue",
+              twoFactor: false,
+              marketingEmails: true,
+              smsUpdates: false,
+              addresses: address ? [address] : [],
+              orders: []
+            };
+            localStorage.setItem(userProfileKey, JSON.stringify(profile));
+            localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+
+            window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+            window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
+            onLoginSuccess();
+          };
+
+          if (localProfileStr) {
+            try {
+              const lp = JSON.parse(localProfileStr);
+              if (lp.phone && lp.address) {
+                completeLoginWithDetails(lp.phone, lp.address);
+                return;
+              }
+            } catch(e) {}
+          }
+          
+          const detailsModal = shadow.getElementById('google-details-modal');
+          if (detailsModal) detailsModal.style.display = 'flex';
+        });
 
     } catch (e) {
       console.error('Google Auth Processing Error:', e);
