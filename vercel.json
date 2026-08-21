@@ -6,6 +6,9 @@
       "dest": "/api/index.js"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/admin.html",
       "dest": "/admin.html"
     },
