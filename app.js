@@ -364,6 +364,42 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('checkout:start', () => {
     closeCart();
     closeNotifications();
+    
+    // Check if user is logged in
+    const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
+    if (!loggedIn) {
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Veuillez vous connecter pour accéder à la commande / Please log in to checkout. 🔒' }));
+      window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'profile' } }));
+      return;
+    }
+    
+    // Check if profile information is complete
+    let email = '';
+    try {
+      email = JSON.parse(loggedIn).email;
+    } catch(err) {}
+    
+    const profileKey = 'SWEETOS_user_profile_' + email.replace(/[@.]/g, '_');
+    const profileSaved = localStorage.getItem(profileKey) || localStorage.getItem('SWEETOS_user_profile');
+    
+    let profile = null;
+    if (profileSaved) {
+      try {
+        profile = JSON.parse(profileSaved);
+      } catch(err) {}
+    }
+    
+    const hasName = profile && ((profile.firstName && profile.firstName.trim()) || (profile.lastName && profile.lastName.trim()));
+    const hasEmail = profile && profile.email && profile.email.trim();
+    const hasPhone = profile && profile.phone && profile.phone.trim();
+    const hasAddress = profile && ((profile.addresses && profile.addresses.length > 0 && profile.addresses[0].trim()) || (profile.address && profile.address.trim()));
+    
+    if (!profile || !hasName || !hasEmail || !hasPhone || !hasAddress) {
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Veuillez compléter vos informations de livraison (nom, e-mail, téléphone, adresse) dans votre profil avant de commander. 📝' }));
+      window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'profile' } }));
+      return;
+    }
+
     const checkoutModal = document.getElementById('global-checkout-modal');
     if (checkoutModal) {
       checkoutModal.open();
