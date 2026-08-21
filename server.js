@@ -32,7 +32,7 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const server = http.createServer((req, res) => {
+const requestHandler = (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -556,10 +556,12 @@ async function sendAdminShortageEmail(message) {
   }
 }
 
+const server = http.createServer(requestHandler);
+
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   server.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
   });
 }
 
-module.exports = server;
+module.exports = requestHandler;
