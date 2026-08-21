@@ -3,7 +3,7 @@ class Hero extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.currentSlide = 0;
-    this.slides = [
+    this.allSlides = [
       {
         tag: "New Collection",
         title: "Find Your Style,<br>Love Your Look ✨",
@@ -29,6 +29,7 @@ class Hero extends HTMLElement {
         productId: 2
       }
     ];
+    this.slides = [...this.allSlides];
     this.intervalTime = 6000;
     this.timer = null;
     this.updateSlidesFromStorage();
@@ -39,20 +40,72 @@ class Hero extends HTMLElement {
     const heroSubtitle = localStorage.getItem('SWEETOS_hero_subtitle') || 'Discover the trends in minimalist fashion, high-end accessories, and premium tech layouts.';
     const entranceImage = localStorage.getItem('SWEETOS_store_entrance_image') || './assets/hero_fashion.jpg';
 
-    this.slides[0].title = heroTitle.includes('<br>') ? heroTitle : heroTitle.replace('\n', '<br>');
-    this.slides[0].subtitle = heroSubtitle;
-    this.slides[0].image = entranceImage;
+    this.allSlides[0].title = heroTitle.includes('<br>') ? heroTitle : heroTitle.replace('\n', '<br>');
+    this.allSlides[0].subtitle = heroSubtitle;
+    this.allSlides[0].image = entranceImage;
+    
+    // Sync current slides from storage values
+    this.slides = this.slides.map(s => {
+      if (s.productId === 1 && s.tag === "New Collection") {
+        return { ...s, title: this.allSlides[0].title, subtitle: this.allSlides[0].subtitle, image: this.allSlides[0].image };
+      }
+      return s;
+    });
+  }
+
+  async fetchProductsAndFilterSlides() {
+    try {
+      const res = await fetch('/api/products');
+      if (res.ok) {
+        const products = await res.json();
+        
+        // Filter slides: only display if matching product exists in DB and is in stock
+        this.slides = this.allSlides.filter(slide => {
+          const product = products.find(p => p.id === slide.productId);
+          if (!product) return false;
+          
+          const stock = product.stock !== undefined ? parseInt(product.stock) : 5;
+          return stock > 0;
+        });
+
+        // Sync with storage customized values
+        const heroTitle = localStorage.getItem('SWEETOS_hero_title');
+        const heroSubtitle = localStorage.getItem('SWEETOS_hero_subtitle');
+        const entranceImage = localStorage.getItem('SWEETOS_store_entrance_image');
+        
+        this.slides = this.slides.map(s => {
+          if (s.productId === 1 && s.tag === "New Collection") {
+            return {
+              ...s,
+              title: heroTitle ? (heroTitle.includes('<br>') ? heroTitle : heroTitle.replace('\n', '<br>')) : s.title,
+              subtitle: heroSubtitle || s.subtitle,
+              image: entranceImage || s.image
+            };
+          }
+          return s;
+        });
+
+        if (this.currentSlide >= this.slides.length) {
+          this.currentSlide = 0;
+        }
+
+        this.render();
+        this.setupEventListeners();
+      }
+    } catch(e) {
+      console.error('Failed to validate hero slide products:', e);
+    }
   }
 
   connectedCallback() {
     this.render();
     this.setupEventListeners();
     this.startAutoSlide();
+    this.fetchProductsAndFilterSlides();
     
     this._brandingListener = () => {
       this.updateSlidesFromStorage();
-      this.render();
-      this.setupEventListeners();
+      this.fetchProductsAndFilterSlides();
     };
     window.addEventListener('branding:updated', this._brandingListener);
   }
