@@ -400,7 +400,7 @@ const requestHandler = (req, res) => {
       }
     });
   });
-});
+}
 
 async function sendOrderConfirmationEmail(order, host) {
   const customerEmail = order.customerEmail || 'guest@sweetos.com';
