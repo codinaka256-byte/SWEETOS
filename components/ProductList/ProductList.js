@@ -331,6 +331,60 @@ class ProductList extends HTMLElement {
   saveUserProfile(profile) {
     const profileKey = getProfileStorageKey();
     localStorage.setItem(profileKey, JSON.stringify(profile));
+    
+    // Save to database securely in the background
+    if (profile.email) {
+      fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: profile.email, profileData: profile })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) console.error('Failed to sync profile to database');
+      })
+      .catch(err => console.error('Error syncing profile to database:', err));
+    }
+  }
+
+  syncUserProfileFromDatabase() {
+    const loggedInJson = localStorage.getItem('SWEETOS_logged_in_user');
+    if (!loggedInJson) return Promise.resolve();
+    
+    let email = '';
+    try {
+      email = JSON.parse(loggedInJson).email;
+    } catch(e) {
+      return Promise.resolve();
+    }
+    if (!email) return Promise.resolve();
+    
+    return fetch(`/api/profile?email=${encodeURIComponent(email)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.profile) {
+          const profileKey = getProfileStorageKey();
+          const localProfile = this.loadUserProfile();
+          const serverProfile = data.profile;
+          
+          const mergedProfile = {
+            ...localProfile,
+            ...serverProfile,
+            firstName: serverProfile.firstName || localProfile.firstName,
+            lastName: serverProfile.lastName || localProfile.lastName,
+            email: serverProfile.email || localProfile.email,
+            phone: serverProfile.phone || localProfile.phone,
+            bio: serverProfile.bio || localProfile.bio,
+            address: serverProfile.address || localProfile.address,
+            addresses: serverProfile.addresses || localProfile.addresses || [],
+            orders: localProfile.orders || [] // preserve orders since they sync with orders API
+          };
+          
+          localStorage.setItem(profileKey, JSON.stringify(mergedProfile));
+          return mergedProfile;
+        }
+      })
+      .catch(err => console.error('Failed to sync profile from database:', err));
   }
 
   // --- Wishlist utilities finish ---
@@ -2609,6 +2663,11 @@ class ProductList extends HTMLElement {
       }
     });
 
+    window.addEventListener('auth:changed', () => {
+      this._profileSyncedThisSession = false;
+      this.syncUserProfileFromDatabase();
+    });
+
     // Infinite scroll window listener for "For You"
     window.addEventListener('scroll', () => {
       if (this.currentPage !== 'home') return;
@@ -4833,6 +4892,17 @@ class ProductList extends HTMLElement {
     const tabArea = this.shadowRoot.getElementById('profile-tab-content');
     if (!tabArea) return;
     const profile = this.loadUserProfile();
+
+    // Sync profile from database in background to load latest saved credentials/details
+    if (!this._profileSyncedThisSession) {
+      this._profileSyncedThisSession = true;
+      this.syncUserProfileFromDatabase().then(updated => {
+        if (updated) {
+          // Re-inject tab to display the freshly loaded database profile details
+          this.injectProfileTabContent();
+        }
+      });
+    }
     
     if (this.activeProfileTab === 'overview') {
       const wishlist = this.loadWishlistFromStorage();

@@ -126,6 +126,57 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // 2w. API: GET /api/profile
+  if (req.method === 'GET' && req.url.startsWith('/api/profile')) {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const email = urlObj.searchParams.get('email');
+    if (!email) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing email parameter' }));
+      return;
+    }
+
+    db.getProfiles().then(profiles => {
+      const profile = profiles[email.toLowerCase()] || null;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ profile }));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to retrieve profile' }));
+    });
+    return;
+  }
+
+  // 2v. API: POST /api/profile
+  if (req.method === 'POST' && req.url === '/api/profile') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        const { email, profileData } = JSON.parse(body);
+        if (!email || !profileData) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing email or profileData' }));
+          return;
+        }
+
+        db.saveProfile(email, profileData).then(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }).catch(err => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to save profile' }));
+        });
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
   // 2y. API: POST /api/send-notification-email
   if (req.method === 'POST' && req.url === '/api/send-notification-email') {
     let body = '';
