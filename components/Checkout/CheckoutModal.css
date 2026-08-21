@@ -1,11 +1,11 @@
 .modal-overlay {
   position: fixed;
   top: 60px; /* Offset below header top-nav */
-  left: 0;
-  width: 100vw;
+  left: var(--active-sidebar-width, 0px);
+  width: calc(100vw - var(--active-sidebar-width, 0px));
   height: calc(100vh - 60px);
   background: #f8fafc; /* Premium off-white/gray background */
-  z-index: 995; /* Below top-nav (1000) but above mobile-nav (990) and sidebar layout */
+  z-index: 99; /* Below top-nav (1000) and sidebar (100) */
   opacity: 0;
   pointer-events: none;
   display: flex;

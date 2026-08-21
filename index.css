@@ -23,6 +23,11 @@
   --sidebar-width: 200px;
   --sidebar-collapsed-width: 78px;
   --cart-width: 420px;
+  --active-sidebar-width: var(--sidebar-width);
+}
+
+body.sidebar-collapsed {
+  --active-sidebar-width: var(--sidebar-collapsed-width);
 }
 
 body {
@@ -240,6 +245,9 @@ cart-drawer.closed, notification-drawer.closed {
 
 /* Responsive adjustments */
 @media (max-width: 968px) {
+  :root, body, body.sidebar-collapsed {
+    --active-sidebar-width: 0px !important;
+  }
   body {
     padding-bottom: 72px;
   }

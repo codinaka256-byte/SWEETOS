@@ -314,9 +314,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Close sidebar drawer on any navigation changes
+  // Close sidebar drawer and checkout modal on any navigation changes
   window.addEventListener('navigation:changed', () => {
     closeSidebarMobile();
+    const checkoutModal = document.getElementById('global-checkout-modal');
+    if (checkoutModal) {
+      checkoutModal.close();
+    }
   });
 
   // Custom event listener to trigger mobile sidebar drawer
