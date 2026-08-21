@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { sendMail } = require('./utils/mailer');
+const db = require('./utils/db');
 
 const PORT = 8080;
 
@@ -43,28 +44,24 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 1. API: POST /api/products (Save products permanently to disk)
+  // 1. API: POST /api/products (Save products permanently)
   if (req.method === 'POST' && req.url === '/api/products') {
     let body = '';
     req.on('data', chunk => {
       body += chunk.toString();
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const productsList = JSON.parse(body);
-        const filePath = path.join(__dirname, 'data', 'products.js');
-        const fileContent = `const products = ${JSON.stringify(productsList, null, 2)};\n\nexport default products;\n`;
-        
-        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to write products to disk' }));
-          } else {
-            broadcastAlert('products', 'Product catalog updated.');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-          }
-        });
+        const success = await db.saveProducts(productsList);
+        if (!success) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to write products' }));
+        } else {
+          broadcastAlert('products', 'Product catalog updated.');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
@@ -73,26 +70,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. API: GET /api/products (Load products directly from disk)
+  // 2. API: GET /api/products (Load products directly)
   if (req.method === 'GET' && req.url === '/api/products') {
-    const filePath = path.join(__dirname, 'data', 'products.js');
-    fs.readFile(filePath, 'utf8', (err, content) => {
-      if (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to read products file' }));
-        return;
-      }
-      
-      const startIdx = content.indexOf('[');
-      const endIdx = content.lastIndexOf(']');
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = content.substring(startIdx, endIdx + 1);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(jsonStr);
-      } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid products structure on server' }));
-      }
+    db.getProducts().then(products => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(products));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read products' }));
     });
     return;
   }
@@ -103,21 +88,18 @@ const server = http.createServer((req, res) => {
     req.on('data', chunk => {
       body += chunk.toString();
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const list = JSON.parse(body);
-        const filePath = path.join(__dirname, 'data', 'categories.js');
-        const fileContent = `const categories = ${JSON.stringify(list, null, 2)};\n\nexport default categories;\n`;
-        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to write categories to disk' }));
-          } else {
-            broadcastAlert('categories', 'Categories list updated.');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-          }
-        });
+        const success = await db.saveSetting('categories', list, 'categories.js', 'categories');
+        if (!success) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to write categories' }));
+        } else {
+          broadcastAlert('categories', 'Categories list updated.');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
@@ -128,23 +110,12 @@ const server = http.createServer((req, res) => {
 
   // 2b. API: GET /api/categories
   if (req.method === 'GET' && req.url === '/api/categories') {
-    const filePath = path.join(__dirname, 'data', 'categories.js');
-    fs.readFile(filePath, 'utf8', (err, content) => {
-      if (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to read categories file' }));
-        return;
-      }
-      const startIdx = content.indexOf('[');
-      const endIdx = content.lastIndexOf(']');
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = content.substring(startIdx, endIdx + 1);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(jsonStr);
-      } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid categories structure on server' }));
-      }
+    db.getSetting('categories', [], 'categories.js').then(categories => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(categories));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read categories' }));
     });
     return;
   }
@@ -155,21 +126,18 @@ const server = http.createServer((req, res) => {
     req.on('data', chunk => {
       body += chunk.toString();
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const list = JSON.parse(body);
-        const filePath = path.join(__dirname, 'data', 'brands.js');
-        const fileContent = `const brands = ${JSON.stringify(list, null, 2)};\n\nexport default brands;\n`;
-        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to write brands to disk' }));
-          } else {
-            broadcastAlert('brands', 'Brands list updated.');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-          }
-        });
+        const success = await db.saveSetting('brands', list, 'brands.js', 'brands');
+        if (!success) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to write brands' }));
+        } else {
+          broadcastAlert('brands', 'Brands list updated.');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
@@ -180,23 +148,12 @@ const server = http.createServer((req, res) => {
 
   // 2c. API: GET /api/brands
   if (req.method === 'GET' && req.url === '/api/brands') {
-    const filePath = path.join(__dirname, 'data', 'brands.js');
-    fs.readFile(filePath, 'utf8', (err, content) => {
-      if (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to read brands file' }));
-        return;
-      }
-      const startIdx = content.indexOf('[');
-      const endIdx = content.lastIndexOf(']');
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = content.substring(startIdx, endIdx + 1);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(jsonStr);
-      } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid brands structure on server' }));
-      }
+    db.getSetting('brands', [], 'brands.js').then(brands => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(brands));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read brands' }));
     });
     return;
   }
@@ -207,21 +164,18 @@ const server = http.createServer((req, res) => {
     req.on('data', chunk => {
       body += chunk.toString();
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const list = JSON.parse(body);
-        const filePath = path.join(__dirname, 'data', 'reviews.js');
-        const fileContent = `const reviews = ${JSON.stringify(list, null, 2)};\n\nexport default reviews;\n`;
-        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to write reviews to disk' }));
-          } else {
-            broadcastAlert('reviews', 'Product reviews updated.');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-          }
-        });
+        const success = await db.saveSetting('reviews', list, 'reviews.js', 'reviews');
+        if (!success) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to write reviews' }));
+        } else {
+          broadcastAlert('reviews', 'Product reviews updated.');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
@@ -232,23 +186,12 @@ const server = http.createServer((req, res) => {
 
   // 2d. API: GET /api/reviews
   if (req.method === 'GET' && req.url === '/api/reviews') {
-    const filePath = path.join(__dirname, 'data', 'reviews.js');
-    fs.readFile(filePath, 'utf8', (err, content) => {
-      if (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to read reviews file' }));
-        return;
-      }
-      const startIdx = content.indexOf('[');
-      const endIdx = content.lastIndexOf(']');
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = content.substring(startIdx, endIdx + 1);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(jsonStr);
-      } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid reviews structure on server' }));
-      }
+    db.getSetting('reviews', [], 'reviews.js').then(reviews => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(reviews));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read reviews' }));
     });
     return;
   }
@@ -278,7 +221,7 @@ const server = http.createServer((req, res) => {
     req.on('data', chunk => {
       body += chunk.toString();
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const list = JSON.parse(body);
         
@@ -294,49 +237,33 @@ const server = http.createServer((req, res) => {
         }
         
         // Load old orders list to compare
-        let oldList = [];
-        try {
-          const oldFilePath = path.join(__dirname, 'data', 'orders.js');
-          if (fs.existsSync(oldFilePath)) {
-            const content = fs.readFileSync(oldFilePath, 'utf8');
-            const start = content.indexOf('[');
-            const end = content.lastIndexOf(']') + 1;
-            if (start > -1 && end > -1) {
-              oldList = JSON.parse(content.substring(start, end));
-            }
+        const oldList = await db.getOrders();
+
+        const success = await db.saveOrders(list);
+        if (!success) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to write orders' }));
+        } else {
+          broadcastAlert('orders', 'New order received!');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+
+          // Trigger asynchronous email delivery in the background
+          try {
+            list.forEach(newOrd => {
+              const oldMatch = oldList.find(o => o.id === newOrd.id);
+              if (!oldMatch) {
+                // This is a brand new order! Send confirmation email!
+                sendOrderConfirmationEmail(newOrd, req.headers.host);
+              } else if (oldMatch && (oldMatch.status !== 'Done' && oldMatch.status !== 'Livré') && (newOrd.status === 'Done' || newOrd.status === 'Livré')) {
+                // Order was delivered! Send delivery notification + scratchcard instructions!
+                sendOrderDeliveryEmail(newOrd, req.headers.host);
+              }
+            });
+          } catch(mailErr) {
+            console.error('Email trigger handling failed:', mailErr);
           }
-        } catch(e) {
-          console.error('Failed to read previous orders list:', e);
         }
-
-        const filePath = path.join(__dirname, 'data', 'orders.js');
-        const fileContent = `const orders = ${JSON.stringify(list, null, 2)};\n\nexport default orders;\n`;
-        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to write orders to disk' }));
-          } else {
-            broadcastAlert('orders', 'New order received!');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-
-            // Trigger asynchronous email delivery in the background
-            try {
-              list.forEach(newOrd => {
-                const oldMatch = oldList.find(o => o.id === newOrd.id);
-                if (!oldMatch) {
-                  // This is a brand new order! Send confirmation email!
-                  sendOrderConfirmationEmail(newOrd, req.headers.host);
-                } else if (oldMatch && (oldMatch.status !== 'Done' && oldMatch.status !== 'Livré') && (newOrd.status === 'Done' || newOrd.status === 'Livré')) {
-                  // Order was delivered! Send delivery notification + scratchcard instructions!
-                  sendOrderDeliveryEmail(newOrd, req.headers.host);
-                }
-              });
-            } catch(mailErr) {
-              console.error('Email trigger handling failed:', mailErr);
-            }
-          }
-        });
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
@@ -347,23 +274,12 @@ const server = http.createServer((req, res) => {
 
   // 2f. API: GET /api/orders
   if (req.method === 'GET' && req.url === '/api/orders') {
-    const filePath = path.join(__dirname, 'data', 'orders.js');
-    fs.readFile(filePath, 'utf8', (err, content) => {
-      if (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to read orders file' }));
-        return;
-      }
-      const startIdx = content.indexOf('[');
-      const endIdx = content.lastIndexOf(']');
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = content.substring(startIdx, endIdx + 1);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(jsonStr);
-      } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid orders structure on server' }));
-      }
+    db.getOrders().then(orders => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(orders));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read orders' }));
     });
     return;
   }
@@ -400,21 +316,18 @@ const server = http.createServer((req, res) => {
     req.on('data', chunk => {
       body += chunk.toString();
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const list = JSON.parse(body);
-        const filePath = path.join(__dirname, 'data', 'coupons.js');
-        const fileContent = `const coupons = ${JSON.stringify(list, null, 2)};\n\nexport default coupons;\n`;
-        fs.writeFile(filePath, fileContent, 'utf8', (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Failed to write coupons to disk' }));
-          } else {
-            broadcastAlert('coupons', 'Coupons database updated.');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-          }
-        });
+        const success = await db.saveCoupons(list);
+        if (!success) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to write coupons' }));
+        } else {
+          broadcastAlert('coupons', 'Coupons database updated.');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        }
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
@@ -425,23 +338,12 @@ const server = http.createServer((req, res) => {
 
   // 2g. API: GET /api/coupons
   if (req.method === 'GET' && req.url === '/api/coupons') {
-    const filePath = path.join(__dirname, 'data', 'coupons.js');
-    fs.readFile(filePath, 'utf8', (err, content) => {
-      if (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Failed to read coupons file' }));
-        return;
-      }
-      const startIdx = content.indexOf('[');
-      const endIdx = content.lastIndexOf(']');
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = content.substring(startIdx, endIdx + 1);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(jsonStr);
-      } else {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid coupons structure on server' }));
-      }
+    db.getCoupons().then(coupons => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(coupons));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read coupons' }));
     });
     return;
   }
