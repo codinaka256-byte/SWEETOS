@@ -594,25 +594,26 @@ export function attachAdminOrdersListeners(context, shadow) {
 
             // Check if order qualifies for mystery box (total >= 2000)
             const totalCFA = parseFloat(order.total) || 0;
-            try {
-              const safeKey = (order.customerEmail || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-              const scKey = safeKey ? `SWEETOS_user_scratchcards_${safeKey}` : 'SWEETOS_user_scratchcards_guest';
-              let scratchcards = JSON.parse(localStorage.getItem(scKey) || '[]');
-              if (!scratchcards.some(sc => sc.orderId === order.id)) {
-                scratchcards.push({
-                  id: Date.now() + 1,
-                  orderId: order.id,
-                  amount: totalCFA,
-                  scratched: false,
-                  couponWon: null,
-                  createdAt: Date.now(),
-                  expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
-                });
-                localStorage.setItem(scKey, JSON.stringify(scratchcards));
+            if (totalCFA >= 2000) {
+              try {
+                const safeKey = (order.customerEmail || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
+                const scKey = safeKey ? `SWEETOS_user_scratchcards_${safeKey}` : 'SWEETOS_user_scratchcards_guest';
+                let scratchcards = JSON.parse(localStorage.getItem(scKey) || '[]');
+                if (!scratchcards.some(sc => sc.orderId === order.id)) {
+                  scratchcards.push({
+                    id: Date.now() + 1,
+                    orderId: order.id,
+                    amount: totalCFA,
+                    scratched: false,
+                    couponWon: null,
+                    createdAt: Date.now(),
+                    expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
+                  });
+                  localStorage.setItem(scKey, JSON.stringify(scratchcards));
+                }
+              } catch(e) {
+                console.error('Failed to create scratchcard:', e);
               }
-            } catch(e) {
-              console.error('Failed to create scratchcard:', e);
-            }
 
               // Also add a simulated Email notification for the mystery box!
               setTimeout(() => {
