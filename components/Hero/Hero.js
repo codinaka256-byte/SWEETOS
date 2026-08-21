@@ -8,7 +8,7 @@ class Hero extends HTMLElement {
         tag: "New Collection",
         title: "Find Your Style,<br>Love Your Look ✨",
         subtitle: "Discover the latest trends in minimalist fashion, high-end accessories, and premium tech layouts.",
-        image: "./assets/hero_fashion_1786714715930.jpg",
+        image: "./assets/hero_fashion.jpg",
         buttonText: "Shop Now",
         productId: 1
       },
@@ -16,7 +16,7 @@ class Hero extends HTMLElement {
         tag: "Enthusiast Special",
         title: "Precision Typing,<br>Ice-Blue Backlit 🌌",
         subtitle: "Check out the Aero-75 custom linear keyboard. Pre-lubed, hot-swappable keys in modular frames.",
-        image: "./assets/keyboard_1786712380801.jpg",
+        image: "./assets/keyboard.jpg",
         buttonText: "Explore Keys",
         productId: 1
       },
@@ -24,7 +24,7 @@ class Hero extends HTMLElement {
         tag: "Studio Acoustics",
         title: "Pristine Sound,<br>Matte White Finish 🎧",
         subtitle: "Audiophile titanium dynamic headphones with royal-blue breathable mesh earcups.",
-        image: "./assets/headphones_1786712393413.jpg",
+        image: "./assets/headphones.jpg",
         buttonText: "Explore Audio",
         productId: 2
       }
@@ -36,8 +36,8 @@ class Hero extends HTMLElement {
 
   updateSlidesFromStorage() {
     const heroTitle = localStorage.getItem('SWEETOS_hero_title') || 'Find Your Style,<br>Love Your Look ✨';
-    const heroSubtitle = localStorage.getItem('SWEETOS_hero_subtitle') || 'Discover the latest trends in minimalist fashion, high-end accessories, and premium tech layouts.';
-    const entranceImage = localStorage.getItem('SWEETOS_store_entrance_image') || './assets/hero_fashion_1786714715930.jpg';
+    const heroSubtitle = localStorage.getItem('SWEETOS_hero_subtitle') || 'Discover the trends in minimalist fashion, high-end accessories, and premium tech layouts.';
+    const entranceImage = localStorage.getItem('SWEETOS_store_entrance_image') || './assets/hero_fashion.jpg';
 
     this.slides[0].title = heroTitle.includes('<br>') ? heroTitle : heroTitle.replace('\n', '<br>');
     this.slides[0].subtitle = heroSubtitle;
