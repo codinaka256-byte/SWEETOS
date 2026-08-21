@@ -6,6 +6,19 @@ import { getAuthPageHTML, attachAuthListeners } from '../Auth/AuthPage.js';
 import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, formatPrice, syncDeliveredNotifications } from '../../utils/storage.js';
 import '../Admin/AdminPage.js';
 
+function renderCategoryIcon(icon) {
+  const cleanIcon = (icon || '📁').trim();
+  const isImage = cleanIcon.startsWith('http://') || 
+                  cleanIcon.startsWith('https://') || 
+                  cleanIcon.startsWith('data:image/') || 
+                  cleanIcon.startsWith('./') || 
+                  cleanIcon.startsWith('/');
+  if (isImage) {
+    return `<img src="${cleanIcon}" style="width: 1.5em; height: 1.5em; object-fit: contain; vertical-align: middle; border-radius: 4px;" alt="icon">`;
+  }
+  return cleanIcon;
+}
+
 class ProductList extends HTMLElement {
   constructor() {
     super();
@@ -613,7 +626,7 @@ class ProductList extends HTMLElement {
                         <div class="category-marquee-container" id="marquee-${(c.slug || c.name.toLowerCase())}"></div>
                         <div class="cat-glow-circle card-glow-${(c.slug || c.name.toLowerCase())}"></div>
                         <div class="home-category-card-content">
-                          <span class="cat-icon">${c.icon || '📁'}</span>
+                          <span class="cat-icon" style="display:inline-flex; align-items:center; justify-content:center;">${renderCategoryIcon(c.icon)}</span>
                           <h4>${c.name}</h4>
                           <p>${c.description || descMap[c.name] || 'Premium workspace hardware'}</p>
                           <span class="cat-explore-link">Explore →</span>
@@ -771,7 +784,7 @@ class ProductList extends HTMLElement {
             const categories = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
             return categories.map(c => `
               <button class="category-pill-btn ${this.currentCategory === c.name ? 'active' : ''}" data-category="${c.name}">
-                <span class="pill-icon">${c.icon || '📁'}</span> ${c.name}
+                <span class="pill-icon" style="display:inline-flex; align-items:center; justify-content:center;">${renderCategoryIcon(c.icon)}</span> ${c.name}
               </button>
             `).join('');
           })()}
