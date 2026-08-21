@@ -1,8 +1,88 @@
 const orders = [
   {
+    "id": "ORD-118879",
+    "date": "21 août 2026",
+    "status": "Placed",
+    "total": 2839,
+    "items": "Aero-Linear Switch Lubricant Kit (x1), Aero-75 Acrylic Frost (x10), Aero-Ear Pads Set (x41)",
+    "products": [
+      {
+        "id": 11,
+        "name": "Aero-Linear Switch Lubricant Kit",
+        "price": 24,
+        "rating": 4.5,
+        "reviews": 38,
+        "category": "Keyboards",
+        "image": "./assets/keyboard.jpg",
+        "shortDesc": "Enthusiast lubrication kit for mechanical switches.",
+        "description": "Achieve the smoothest keypresses. Contains high-grade Krytox switch lube, stem pick-up claw, switch opener clamp, and a fine-tipped detailing brush to lube stems, springs, and stabilizers.",
+        "specs": {
+          "Lubricant": "Krytox GPL 205g0 (5g container)",
+          "Tools Included": "Stem claw, switch opener, brush, keycap puller",
+          "Opener Type": "Dual-socket MX & Box switch opener",
+          "Container": "Air-tight glass container"
+        },
+        "homepageSections": [
+          "sec-2"
+        ],
+        "quantity": 1
+      },
+      {
+        "id": 12,
+        "name": "Aero-75 Acrylic Frost",
+        "price": 179,
+        "rating": 4.8,
+        "reviews": 62,
+        "category": "Keyboards",
+        "image": "./assets/keyboard.jpg",
+        "shortDesc": "Mechanical keyboard in frosted acrylic case with RGB glow.",
+        "description": "For maximum light dispersion. Features a frosted white acrylic sandwich case that glows completely in dynamic blue tones. Under the hood are pre-lubed linear switches and thick PBT keycaps.",
+        "specs": {
+          "Form Factor": "75% compact (82 keys)",
+          "Case": "Frosted acrylic layers CNC design",
+          "Switches": "Pre-lubed linear switches",
+          "Backlighting": "PCB underglow + per-key LEDs (Ice-Blue settings)",
+          "Connectivity": "Detachable USB-C"
+        },
+        "homepageSections": [
+          "sec-2"
+        ],
+        "quantity": 10
+      },
+      {
+        "id": 24,
+        "name": "Aero-Ear Pads Set",
+        "price": 25,
+        "rating": 4.6,
+        "reviews": 41,
+        "category": "Audio",
+        "image": "./assets/headphones.jpg",
+        "shortDesc": "Replacement ear cushions in cooling royal blue fabric.",
+        "description": "Upgrade the comfort of your headphones. These universal memory foam ear pads are covered in cooling ice-mesh royal blue fabric, which dissipates heat and channels bass frequencies cleanly.",
+        "specs": {
+          "Internal Core": "Slow-rebound high-density memory foam",
+          "External Fabric": "Sweat-wicking ice-cool sport mesh",
+          "Inner Ring Dimensions": "65mm x 45mm oval layout",
+          "Compatibility": "Fits standard over-ear ring mounting structures"
+        },
+        "homepageSections": [
+          "sec-3"
+        ],
+        "quantity": 41
+      }
+    ],
+    "customerName": "Developer Member",
+    "customerEmail": "developer.SWEETOS@google.com",
+    "customerPhone": "+225 600 000 000",
+    "customerAddress": "Ivory Coast",
+    "customerZip": "",
+    "paymentMethod": "cod",
+    "userProfileKey": "SWEETOS_user_profile_developer_SWEETOS_google_com"
+  },
+  {
     "id": "ORD-698224",
     "date": "21 août 2026",
-    "status": "En cours",
+    "status": "Done",
     "total": 16000,
     "items": "chager (x8)",
     "products": [
@@ -34,7 +114,8 @@ const orders = [
     "customerAddress": "Ivory Coast",
     "customerZip": "",
     "paymentMethod": "cod",
-    "userProfileKey": "SWEETOS_user_profile_developer_SWEETOS_google_com"
+    "userProfileKey": "SWEETOS_user_profile_developer_SWEETOS_google_com",
+    "trackingNumber": ""
   },
   {
     "id": "ORD-194338",

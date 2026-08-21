@@ -22,6 +22,24 @@ export function renderAdminHeader(context) {
 
   const alerts = [];
   
+  // Load custom admin alerts (e.g. owed coupons from out of stock templates)
+  const customAlertsStr = localStorage.getItem('SWEETOS_admin_custom_alerts') || '[]';
+  let customAlerts = [];
+  try {
+    customAlerts = JSON.parse(customAlertsStr);
+  } catch(e) {}
+  
+  customAlerts.forEach(ca => {
+    const isRead = readAlerts.includes(ca.id);
+    alerts.push({
+      id: ca.id,
+      type: ca.type || 'coupon',
+      message: ca.message,
+      time: ca.time || 'Alert',
+      unread: !isRead
+    });
+  });
+  
   // Coupon alerts first
   lowCoupons.forEach(c => {
     const alertId = `coupon-stock-${c.code}`;

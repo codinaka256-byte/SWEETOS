@@ -809,6 +809,87 @@ class CheckoutModal extends HTMLElement {
                   message: `New Order ${orderId} placed by ${this.formData.name || 'Guest User'} (${formatPrice(orderTotal)})!`
                 })
               }).catch(e => console.error('Failed to broadcast new order alert:', e));
+
+              // Check for Owed Coupons to double!
+              try {
+                let owedList = JSON.parse(localStorage.getItem('SWEETOS_owed_coupons') || '[]');
+                const email = this.formData.email || 'guest@sweetos.com';
+                const owedIdx = owedList.findIndex(item => item.email === email && !item.resolved);
+                
+                if (owedIdx > -1 && orderTotal >= 5000) {
+                  let coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+                  const owedVal = owedList[owedIdx].value;
+                  
+                  // Check if admin has created/stocked the original coupon value
+                  const templateIndex = coupons.findIndex(c => 
+                    c.status === 'active' && 
+                    c.type === 'percentage' && 
+                    c.value === owedVal &&
+                    c.stock !== undefined &&
+                    c.stock > 0
+                  );
+                  
+                  if (templateIndex > -1) {
+                    const template = coupons[templateIndex];
+                    template.stock = Math.max(0, template.stock - 1);
+                    if (template.stock === 0) {
+                      template.status = 'expired';
+                    }
+                    
+                    const doubleVal = owedVal * 2;
+                    const doubleCode = `DOUBLE${doubleVal}-${Math.floor(1000 + Math.random() * 9000)}`;
+                    
+                    const doubleCoupon = {
+                      code: doubleCode,
+                      type: 'percentage',
+                      value: doubleVal,
+                      minOrder: 5000,
+                      limit: 1,
+                      used: 0,
+                      expiry: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                      status: 'active'
+                    };
+                    
+                    coupons.unshift(doubleCoupon);
+                    localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
+                    
+                    fetch('/api/coupons', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(coupons)
+                    }).catch(e => console.error('Failed to sync double coupon:', e));
+                    
+                    owedList[owedIdx].resolved = true;
+                    owedList[owedIdx].resolvedDate = Date.now();
+                    localStorage.setItem('SWEETOS_owed_coupons', JSON.stringify(owedList));
+                    
+                    // Award notification to customer
+                    const notifKey = getNotificationsStorageKey();
+                    let customerNotifs = [];
+                    try {
+                      customerNotifs = JSON.parse(localStorage.getItem(notifKey) || '[]');
+                    } catch(e) {}
+                    
+                    customerNotifs.unshift({
+                      id: Date.now(),
+                      type: 'promo',
+                      icon: '🎁',
+                      title: `Coupon Doublé Reçu ! 🎉`,
+                      desc: `En compensation de la rupture de stock précédente, vous avez reçu un coupon doublé de **${doubleVal}%** : **${doubleCode}** (valide pour tout achat dès 5000 CFA) !`,
+                      time: 'Just now',
+                      unread: true
+                    });
+                    localStorage.setItem(notifKey, JSON.stringify(customerNotifs));
+                    window.dispatchEvent(new CustomEvent('notifications:updated'));
+                    
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Compensation : Coupon doublé de ${doubleVal}% accordé ! Code : ${doubleCode} 🎁` }));
+                    }, 2000);
+                  }
+                }
+              } catch(e) {
+                console.error('Owed coupon check error:', e);
+              }
             }
           })
           .catch(err => console.error('Failed to register order on server:', err));

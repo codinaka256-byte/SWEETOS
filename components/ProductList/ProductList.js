@@ -4502,44 +4502,114 @@ class ProductList extends HTMLElement {
                 scratchcards[idx].couponWon = 'lost';
                 window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Oops! Good luck next time! 😢' }));
               } else {
-                const code = `${couponCodePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
-                const newCoupon = {
-                  code: code,
-                  type: 'percentage',
-                  value: couponValue,
-                  minOrder: 5000,
-                  limit: 1,
-                  used: 0,
-                  expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days expiry
-                  status: 'active'
-                };
-                
                 let coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
-                const parentCoupon = coupons.find(c => 
+                
+                // Find a parent coupon template that matches the value and is active with stock > 0
+                const parentCouponIndex = coupons.findIndex(c => 
                   c.status === 'active' && 
                   c.type === 'percentage' && 
                   c.value === couponValue &&
-                  c.stock !== undefined
+                  c.stock !== undefined &&
+                  c.stock > 0
                 );
-                if (parentCoupon) {
+                
+                if (parentCouponIndex > -1) {
+                  // Admin coupon is valid and has stock!
+                  const parentCoupon = coupons[parentCouponIndex];
                   parentCoupon.stock = Math.max(0, parentCoupon.stock - 1);
                   if (parentCoupon.stock === 0) {
                     parentCoupon.status = 'expired';
                   }
-                }
-                coupons.unshift(newCoupon);
-                localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
-                
-                fetch('/api/coupons', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify(coupons)
-                }).catch(e => console.error('Failed to sync won coupon:', e));
+                  
+                  // Award coupon to customer
+                  const code = `${couponCodePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+                  const newCoupon = {
+                    code: code,
+                    type: 'percentage',
+                    value: couponValue,
+                    minOrder: 5000,
+                    limit: 1,
+                    used: 0,
+                    expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days expiry
+                    status: 'active'
+                  };
+                  
+                  coupons.unshift(newCoupon);
+                  localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
+                  
+                  fetch('/api/coupons', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(coupons)
+                  }).catch(e => console.error('Failed to sync won coupon:', e));
 
-                scratchcards[idx].couponWon = newCoupon;
-                window.dispatchEvent(new CustomEvent('toast:show', { detail: `Félicitations ! Vous avez gagné un coupon de ${couponValue}% : ${code} ! 🎉` }));
+                  scratchcards[idx].couponWon = newCoupon;
+                  window.dispatchEvent(new CustomEvent('toast:show', { detail: `Félicitations ! Vous avez gagné un coupon de ${couponValue}% : ${code} ! 🎉` }));
+                } else {
+                  // No active coupon template in stock! Customer gets Oops/Lost.
+                  scratchcards[idx].couponWon = 'lost';
+                  window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Oops! Good luck next time! 😢' }));
+                  
+                  // Record that this customer is owed a coupon
+                  let owed = [];
+                  try {
+                    owed = JSON.parse(localStorage.getItem('SWEETOS_owed_coupons') || '[]');
+                  } catch(e) {}
+                  
+                  owed.push({
+                    email: userEmail,
+                    value: couponValue,
+                    resolved: false,
+                    orderId: scratchcards[idx].orderId || '',
+                    date: Date.now()
+                  });
+                  localStorage.setItem('SWEETOS_owed_coupons', JSON.stringify(owed));
+                  
+                  // Notify the Admin - Alert Bell
+                  let customAlerts = [];
+                  try {
+                    customAlerts = JSON.parse(localStorage.getItem('SWEETOS_admin_custom_alerts') || '[]');
+                  } catch(e) {}
+                  
+                  const alertId = `owed-coupon-${Date.now()}`;
+                  customAlerts.push({
+                    id: alertId,
+                    type: 'coupon',
+                    message: `Rupture de stock ! Vous devez un coupon de ${couponValue}% à ${userEmail} (Commande #${scratchcards[idx].orderId || 'N/A'}).`,
+                    unread: true,
+                    time: new Date().toLocaleTimeString()
+                  });
+                  localStorage.setItem('SWEETOS_admin_custom_alerts', JSON.stringify(customAlerts));
+                  
+                  // Notify the Admin - Email
+                  let adminEmails = [];
+                  try {
+                    adminEmails = JSON.parse(localStorage.getItem('SWEETOS_admin_emails') || '[]');
+                  } catch(e) {}
+                  
+                  adminEmails.push({
+                    id: Date.now(),
+                    subject: `Rupture de stock de coupon - Coupon de ${couponValue}% dû`,
+                    from: 'system@sweetos.com',
+                    date: new Date().toLocaleString('fr-FR'),
+                    content: `Bonjour Admin,\n\nLe stock du coupon de ${couponValue}% est épuisé.\n\nVous devez actuellement ce coupon au client : ${userEmail} (pour la commande #${scratchcards[idx].orderId || 'N/A'}).\n\nUne fois que vous aurez créé/réapprovisionné ce coupon de ${couponValue}% dans l'onglet Marketing de l'Admin Panel, le client recevra un coupon DOUBLÉ (${couponValue * 2}%) lors de sa prochaine commande d'au moins 5000 CFA.`
+                  });
+                  localStorage.setItem('SWEETOS_admin_emails', JSON.stringify(adminEmails));
+                  
+                  // Broadcast SSE event to Admin Panel
+                  fetch('/api/broadcast-alert', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      type: 'coupon',
+                      message: `Rupture de stock ! Vous devez un coupon de ${couponValue}% à ${userEmail} (Commande #${scratchcards[idx].orderId || 'N/A'}). Un email vous a été envoyé.`
+                    })
+                  }).catch(e => console.error('Failed to broadcast admin alert:', e));
+                }
               }
               localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
               
