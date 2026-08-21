@@ -484,6 +484,16 @@ const requestHandler = (req, res) => {
               if (!oldMatch) {
                 // This is a brand new order! Send confirmation email!
                 sendOrderConfirmationEmail(newOrd, req.headers.host);
+                
+                // ALSO notify the admin!
+                const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
+                const adminDesc = `Un client vient de passer une commande.<br><br>
+                  <strong>ID Commande:</strong> #${newOrd.id}<br>
+                  <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
+                  <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
+                  <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
+                  <strong>Adresse de livraison:</strong> ${newOrd.address || 'Non spécifiée'}`;
+                sendAdminNotification(adminTitle, adminDesc);
               } else if (oldMatch && (oldMatch.status !== 'Done' && oldMatch.status !== 'Livré') && (newOrd.status === 'Done' || newOrd.status === 'Livré')) {
                 // Order was delivered! Send delivery notification + scratchcard instructions!
                 sendOrderDeliveryEmail(newOrd, req.headers.host);
@@ -743,46 +753,83 @@ async function sendOrderDeliveryEmail(order, host) {
   }
 }
 
-async function sendAdminShortageEmail(message) {
+async function sendAdminNotification(title, desc) {
   const adminEmail = process.env.ADMIN_EMAIL || 'nextbigthin256@gmail.com';
   
   const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #fff1f2; border-radius: 16px; color: #9f1239; border: 1px solid #fecdd3;">
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #f8fafc; border-radius: 16px; color: #1e293b; border: 1px solid #e2e8f0;">
       <div style="text-align: center; margin-bottom: 24px;">
-        <h1 style="color: #e11d48; font-size: 24px; margin: 0; font-weight: 800;">🔥 ALERTE ADMIN SWEETOS</h1>
-        <p style="color: #be123c; font-size: 12px; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">Rupture de Stock de Coupon</p>
+        <h1 style="color: #0052cc; font-size: 28px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">SWEETOS</h1>
+        <p style="color: #64748b; font-size: 12px; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">🚨 ALERTE ADMINISTRATION</p>
       </div>
       
-      <div style="background-color: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #ffe4e6; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-        <h2 style="font-size: 16px; margin: 0 0 12px 0; color: #1e293b; font-weight: 800;">Alerte : Rupture de stock de coupon !</h2>
-        <p style="font-size: 13.5px; line-height: 1.5; color: #475569; margin: 0 0 16px 0;">Le système de scratchcard a détecté une rupture de coupon template en stock sur le serveur :</p>
-        
-        <div style="background-color: #fff1f2; padding: 12px 16px; border-radius: 8px; font-size: 13px; color: #9f1239; line-height: 1.5; font-weight: 650; border: 1.5px solid #ffe4e6; margin-bottom: 16px;">
-          ${message}
+      <div style="background-color: #ffffff; padding: 32px 24px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+        <h2 style="font-size: 18px; margin: 0 0 16px 0; color: #0f172a; font-weight: 800; border-left: 4px solid #0052cc; padding-left: 12px; line-height: 1.2;">
+          ${title}
+        </h2>
+        <div style="font-size: 14px; line-height: 1.6; color: #475569; margin: 0;">
+          ${desc}
         </div>
-        
-        <p style="font-size: 13.5px; line-height: 1.5; color: #475569; margin: 0;">
-          <strong>Action Recommandée :</strong><br>
-          Veuillez vous rendre sur l'<strong>Admin Panel (onglet Marketing / Coupons)</strong>, puis réapprovisionner ou créer à nouveau le coupon demandé.<br><br>
-          Une fois que vous l'aurez fait, la compensation s'activera automatiquement : lors du prochain achat du client d'un montant d'au moins <strong>5000 CFA</strong>, il recevra un <strong>coupon doublé</strong> en compensation de cette attente !
-        </p>
       </div>
       
-      <div style="text-align: center; color: #be123c; font-size: 11px; margin-top: 24px;">
-        <p>&copy; ${new Date().getFullYear()} SWEETOS Administration Center.</p>
+      <div style="text-align: center; color: #94a3b8; font-size: 11px; margin-top: 24px;">
+        <p style="margin: 0 0 4px 0;">&copy; ${new Date().getFullYear()} SWEETOS Administration Center.</p>
       </div>
     </div>
   `;
 
+  // 1. Email admin
   try {
     await sendMail({
       to: adminEmail,
-      subject: `🚨 ALERTE SWEETOS - Rupture de coupon détectée`,
+      subject: `🚨 SWEETOS ADMIN - ${title.replace(/<[^>]*>/g, '')}`,
       html
     });
-  } catch(e) {
-    console.error(`Failed to send admin shortage email to ${adminEmail}:`, e);
+  } catch (err) {
+    console.error(`Failed to send admin email:`, err);
   }
+
+  // 2. Web Push admin
+  try {
+    const subscriptions = await db.getSetting('push_subscriptions', {}, 'push_subscriptions.js');
+    const userEmail = adminEmail.toLowerCase();
+    const userSubs = subscriptions[userEmail] || [];
+    
+    if (userSubs.length > 0) {
+      await ensureVapidKeys();
+      const payload = JSON.stringify({
+        title: `SWEETOS Admin: ${title.replace(/<[^>]*>/g, '')}`,
+        body: desc.replace(/<[^>]*>/g, ''),
+        url: '/#/admin'
+      });
+      
+      const pushPromises = userSubs.map(sub => 
+        webpush.sendNotification(sub, payload)
+          .catch(err => {
+            console.error('Failed to send web push to admin:', err);
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              sub.invalid = true;
+            }
+          })
+      );
+      
+      await Promise.all(pushPromises);
+      
+      const hasInvalid = userSubs.some(s => s.invalid);
+      if (hasInvalid) {
+        subscriptions[userEmail] = userSubs.filter(s => !s.invalid);
+        await db.saveSetting('push_subscriptions', subscriptions, 'push_subscriptions.js', 'push_subscriptions');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to dispatch admin Web Push:', err);
+  }
+}
+
+async function sendAdminShortageEmail(message) {
+  const title = "Rupture de Stock de Coupon";
+  const desc = `Le système de scratchcard a détecté une rupture de coupon template en stock sur le serveur :<br><br>${message}`;
+  await sendAdminNotification(title, desc);
 }
 
 async function sendNotificationEmail(email, title, desc) {
