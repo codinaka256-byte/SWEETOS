@@ -759,3 +759,85 @@ document.addEventListener('DOMContentLoaded', () => {
   bindSwipeToClose(notifEl, closeNotifications, 'right');
   bindSwipeToClose(sidebarEl, closeSidebarMobile, 'left');
 });
+
+// --- Service Worker and Web Push Notification Setup ---
+if ('serviceWorker' in navigator && 'PushManager' in window) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        console.log('Service Worker registered successfully! 🛠️');
+        syncPushSubscription();
+      })
+      .catch(err => {
+        console.error('Service Worker registration failed:', err);
+      });
+  });
+
+  window.addEventListener('auth:changed', () => {
+    syncPushSubscription();
+  });
+}
+
+function syncPushSubscription() {
+  const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
+  if (!loggedIn) return;
+
+  let email = '';
+  try {
+    email = JSON.parse(loggedIn).email;
+  } catch (e) {
+    return;
+  }
+  if (!email) return;
+
+  navigator.serviceWorker.ready.then(reg => {
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          performSubscription(reg, email);
+        }
+      });
+    } else if (Notification.permission === 'granted') {
+      performSubscription(reg, email);
+    }
+  });
+}
+
+function performSubscription(reg, email) {
+  fetch('/api/vapid-public-key')
+    .then(res => res.json())
+    .then(data => {
+      const publicKey = data.publicKey;
+      if (!publicKey) return;
+
+      const padding = '='.repeat((4 - (publicKey.length % 4)) % 4);
+      const base64 = (publicKey + padding).replace(/\-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+
+      return reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: outputArray
+      });
+    })
+    .then(sub => {
+      if (!sub) return;
+      return fetch('/api/push-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, subscription: sub })
+      });
+    })
+    .then(res => res && res.json())
+    .then(data => {
+      if (data && data.success) {
+        console.log('Web Push Subscription successfully synced to Supabase! 🔔');
+      }
+    })
+    .catch(err => {
+      console.log('Push subscription sync deferred:', err.message || err);
+    });
+}

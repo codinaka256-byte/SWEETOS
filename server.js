@@ -3,6 +3,41 @@ const fs = require('fs');
 const path = require('path');
 const { sendMail } = require('./utils/mailer');
 const db = require('./utils/db');
+const webpush = require('web-push');
+
+let vapidKeys = null;
+let vapidInitPromise = null;
+
+async function ensureVapidKeys() {
+  if (vapidKeys) return vapidKeys;
+  if (vapidInitPromise) return vapidInitPromise;
+  
+  vapidInitPromise = (async () => {
+    try {
+      const keys = await db.getSetting('vapid_keys', null, 'vapid_keys.js');
+      if (keys && keys.publicKey && keys.privateKey) {
+        vapidKeys = keys;
+      } else {
+        vapidKeys = webpush.generateVAPIDKeys();
+        await db.saveSetting('vapid_keys', vapidKeys, 'vapid_keys.js', 'vapid_keys');
+        console.log('Generated and stored new VAPID keys for Web Push Notifications!');
+      }
+      webpush.setVapidDetails(
+        'mailto:support@sweetos.store',
+        vapidKeys.publicKey,
+        vapidKeys.privateKey
+      );
+      return vapidKeys;
+    } catch(e) {
+      console.error('Failed to initialize VAPID keys:', e);
+      return null;
+    }
+  })();
+  
+  return vapidInitPromise;
+}
+
+ensureVapidKeys();
 
 const PORT = 8080;
 
@@ -143,6 +178,58 @@ const requestHandler = (req, res) => {
     }).catch(err => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to retrieve profile' }));
+    });
+    return;
+  }
+
+  // 2u. API: GET /api/vapid-public-key
+  if (req.method === 'GET' && req.url === '/api/vapid-public-key') {
+    ensureVapidKeys().then(keys => {
+      if (keys && keys.publicKey) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ publicKey: keys.publicKey }));
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'VAPID keys not configured' }));
+      }
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal Server Error' }));
+    });
+    return;
+  }
+
+  // 2t. API: POST /api/push-subscribe
+  if (req.method === 'POST' && req.url === '/api/push-subscribe') {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', async () => {
+      try {
+        const { email, subscription } = JSON.parse(body);
+        if (!email || !subscription) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing email or subscription details' }));
+          return;
+        }
+
+        const subscriptions = await db.getSetting('push_subscriptions', {}, 'push_subscriptions.js');
+        const userEmail = email.toLowerCase();
+        if (!subscriptions[userEmail]) {
+          subscriptions[userEmail] = [];
+        }
+
+        const exists = subscriptions[userEmail].some(s => s.endpoint === subscription.endpoint);
+        if (!exists) {
+          subscriptions[userEmail].push(subscription);
+          await db.saveSetting('push_subscriptions', subscriptions, 'push_subscriptions.js', 'push_subscriptions');
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
     });
     return;
   }
@@ -720,6 +807,43 @@ async function sendNotificationEmail(email, title, desc) {
     });
   } catch (err) {
     console.error(`Failed to send notification email to ${email}:`, err);
+  }
+
+  // Asynchronously dispatch Web Push Notification
+  try {
+    const subscriptions = await db.getSetting('push_subscriptions', {}, 'push_subscriptions.js');
+    const userEmail = email.toLowerCase();
+    const userSubs = subscriptions[userEmail] || [];
+    
+    if (userSubs.length > 0) {
+      await ensureVapidKeys();
+      const payload = JSON.stringify({
+        title: title.replace(/<[^>]*>/g, ''), // strip HTML tags
+        body: desc.replace(/<[^>]*>/g, ''),
+        url: '/#/profile'
+      });
+      
+      const pushPromises = userSubs.map(sub => 
+        webpush.sendNotification(sub, payload)
+          .catch(err => {
+            console.error('Failed to send web push notification:', err);
+            // If subscription is expired or unsubscribed, flag for deletion
+            if (err.statusCode === 410 || err.statusCode === 404) {
+              sub.invalid = true;
+            }
+          })
+      );
+      
+      await Promise.all(pushPromises);
+      
+      const hasInvalid = userSubs.some(s => s.invalid);
+      if (hasInvalid) {
+        subscriptions[userEmail] = userSubs.filter(s => !s.invalid);
+        await db.saveSetting('push_subscriptions', subscriptions, 'push_subscriptions.js', 'push_subscriptions');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to dispatch Web Push notifications:', err);
   }
 }
 
