@@ -103,7 +103,15 @@ const requestHandler = (req, res) => {
         const inputEmail = email.trim().toLowerCase();
         const inputPass = password.trim();
 
-        if (inputEmail === creds.email.trim().toLowerCase() && inputPass === creds.password.trim()) {
+        // Support both plaintext password and secure SHA-256 password hash comparison
+        const crypto = require('crypto');
+        const inputHash = crypto.createHash('sha256').update(inputPass).digest('hex');
+        
+        const matchesEmail = inputEmail === creds.email.trim().toLowerCase();
+        const matchesPassword = (creds.password && inputPass === creds.password.trim()) ||
+                                (creds.passwordHash && inputHash === creds.passwordHash.trim());
+
+        if (matchesEmail && matchesPassword) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
         } else {
