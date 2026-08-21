@@ -14,14 +14,23 @@ async function ensureVapidKeys() {
   
   vapidInitPromise = (async () => {
     try {
-      const keys = await db.getSetting('vapid_keys', null, 'vapid_keys.js');
-      if (keys && keys.publicKey && keys.privateKey) {
-        vapidKeys = keys;
+      if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+        vapidKeys = {
+          publicKey: process.env.VAPID_PUBLIC_KEY,
+          privateKey: process.env.VAPID_PRIVATE_KEY
+        };
+        console.log('Loaded Web Push VAPID keys from Environment Variables! 🔑');
       } else {
-        vapidKeys = webpush.generateVAPIDKeys();
-        await db.saveSetting('vapid_keys', vapidKeys, 'vapid_keys.js', 'vapid_keys');
-        console.log('Generated and stored new VAPID keys for Web Push Notifications!');
+        const keys = await db.getSetting('vapid_keys', null, 'vapid_keys.js');
+        if (keys && keys.publicKey && keys.privateKey) {
+          vapidKeys = keys;
+        } else {
+          vapidKeys = webpush.generateVAPIDKeys();
+          await db.saveSetting('vapid_keys', vapidKeys, 'vapid_keys.js', 'vapid_keys');
+          console.log('Generated and stored new VAPID keys for Web Push Notifications!');
+        }
       }
+      
       webpush.setVapidDetails(
         'mailto:support@sweetos.store',
         vapidKeys.publicKey,
