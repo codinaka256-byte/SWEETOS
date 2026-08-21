@@ -6,6 +6,31 @@
   box-sizing: border-box;
 }
 
+/* Hide un-defined web components to prevent flash of unstyled content (FOUC) */
+app-header:not(:defined),
+app-sidebar:not(:defined),
+app-hero:not(:defined),
+product-list:not(:defined),
+cart-drawer:not(:defined),
+notification-drawer:not(:defined),
+app-mobile-nav:not(:defined) {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Smooth transition fade-in when loaded */
+app-header,
+app-sidebar,
+app-hero,
+product-list,
+cart-drawer,
+notification-drawer,
+app-mobile-nav {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.4s ease-in-out, visibility 0.4s ease-in-out;
+}
+
 :root {
   /* White & Blue Theme variables mapped to NovaShop structure */
   --primary: #0052cc;
