@@ -4804,3 +4804,35 @@ input:checked + .toggle-slider:before {
   flex: 0 0 280px; /* Force category card to have a fixed width in the horizontal row */
   display: block;
 }
+
+/* Mobile responsive adjustments for carousels and horizontal scroll */
+@media (max-width: 768px) {
+  .carousel-scroll-wrapper product-card {
+    flex: 0 0 240px;
+  }
+  .carousel-scroll-wrapper .home-category-card {
+    flex: 0 0 240px;
+  }
+}
+
+@media (max-width: 580px) {
+  .carousel-scroll-wrapper product-card {
+    flex: 0 0 200px;
+  }
+  .carousel-scroll-wrapper .home-category-card {
+    flex: 0 0 200px;
+  }
+  .carousel-scroll-wrapper {
+    gap: 12px;
+    padding: 8px 2px 12px 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .carousel-scroll-wrapper product-card {
+    flex: 0 0 170px;
+  }
+  .carousel-scroll-wrapper .home-category-card {
+    flex: 0 0 170px;
+  }
+}

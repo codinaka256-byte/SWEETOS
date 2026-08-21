@@ -275,6 +275,8 @@ cart-drawer.closed, notification-drawer.closed {
   }
   body {
     padding-bottom: 72px;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
   app-sidebar {
     display: block !important;
@@ -283,6 +285,7 @@ cart-drawer.closed, notification-drawer.closed {
     left: 0;
     bottom: 72px;
     width: 270px;
+    max-width: 85vw;
     z-index: 1200;
     transform: translateX(-100%);
     transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -296,24 +299,59 @@ cart-drawer.closed, notification-drawer.closed {
   .main-content {
     margin-left: 0;
     margin-right: 0;
+    padding: 16px;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
   .cart-overlay {
     display: block;
   }
   cart-drawer, notification-drawer {
     bottom: 72px;
+    max-width: 85vw;
   }
   cart-drawer {
     width: 380px;
+  }
+  /* Ensure all content fits within viewport */
+  .layout {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 }
 
 @media (max-width: 600px) {
   cart-drawer {
     width: 100%;
+    max-width: 100vw;
   }
   .main-content {
-    padding: 16px;
+    padding: 12px;
+  }
+  body {
+    font-size: 14px;
+  }
+  /* Prevent horizontal scroll on small screens */
+  * {
+    max-width: 100%;
+  }
+  img, svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 10px;
+  }
+  app-sidebar {
+    width: 90vw;
+  }
+  cart-drawer, notification-drawer {
+    max-width: 100vw;
   }
 }
 

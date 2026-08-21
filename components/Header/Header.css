@@ -340,4 +340,61 @@
   #wishlist-btn, #cart-btn, #profile-pill {
     display: none !important;
   }
+  .top-nav {
+    padding: 0 12px;
+    gap: 12px;
+  }
+  .logo {
+    min-width: auto;
+    font-size: 18px;
+  }
+  .search-bar {
+    max-width: none;
+  }
+  .search-bar input {
+    height: 40px;
+    padding: 0 90px 0 16px;
+    font-size: 13px;
+  }
+  .camera-search-btn {
+    right: 56px;
+  }
+  .voice-search-btn {
+    right: 28px;
+  }
+  .search-action-btn {
+    width: 38px;
+  }
+}
+
+@media (max-width: 600px) {
+  .top-nav {
+    padding: 0 8px;
+    height: 56px;
+  }
+  .logo svg {
+    width: 24px;
+    height: 24px;
+  }
+  .search-bar input {
+    height: 36px;
+    padding: 0 70px 0 12px;
+  }
+  .icon-input-btn {
+    width: 28px;
+    height: 28px;
+  }
+  .icon-input-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .camera-search-btn {
+    right: 48px;
+  }
+  .voice-search-btn {
+    right: 20px;
+  }
+  .search-action-btn {
+    width: 34px;
+  }
 }
