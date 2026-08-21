@@ -329,6 +329,37 @@ export function getAuthPageHTML() {
 
         </div>
       </div>
+      
+      <!-- GOOGLE AUTH ADDITIONAL DETAILS MODAL -->
+      <div id="google-details-modal" class="modal-backdrop" style="display: none; z-index: 10000; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); align-items: center; justify-content: center; width: 100%; height: 100%;">
+        <div class="glass-panel p-8 rounded-3xl w-full max-w-md mx-4 relative fade-in-up text-gray-800" style="background: rgba(255, 255, 255, 0.9); box-shadow: 0 20px 50px rgba(0,0,0,0.15); border: 1px solid rgba(255, 255, 255, 0.4);">
+          <div class="flex flex-col items-center mb-6">
+            <div class="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center text-brand mb-3">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M12 11h10"></path>
+                <path d="M12 16h10"></path>
+              </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-800" style="font-family: 'Outfit', sans-serif;">Complete Profile</h3>
+            <p class="text-gray-500 text-sm mt-1 text-center" style="font-family: 'Outfit', sans-serif;">Enter your phone and shipping address to complete your registration.</p>
+          </div>
+          <form id="google-details-form" class="space-y-4" style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+              <label class="block text-sm font-semibold text-gray-700" style="font-family: 'Outfit', sans-serif;">Phone Number</label>
+              <input type="tel" id="google-phone" placeholder="+225 07 00 00 00 00" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm" style="border: 1px solid #cbd5e1; outline: none; background: white;">
+            </div>
+            <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+              <label class="block text-sm font-semibold text-gray-700" style="font-family: 'Outfit', sans-serif;">Shipping Address</label>
+              <textarea id="google-address" rows="3" placeholder="Enter your full delivery address" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm" style="border: 1px solid #cbd5e1; outline: none; background: white; resize: none;"></textarea>
+            </div>
+            <button type="submit" class="w-full btn-brand font-semibold py-3.5 rounded-xl active:scale-[0.98] mt-2" style="background: #0052cc; color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; transition: background 0.2s; font-family: 'Outfit', sans-serif;">
+              Complete Signup
+            </button>
+          </form>
+        </div>
+      </div>
 
     </div>
   `;
@@ -479,55 +510,90 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
       const firstname = payload.given_name || fullName.split(' ')[0] || 'Google';
       const lastname = payload.family_name || fullName.split(' ').slice(1).join(' ') || 'User';
 
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Authenticating Google account: ${email}... 🌐` }));
-
-      // Save user to LocalStorage session
-      localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
-
-      // Set profile
-      const profileKey = getProfileStorageKey();
-      const defaultProfile = {
-        firstName: firstname,
-        lastName: lastname,
-        email: email,
-        phone: "+225 000 000 000",
-        bio: "Google Authenticated Profile.",
-        address: "",
-        theme: "Ice Blue",
-        twoFactor: false,
-        marketingEmails: true,
-        smsUpdates: false,
-        addresses: [],
-        orders: []
-      };
-      localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
-      localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
-
-      // Push user to customer credentials list
-      let savedCreds = [];
-      try {
-        savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
-      } catch (err) {}
-
-      const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email);
-      const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-      if (existingCredIdx === -1) {
-        savedCreds.push({
-          email: email,
-          password: "google_oauth_bypass",
-          fullname: fullName,
-          phone: "+225 000 000 000",
-          country: "",
-          joinedDate: joinedDate
-        });
-        localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
+      // Check if user already has a completed profile in LocalStorage
+      const profileKey = `SWEETOS_profile_${email}`;
+      const existingProfileStr = localStorage.getItem(profileKey);
+      let existingProfile = null;
+      if (existingProfileStr) {
+        try {
+          existingProfile = JSON.parse(existingProfileStr);
+        } catch (e) {}
       }
 
-      // Dispatch event to sync state across views
-      window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
-      
-      onLoginSuccess();
+      const completeLoginWithDetails = (phone, address) => {
+        // Save user to LocalStorage session
+        localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
+
+        // Set profile
+        const userProfileKey = getProfileStorageKey();
+        const profile = {
+          firstName: firstname,
+          lastName: lastname,
+          email: email,
+          phone: phone || "+225 000 000 000",
+          bio: "Google Authenticated Profile.",
+          address: address || "",
+          theme: "Ice Blue",
+          twoFactor: false,
+          marketingEmails: true,
+          smsUpdates: false,
+          addresses: address ? [address] : [],
+          orders: existingProfile ? (existingProfile.orders || []) : []
+        };
+        localStorage.setItem(profileKey, JSON.stringify(profile));
+        localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+
+        // Push user to customer credentials list
+        let savedCreds = [];
+        try {
+          savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
+        } catch (err) {}
+
+        const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email);
+        const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+        if (existingCredIdx === -1) {
+          savedCreds.push({
+            email: email,
+            password: "google_oauth_bypass",
+            fullname: fullName,
+            phone: phone || "+225 000 000 000",
+            country: address ? (address.split(',').pop().trim()) : "Ivory Coast",
+            joinedDate: joinedDate
+          });
+          localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
+        }
+
+        // Dispatch event to sync state across views
+        window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
+        
+        onLoginSuccess();
+      };
+
+      if (existingProfile && existingProfile.phone && existingProfile.address) {
+        // User already has filled out their profile. Login directly.
+        completeLoginWithDetails(existingProfile.phone, existingProfile.address);
+      } else {
+        // User is new or hasn't completed their profile. Show modal.
+        const detailsModal = shadow.getElementById('google-details-modal');
+        if (detailsModal) {
+          detailsModal.style.display = 'flex';
+          
+          const detailsForm = shadow.getElementById('google-details-form');
+          detailsForm.onsubmit = (e) => {
+            e.preventDefault();
+            const phone = shadow.getElementById('google-phone').value.trim();
+            const address = shadow.getElementById('google-address').value.trim();
+
+            detailsModal.style.display = 'none';
+            completeLoginWithDetails(phone, address);
+          };
+        } else {
+          // Fallback if modal is missing
+          completeLoginWithDetails("+225 000 000 000", "");
+        }
+      }
+
     } catch (e) {
       console.error('Google Auth Processing Error:', e);
       window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Google Authentication failed. Please try again. ⚠️' }));
