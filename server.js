@@ -70,6 +70,15 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // 2z. API: GET /api/config
+  if (req.method === 'GET' && req.url === '/api/config') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      googleClientId: process.env.GOOGLE_CLIENT_ID || '181467475891-9q29nqb1g46g51m58b5kbh0j9g5kbh0j.apps.googleusercontent.com'
+    }));
+    return;
+  }
+
   // 2. API: GET /api/products (Load products directly)
   if (req.method === 'GET' && req.url === '/api/products') {
     db.getProducts().then(products => {

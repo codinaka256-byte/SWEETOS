@@ -66,15 +66,7 @@ export function getAuthPageHTML() {
                       </div>
 
                       <!-- Google Button -->
-                      <button type="button" id="google-login-btn" class="btn-google w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-semibold mb-6">
-                          <svg style="width: 20px; height: 20px; flex-shrink: 0;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                          </svg>
-                          Continue with Google
-                      </button>
+                      <div id="google-login-btn-container" class="w-full mb-6 flex justify-center" style="min-height: 44px;"></div>
 
                       <div class="relative flex py-2 items-center mb-6">
                           <div class="flex-grow border-t border-gray-200"></div>
@@ -138,15 +130,7 @@ export function getAuthPageHTML() {
                       </div>
 
                       <!-- Google Button -->
-                      <button type="button" id="google-register-btn" class="btn-google w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-semibold mb-6">
-                          <svg style="width: 20px; height: 20px; flex-shrink: 0;" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                          </svg>
-                          Continue with Google
-                      </button>
+                      <div id="google-register-btn-container" class="w-full mb-6 flex justify-center" style="min-height: 44px;"></div>
 
                       <div class="relative flex py-2 items-center mb-6">
                           <div class="flex-grow border-t border-gray-200"></div>
@@ -414,101 +398,140 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
     });
   });
 
-  // Handle Google button clicks & Simulated OAuth Overlay
-  const googleLoginBtn = shadow.getElementById('google-login-btn');
-  const googleRegisterBtn = shadow.getElementById('google-register-btn');
-  const googleOverlay = shadow.getElementById('google-oauth-overlay');
-  const cancelGoogleBtn = shadow.getElementById('cancel-google-oauth-btn');
-  const googleAccRows = shadow.querySelectorAll('.google-acc-row');
+  // Inject Google client script dynamically
+  if (!document.getElementById('google-gsi-client-script')) {
+    const script = document.createElement('script');
+    script.id = 'google-gsi-client-script';
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  }
 
-  const openGoogleOverlay = () => {
-    if (googleOverlay) {
-      googleOverlay.style.display = 'flex';
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Opening Google Sign-In secure portal... 🔒' }));
-    }
-  };
-
-  const closeGoogleOverlay = () => {
-    if (googleOverlay) googleOverlay.style.display = 'none';
-  };
-
-  if (googleLoginBtn) googleLoginBtn.addEventListener('click', openGoogleOverlay);
-  if (googleRegisterBtn) googleRegisterBtn.addEventListener('click', openGoogleOverlay);
-  if (cancelGoogleBtn) cancelGoogleBtn.addEventListener('click', closeGoogleOverlay);
-
-  const googleForm = shadow.getElementById('google-oauth-form');
-  if (googleForm) {
-    googleForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const email = shadow.getElementById('google-email').value.trim().toLowerCase();
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Veuillez entrer une adresse e-mail valide ! ⚠️' }));
-        return;
+  // Fetch Google Client ID from backend config
+  let googleClientId = '181467475891-9q29nqb1g46g51m58b5kbh0j9g5kbh0j.apps.googleusercontent.com'; // Fallback developer client ID
+  fetch('/api/config')
+    .then(r => r.json())
+    .then(config => {
+      if (config.googleClientId) {
+        googleClientId = config.googleClientId;
       }
-      const fullName = shadow.getElementById('google-fullname').value.trim();
-      const parts = fullName.split(' ');
-      const firstname = parts[0] || 'Google';
-      const lastname = parts.slice(1).join(' ') || 'User';
-
-      closeGoogleOverlay();
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Authenticating with Google account: ${email}... 🌐` }));
-
-      setTimeout(() => {
-        // Log in user state
-        localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
-
-        // Sync or initialize customer profile details
-        const profileKey = getProfileStorageKey();
-        let savedProfile = localStorage.getItem(profileKey);
-        if (!savedProfile) {
-          const defaultProfile = {
-            firstName: firstname,
-            lastName: lastname,
-            email: email,
-            phone: "+225 600 000 000",
-            bio: "SWEETOS member. Google Authenticated Profile.",
-            address: "Ivory Coast",
-            theme: "Ice Blue",
-            twoFactor: false,
-            marketingEmails: true,
-            smsUpdates: false,
-            addresses: ["Ivory Coast"],
-            orders: []
-          };
-          localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
-          localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
-        } else {
-          localStorage.setItem('SWEETOS_user_profile', savedProfile);
-        }
-
-        // Add user credentials to dynamic Customer database so it shows up in Admin dashboard
-        let savedCreds = [];
-        try {
-          savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
-        } catch (err) {}
-
-        const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email.toLowerCase());
-        const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-        if (existingCredIdx === -1) {
-          savedCreds.push({
-            email: email,
-            password: "google_oauth_bypass",
-            fullname: fullName,
-            phone: "+225 600 000 000",
-            country: "Ivory Coast",
-            joinedDate: joinedDate
-          });
-          localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
-        }
-
-        // Dispatch auth changed event to update sidebar / profile header
-        window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
-        
-        onLoginSuccess();
-      }, 1000);
+      initGoogleSignIn();
+    })
+    .catch(err => {
+      console.error('Failed to load Google Config:', err);
+      initGoogleSignIn();
     });
+
+  function initGoogleSignIn() {
+    const setupGoogle = () => {
+      if (!window.google || !window.google.accounts) return;
+
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response) => {
+          handleGoogleSignInResponse(response.credential);
+        }
+      });
+
+      const renderBtn = (id) => {
+        const container = shadow.getElementById(id);
+        if (container) {
+          window.google.accounts.id.renderButton(container, {
+            theme: 'outline',
+            size: 'large',
+            width: 350
+          });
+        }
+      };
+
+      renderBtn('google-login-btn-container');
+      renderBtn('google-register-btn-container');
+    };
+
+    // Poll for script availability
+    if (window.google && window.google.accounts) {
+      setupGoogle();
+    } else {
+      const checkScript = setInterval(() => {
+        if (window.google && window.google.accounts) {
+          clearInterval(checkScript);
+          setupGoogle();
+        }
+      }, 200);
+      // Timeout after 10s to prevent memory leak
+      setTimeout(() => clearInterval(checkScript), 10000);
+    }
+  }
+
+  function handleGoogleSignInResponse(credential) {
+    try {
+      // Decode JWT token locally
+      const base64Url = credential.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      
+      const payload = JSON.parse(jsonPayload);
+      const email = payload.email.toLowerCase();
+      const fullName = payload.name || 'Google User';
+      const firstname = payload.given_name || fullName.split(' ')[0] || 'Google';
+      const lastname = payload.family_name || fullName.split(' ').slice(1).join(' ') || 'User';
+
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Authenticating Google account: ${email}... 🌐` }));
+
+      // Save user to LocalStorage session
+      localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
+
+      // Set profile
+      const profileKey = getProfileStorageKey();
+      const defaultProfile = {
+        firstName: firstname,
+        lastName: lastname,
+        email: email,
+        phone: "+225 000 000 000",
+        bio: "Google Authenticated Profile.",
+        address: "",
+        theme: "Ice Blue",
+        twoFactor: false,
+        marketingEmails: true,
+        smsUpdates: false,
+        addresses: [],
+        orders: []
+      };
+      localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
+      localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
+
+      // Push user to customer credentials list
+      let savedCreds = [];
+      try {
+        savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
+      } catch (err) {}
+
+      const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email);
+      const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+      if (existingCredIdx === -1) {
+        savedCreds.push({
+          email: email,
+          password: "google_oauth_bypass",
+          fullname: fullName,
+          phone: "+225 000 000 000",
+          country: "",
+          joinedDate: joinedDate
+        });
+        localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
+      }
+
+      // Dispatch event to sync state across views
+      window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
+      
+      onLoginSuccess();
+    } catch (e) {
+      console.error('Google Auth Processing Error:', e);
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Google Authentication failed. Please try again. ⚠️' }));
+    }
   }
 
   // Initialize customer credentials database if not present
