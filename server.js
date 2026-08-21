@@ -613,7 +613,7 @@ async function sendOrderDeliveryEmail(order, host) {
 }
 
 async function sendAdminShortageEmail(message) {
-  const adminEmail = process.env.ADMIN_EMAIL || 'sweeto@mlaoda.com';
+  const adminEmail = process.env.ADMIN_EMAIL || 'nextbigthin256@gmail.com';
   
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #fff1f2; border-radius: 16px; color: #9f1239; border: 1px solid #fecdd3;">

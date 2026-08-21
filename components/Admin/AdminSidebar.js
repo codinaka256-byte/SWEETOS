@@ -80,12 +80,12 @@ export function renderAdminSidebar(context) {
       </nav>
 
       <div class="admin-sidebar-footer" style="${isCollapsed ? 'flex-direction: column; gap: 12px;' : ''}">
-        <div class="admin-profile-badge" title="Admin - sweeto@mlaoda.com">
+        <div class="admin-profile-badge" title="Admin - nextbigthin256@gmail.com">
           <div class="avatar">S</div>
           ${!isCollapsed ? `
             <div class="info">
               <h3>Admin</h3>
-              <small>sweeto@mlaoda.com</small>
+              <small>nextbigthin256@gmail.com</small>
             </div>
           ` : ''}
         </div>
