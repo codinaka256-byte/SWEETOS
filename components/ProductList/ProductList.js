@@ -4396,7 +4396,7 @@ class ProductList extends HTMLElement {
 
     shadow.querySelectorAll('.scratch-canvas').forEach(canvas => {
       const cardId = parseInt(canvas.getAttribute('data-scratchcard-id'));
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       
       const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       grad.addColorStop(0, '#cfd8dc');
