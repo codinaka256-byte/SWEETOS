@@ -234,23 +234,23 @@ class CheckoutModal extends HTMLElement {
           
           <div class="form-group">
             <label for="name">Nom complet</label>
-            <input type="text" id="name" required autocomplete="name" value="${this.formData.name}" placeholder="Odinaka Chibuike">
+            <input type="text" id="name" required autocomplete="name" value="${this.formData.name}" placeholder="Ex: Jean Dupont">
           </div>
           
           <div class="form-group">
             <label for="email">Adresse e-mail</label>
-            <input type="email" id="email" required autocomplete="email" value="${this.formData.email}" placeholder="codinak256@gmail.com">
+            <input type="email" id="email" required autocomplete="email" value="${this.formData.email}" placeholder="Ex: jean.dupont@email.com">
           </div>
           
           <div class="form-group">
             <label for="phone">Numéro de téléphone</label>
-            <input type="text" id="phone" required autocomplete="tel" placeholder="+225500619923" value="${this.formData.phone || ''}">
+            <input type="text" id="phone" required autocomplete="tel" placeholder="Ex: +225 07 00 00 00 00" value="${this.formData.phone || ''}">
             <span class="form-help-text">Nous l'utiliserons pour vous contacter concernant vos commandes</span>
           </div>
 
           <div class="form-group">
             <label for="address">Adresse de livraison</label>
-            <input type="text" id="address" required autocomplete="street-address" value="${this.formData.address}" placeholder="ABIDJAN ADJAME MIRADOR">
+            <input type="text" id="address" required autocomplete="street-address" value="${this.formData.address}" placeholder="Ex: Abidjan, Cocody Mermoz">
           </div>
 
           <div class="form-group">
@@ -747,12 +747,12 @@ class CheckoutModal extends HTMLElement {
         }
         if (!profile) {
           profile = {
-            firstName: this.formData.name.split(' ')[0] || "SWEETOS",
-            lastName: this.formData.name.split(' ').slice(1).join(' ') || "Member",
-            email: this.formData.email || "user@SWEETOS.com",
-            phone: this.formData.phone || "+225 600 000 000",
-            bio: "SWEETOS member. Workspace curations.",
-            addresses: [this.formData.address],
+            firstName: this.formData.name.split(' ')[0] || "",
+            lastName: this.formData.name.split(' ').slice(1).join(' ') || "",
+            email: this.formData.email || "",
+            phone: this.formData.phone || "",
+            bio: "Guest Customer",
+            addresses: [this.formData.address || ""],
             orders: []
           };
         }
@@ -761,7 +761,7 @@ class CheckoutModal extends HTMLElement {
           id: orderId,
           date: new Date().toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', year: 'numeric' }),
           status: "Placed",
-          total: orderTotal || 20000.00,
+          total: orderTotal || 0,
           items: itemsLabel,
           products: cartItems
         };
@@ -778,8 +778,8 @@ class CheckoutModal extends HTMLElement {
             let allOrders = Array.isArray(serverOrders) ? serverOrders : [];
             allOrders.unshift({
               ...newOrder,
-              customerName: this.formData.name || "Guest User",
-              customerEmail: this.formData.email || "guest@sweetos.com",
+              customerName: this.formData.name || "",
+              customerEmail: this.formData.email || "",
               customerPhone: this.formData.phone || "",
               customerAddress: this.formData.address || "",
               customerZip: this.formData.zip || "",
