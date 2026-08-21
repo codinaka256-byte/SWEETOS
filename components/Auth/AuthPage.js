@@ -345,15 +345,36 @@ export function getAuthPageHTML() {
             <h3 class="text-2xl font-bold text-gray-800" style="font-family: 'Outfit', sans-serif;">Complete Profile</h3>
             <p class="text-gray-500 text-sm mt-1 text-center" style="font-family: 'Outfit', sans-serif;">Enter your phone and shipping address to complete your registration.</p>
           </div>
-          <form id="google-details-form" class="space-y-4" style="display: flex; flex-direction: column; gap: 16px;">
+          <form id="google-details-form" class="space-y-4" style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Phone Input -->
             <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
               <label class="block text-sm font-semibold text-gray-700" style="font-family: 'Outfit', sans-serif;">Phone Number</label>
               <input type="tel" id="google-phone" placeholder="+225 07 00 00 00 00" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm" style="border: 1px solid #cbd5e1; outline: none; background: white;">
             </div>
-            <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
-              <label class="block text-sm font-semibold text-gray-700" style="font-family: 'Outfit', sans-serif;">Shipping Address</label>
-              <textarea id="google-address" rows="3" placeholder="Enter your full delivery address" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm" style="border: 1px solid #cbd5e1; outline: none; background: white; resize: none;"></textarea>
+
+            <!-- Country Box (Visible when phone code matched) -->
+            <div id="country-container" class="form-group" style="display: none; flex-direction: column; gap: 6px;">
+              <label class="block text-sm font-semibold text-gray-700" style="font-family: 'Outfit', sans-serif;">Country</label>
+              <input type="text" id="google-country" placeholder="Country Name" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm" style="border: 1px solid #cbd5e1; outline: none; background: #f8fafc; font-weight: 600;" readonly>
             </div>
+
+            <!-- State Box (Visible when country loaded) -->
+            <div id="state-container" class="form-group" style="display: none; flex-direction: column; gap: 6px;">
+              <label class="block text-sm font-semibold text-gray-700" style="font-family: 'Outfit', sans-serif;">State / Region</label>
+              <input type="text" id="google-state" placeholder="Select or type your State/Region" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm" style="border: 1px solid #cbd5e1; outline: none; background: white;" list="state-options">
+              <datalist id="state-options"></datalist>
+            </div>
+
+            <!-- Town / Village Box (Visible when state loaded) -->
+            <div id="town-container" class="form-group" style="display: none; flex-direction: column; gap: 6px;">
+              <label class="block text-sm font-semibold text-gray-700" style="font-family: 'Outfit', sans-serif;">Town / Village / Quarter</label>
+              <input type="text" id="google-town" placeholder="Select or type your Town/Village" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm" style="border: 1px solid #cbd5e1; outline: none; background: white;" list="town-options">
+              <datalist id="town-options"></datalist>
+            </div>
+
+            <!-- Full Address Hidden Preview -->
+            <input type="hidden" id="google-address">
+
             <button type="submit" class="w-full btn-brand font-semibold py-3.5 rounded-xl active:scale-[0.98] mt-2" style="background: #0052cc; color: white; border: none; padding: 12px; border-radius: 12px; cursor: pointer; transition: background 0.2s; font-family: 'Outfit', sans-serif;">
               Complete Signup
             </button>
@@ -579,14 +600,132 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         if (detailsModal) {
           detailsModal.style.display = 'flex';
           
+          const phoneInput = shadow.getElementById('google-phone');
+          const countryInput = shadow.getElementById('google-country');
+          const stateInput = shadow.getElementById('google-state');
+          const townInput = shadow.getElementById('google-town');
+          const addressHidden = shadow.getElementById('google-address');
+
+          const countryContainer = shadow.getElementById('country-container');
+          const stateContainer = shadow.getElementById('state-container');
+          const townContainer = shadow.getElementById('town-container');
+
+          const stateOptions = shadow.getElementById('state-options');
+          const townOptions = shadow.getElementById('town-options');
+
+          const countryDatabase = {
+            "+225": {
+              name: "Côte d'Ivoire",
+              states: {
+                "Lagunes (Abidjan)": ["Cocody", "Plateau", "Yopougon", "Marcory", "Koumassi", "Treichville", "Abobo", "Bingerville", "Port-Bouët", "Songon"],
+                "Yamoussoukro": ["Yamoussoukro Ville", "Morofé", "Zaher", "Assabou", "Dioulabougou"],
+                "Vallée du Bandama (Bouaké)": ["Bouaké Ville", "Ahougnansou", "Air France", "Broukro", "N'Gattakro"],
+                "Haut-Sassandra (Daloa)": ["Daloa Ville", "Tazibouo", "Gbeuliville", "Orly", "Loboguiguia"],
+                "Poro (Korhogo)": ["Korhogo Ville", "Koko", "Soba", "Tchékélézo"],
+                "Tonkpi (Man)": ["Man Ville", "Dompleu", "Gbépleu", "Kassiapleu"],
+                "San-Pédro": ["San-Pédro Ville", "Bardot", "Balmer", "Nitoro"]
+              }
+            },
+            "+233": {
+              name: "Ghana",
+              states: {
+                "Greater Accra": ["Accra", "Tema", "Madina", "East Legon", "Osu", "Spintex"],
+                "Ashanti": ["Kumasi", "Obuasi", "Konongo", "Ejisu"],
+                "Western": ["Sekondi-Takoradi", "Tarkwa", "Axim"]
+              }
+            },
+            "+234": {
+              name: "Nigeria",
+              states: {
+                "Lagos": ["Ikeja", "Lekki", "Victoria Island", "Surulere", "Yaba", "Epe"],
+                "Abuja (FCT)": ["Garki", "Wuse", "Maitama", "Asokoro", "Gwarinpa"],
+                "Rivers": ["Port Harcourt", "Obio-Akpor", "Bonny"]
+              }
+            },
+            "+221": {
+              name: "Sénégal",
+              states: {
+                "Dakar": ["Dakar Plateau", "Almadies", "Mermoz", "Medina", "Yoff", "Pikine", "Guédiawaye"],
+                "Thiès": ["Thiès Ville", "Mbour", "Saly", "Joal-Fadiouth"],
+                "Saint-Louis": ["Saint-Louis Ville", "Richard-Toll", "Dagana"]
+              }
+            }
+          };
+
+          let matchedKey = null;
+
+          phoneInput.addEventListener('input', () => {
+            const rawVal = phoneInput.value.trim().replace(/\s+/g, '');
+            matchedKey = null;
+            
+            for (const key in countryDatabase) {
+              if (rawVal.startsWith(key)) {
+                matchedKey = key;
+                break;
+              }
+            }
+
+            if (matchedKey) {
+              const dbEntry = countryDatabase[matchedKey];
+              countryInput.value = dbEntry.name;
+              countryInput.setAttribute('readonly', 'true');
+              countryInput.style.background = "#f8fafc";
+              countryContainer.style.display = 'flex';
+              
+              // Load states list options
+              stateOptions.innerHTML = Object.keys(dbEntry.states).map(s => `<option value="${s}"></option>`).join('');
+              stateContainer.style.display = 'flex';
+            } else {
+              // Manual override for unknown country codes
+              if (rawVal.startsWith('+') && rawVal.length >= 4) {
+                countryInput.value = "";
+                countryInput.removeAttribute('readonly');
+                countryInput.style.background = "white";
+                countryContainer.style.display = 'flex';
+                stateContainer.style.display = 'flex';
+                stateOptions.innerHTML = '';
+              } else {
+                countryContainer.style.display = 'none';
+                stateContainer.style.display = 'none';
+                townContainer.style.display = 'none';
+              }
+            }
+          });
+
+          stateInput.addEventListener('input', () => {
+            const selectedState = stateInput.value.trim();
+            if (matchedKey && countryDatabase[matchedKey].states[selectedState]) {
+              const towns = countryDatabase[matchedKey].states[selectedState];
+              townOptions.innerHTML = towns.map(t => `<option value="${t}"></option>`).join('');
+              townContainer.style.display = 'flex';
+            } else {
+              if (selectedState.length > 0) {
+                townOptions.innerHTML = '';
+                townContainer.style.display = 'flex';
+              } else {
+                townContainer.style.display = 'none';
+              }
+            }
+          });
+
+          townInput.addEventListener('input', () => {
+            const town = townInput.value.trim();
+            const state = stateInput.value.trim();
+            const country = countryInput.value.trim();
+            addressHidden.value = `${town}, ${state}, ${country}`;
+          });
+
           const detailsForm = shadow.getElementById('google-details-form');
           detailsForm.onsubmit = (e) => {
             e.preventDefault();
-            const phone = shadow.getElementById('google-phone').value.trim();
-            const address = shadow.getElementById('google-address').value.trim();
+            const phone = phoneInput.value.trim();
+            const town = townInput.value.trim();
+            const state = stateInput.value.trim();
+            const country = countryInput.value.trim();
+            const compiledAddress = `${town}, ${state}, ${country}`;
 
             detailsModal.style.display = 'none';
-            completeLoginWithDetails(phone, address);
+            completeLoginWithDetails(phone, compiledAddress);
           };
         } else {
           // Fallback if modal is missing
