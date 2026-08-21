@@ -79,6 +79,45 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // 2x. API: POST /api/admin/login (Verify admin credentials securely against Supabase/local settings)
+  if (req.method === 'POST' && req.url === '/api/admin/login') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const { email, password } = JSON.parse(body);
+        if (!email || !password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing credentials' }));
+          return;
+        }
+
+        // Get admin credentials from Supabase/local settings
+        const creds = await db.getSetting('admin_credentials', {
+          email: 'sweeto@sweetohub.com',
+          password: 'admin'
+        }, 'admin_credentials.js');
+
+        const inputEmail = email.trim().toLowerCase();
+        const inputPass = password.trim();
+
+        if (inputEmail === creds.email.trim().toLowerCase() && inputPass === creds.password.trim()) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid email address or decryption key' }));
+        }
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
   // 2y. API: POST /api/send-notification-email
   if (req.method === 'POST' && req.url === '/api/send-notification-email') {
     let body = '';

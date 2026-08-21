@@ -1074,23 +1074,34 @@ class AdminPage extends HTMLElement {
       if (loginForm) {
         loginForm.addEventListener('submit', (e) => {
           e.preventDefault();
-          const email = shadow.getElementById('admin-email').value.trim().toLowerCase();
-          const pass = shadow.getElementById('admin-password').value.trim();
+          const email = shadow.getElementById('admin-email').value.trim();
+          const password = shadow.getElementById('admin-password').value.trim();
           const errorMsg = shadow.getElementById('login-error-msg');
           
-          const isValidEmail = email === 'admin@sweetos.com' || email === 'sweeto@sweetohub.com';
-          if (isValidEmail && pass === 'admin') {
-            this.isAuthenticated = true;
-            sessionStorage.setItem('SWEETOS_admin_authenticated', 'true');
-            const sessionVersion = localStorage.getItem('SWEETOS_admin_session_version') || Date.now().toString();
-            localStorage.setItem('SWEETOS_admin_session_version', sessionVersion);
-            sessionStorage.setItem('SWEETOS_admin_device_session_version', sessionVersion);
-            this.render();
-            this.attachListeners();
-            window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Welcome back, Admin Manager!' }));
-          } else {
-            errorMsg.textContent = 'Invalid email address or decryption key.';
-          }
+          fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              this.isAuthenticated = true;
+              sessionStorage.setItem('SWEETOS_admin_authenticated', 'true');
+              const sessionVersion = localStorage.getItem('SWEETOS_admin_session_version') || Date.now().toString();
+              localStorage.setItem('SWEETOS_admin_session_version', sessionVersion);
+              sessionStorage.setItem('SWEETOS_admin_device_session_version', sessionVersion);
+              this.render();
+              this.attachListeners();
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Welcome back, Admin Manager!' }));
+            } else {
+              errorMsg.textContent = data.error || 'Invalid email address or decryption key.';
+            }
+          })
+          .catch(err => {
+            console.error('Admin authentication failure:', err);
+            errorMsg.textContent = 'Server connection error. Please try again.';
+          });
         });
       }
       return;
