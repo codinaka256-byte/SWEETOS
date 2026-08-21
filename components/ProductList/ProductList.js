@@ -3,7 +3,7 @@ import { showEditAddressModal } from '../Modals/EditAddressModal.js';
 import { showCancelOrderModal } from '../Modals/CancelOrderModal.js';
 import { showDeleteOrderModal } from '../Modals/DeleteOrderModal.js';
 import { getAuthPageHTML, attachAuthListeners } from '../Auth/AuthPage.js';
-import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, formatPrice } from '../../utils/storage.js';
+import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, formatPrice, syncDeliveredNotifications } from '../../utils/storage.js';
 import '../Admin/AdminPage.js';
 
 class ProductList extends HTMLElement {
@@ -5123,6 +5123,7 @@ class ProductList extends HTMLElement {
 
   // --- Functional Orders Dashboard Handlers ---
   injectOrdersDashboardList() {
+    syncDeliveredNotifications();
     const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
     if (!loggedIn) {
       this.renderOrdersDashboardList();

@@ -1,4 +1,4 @@
-import { getNotificationsStorageKey } from '../../utils/storage.js';
+import { getNotificationsStorageKey, syncDeliveredNotifications } from '../../utils/storage.js';
 
 class NotificationDrawer extends HTMLElement {
   constructor() {
@@ -11,6 +11,7 @@ class NotificationDrawer extends HTMLElement {
     this.loadNotifications();
     this.render();
     this.setupEventListeners();
+    syncDeliveredNotifications();
   }
 
   loadNotifications() {
@@ -206,6 +207,10 @@ class NotificationDrawer extends HTMLElement {
     window.addEventListener('notifications:updated', () => {
       this.loadNotifications();
       this.render();
+    });
+
+    window.addEventListener('notifications:toggle', () => {
+      syncDeliveredNotifications();
     });
 
     window.addEventListener('auth:changed', () => {

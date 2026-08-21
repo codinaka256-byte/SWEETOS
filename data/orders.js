@@ -2,7 +2,7 @@ const orders = [
   {
     "id": "ORD-826344",
     "date": "20 août 2026",
-    "status": "En cours",
+    "status": "Done",
     "total": 4273,
     "items": "Aero-Pad Numpad Pro (x2), Apex Desktop DAC Amp (x1), chager (x1)",
     "products": [
@@ -81,7 +81,8 @@ const orders = [
     "customerAddress": "Ivory Coast",
     "customerZip": "",
     "paymentMethod": "cod",
-    "userProfileKey": "SWEETOS_user_profile_chibuikekene_gmil_com"
+    "userProfileKey": "SWEETOS_user_profile_chibuikekene_gmil_com",
+    "trackingNumber": "2200"
   },
   {
     "id": "ORD-314083",
