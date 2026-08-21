@@ -970,6 +970,10 @@ class CheckoutModal extends HTMLElement {
           currentNotifications.unshift(newNotif);
           localStorage.setItem(notifKey, JSON.stringify(currentNotifications));
           window.dispatchEvent(new CustomEvent('notifications:updated'));
+          
+          // Also dispatch badge sync event
+          const totalUnread = currentNotifications.filter(n => n.unread).length;
+          window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
 
           window.dispatchEvent(new CustomEvent('toast:order-placed', {
             detail: {

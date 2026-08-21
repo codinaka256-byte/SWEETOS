@@ -5,6 +5,7 @@ class NotificationDrawer extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.notifications = [];
+    this.syncInterval = null;
   }
 
   connectedCallback() {
@@ -12,6 +13,14 @@ class NotificationDrawer extends HTMLElement {
     this.render();
     this.setupEventListeners();
     syncDeliveredNotifications();
+  }
+
+  disconnectedCallback() {
+    // Clean up interval when component is removed
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+    }
   }
 
   loadNotifications() {
@@ -219,13 +228,31 @@ class NotificationDrawer extends HTMLElement {
       this.render();
     });
 
+    // Listen for order status changes to trigger notification sync
+    window.addEventListener('orders:updated', () => {
+      syncDeliveredNotifications();
+      this.loadNotifications();
+      this.render();
+    });
+
     window.addEventListener('storage', (e) => {
       const key = getNotificationsStorageKey();
       if (e.key === key) {
         this.loadNotifications();
         this.render();
       }
+      // Also check for order changes from other tabs
+      if (e.key === 'SWEETOS_all_orders' || e.key.includes('SWEETOS_user_profile_')) {
+        syncDeliveredNotifications();
+        this.loadNotifications();
+        this.render();
+      }
     });
+
+    // Set up periodic sync for real-time updates without refresh
+    this.syncInterval = setInterval(() => {
+      syncDeliveredNotifications();
+    }, 5000); // Sync every 5 seconds
   }
 
   attachDynamicListeners() {
