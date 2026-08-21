@@ -4910,7 +4910,6 @@ class ProductList extends HTMLElement {
       sessionRecord.visits.push(pageName);
     }
     
-    const logKey = getActivityLogsStorageKey();
     localStorage.setItem(logKey, JSON.stringify(logs));
   }
 
