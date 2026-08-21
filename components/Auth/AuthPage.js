@@ -441,6 +441,11 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
     googleForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const email = shadow.getElementById('google-email').value.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Veuillez entrer une adresse e-mail valide ! ⚠️' }));
+        return;
+      }
       const fullName = shadow.getElementById('google-fullname').value.trim();
       const parts = fullName.split(' ');
       const firstname = parts[0] || 'Google';
@@ -521,6 +526,11 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
     formSignin.addEventListener('submit', (e) => {
       e.preventDefault();
       const email = shadow.getElementById('signin-email').value.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Veuillez entrer une adresse e-mail valide ! ⚠️' }));
+        return;
+      }
       const password = shadow.getElementById('signin-password').value;
       const btn = formSignin.querySelector('button[type="submit"]');
       const originalText = btn.innerText;
@@ -589,12 +599,16 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
   if (formSignup) {
     formSignup.addEventListener('submit', (e) => {
       e.preventDefault();
+      const email = shadow.getElementById('signup-email').value.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Veuillez entrer une adresse e-mail valide ! ⚠️' }));
+        return;
+      }
       const fullName = shadow.getElementById('signup-fullname').value.trim();
       const parts = fullName.split(' ');
       const first = parts[0] || 'User';
       const last = parts.slice(1).join(' ') || 'Member';
-
-      const email = shadow.getElementById('signup-email').value.trim().toLowerCase();
       
       const phonePrefix = shadow.getElementById('signup-phone-prefix').value;
       const rawPhone = shadow.getElementById('signup-phone').value.trim();

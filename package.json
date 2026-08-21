@@ -12,5 +12,8 @@
     "vanilla-js"
   ],
   "author": "Antigravity",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "nodemailer": "^9.0.5"
+  }
 }
