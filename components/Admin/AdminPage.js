@@ -917,27 +917,77 @@ class AdminPage extends HTMLElement {
   renderLogin() {
     return `
       <div class="admin-login-wrapper">
-        <div class="admin-login-card glass-panel animate-in">
-          <div class="brand-logo-glow"></div>
-          <div class="login-header">
-            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="var(--primary)" stroke-width="2.5" style="width: 36px; height: 36px; flex-shrink: 0; display: inline-block;">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
-            </svg>
-            <h2>SWEETOS Admin Panel</h2>
-            <p>Authorized personnel access only</p>
+        <div class="admin-login-card">
+          <!-- Sweeto Hub Logo Header -->
+          <div class="logo-container">
+            <div class="logo-box">
+              <svg viewBox="0 0 100 100" class="logo-svg">
+                <defs>
+                  <linearGradient id="blue-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#00b4d8" />
+                    <stop offset="100%" stop-color="#0052cc" />
+                  </linearGradient>
+                </defs>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="url(#blue-grad)" stroke-width="4"/>
+                <path d="M50 20 C65 20, 75 30, 75 42 C75 55, 50 52, 50 62 C50 72, 60 78, 68 76" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+                <circle cx="50" cy="62" r="3" fill="#00b4d8"/>
+              </svg>
+            </div>
+            <div class="logo-text">SWEETO HUB</div>
           </div>
-          <form id="admin-login-form">
-            <div class="form-group">
-              <label>Email Address</label>
-              <input type="email" id="admin-email" value="admin@sweetos.com" required placeholder="admin@sweetos.com" autocomplete="email">
+
+          <!-- Security Terminal Subtitle -->
+          <div class="security-terminal">
+            <i class="ph ph-shield-check text-cyan"></i>
+            <span>SECURITY TERMINAL</span>
+          </div>
+
+          <!-- Title Header -->
+          <h2 class="terminal-title">CONTROL CENTER LOCKED</h2>
+          <p class="terminal-desc">ENTER ADMINISTRATIVE CREDENTIALS TO GAIN DECRYPTION KEY.</p>
+
+          <form id="admin-login-form" class="terminal-form">
+            <!-- Username Input -->
+            <div class="terminal-group">
+              <label class="terminal-label">ADMIN USERNAME (EMAIL)</label>
+              <div class="terminal-input-wrapper">
+                <i class="ph ph-shield terminal-icon-left"></i>
+                <input type="email" id="admin-email" value="sweeto@sweetohub.com" required placeholder="sweeto@sweetohub.com" autocomplete="email" class="terminal-input">
+              </div>
             </div>
-            <div class="form-group">
-              <label>Password</label>
-              <input type="password" id="admin-password" value="admin" required placeholder="••••••••" autocomplete="current-password">
+
+            <!-- Password Input -->
+            <div class="terminal-group">
+              <label class="terminal-label">MASTER DECRYPT KEY</label>
+              <div class="terminal-input-wrapper">
+                <i class="ph ph-lock-key terminal-icon-left"></i>
+                <input type="password" id="admin-password" value="admin" required placeholder="••••••••" autocomplete="current-password" class="terminal-input">
+                <button type="button" id="toggle-admin-pass" class="terminal-pass-toggle">
+                  <i class="ph ph-eye text-lg"></i>
+                </button>
+              </div>
             </div>
-            <div id="login-error-msg" class="error-text"></div>
-            <button type="submit" class="admin-btn admin-btn-primary">Authenticate</button>
+
+            <div id="login-error-msg" class="error-text" style="color: #ef4444; font-size: 12px; margin-top: -8px; margin-bottom: 8px; font-weight: 600; font-family: 'Outfit', sans-serif;"></div>
+
+            <!-- Action Buttons -->
+            <div class="terminal-actions">
+              <button type="button" id="exit-store-btn" class="terminal-btn-outline">EXIT TO STORE</button>
+              <button type="submit" class="terminal-btn-primary">
+                <i class="ph ph-key"></i>
+                AUTHORIZE ACCESS
+              </button>
+            </div>
           </form>
+
+          <!-- Footer Information -->
+          <div class="terminal-footer">
+            <span class="footer-left">TERMINAL V2.0.1</span>
+            <span class="footer-right">
+              <i class="ph ph-lock-key-open"></i>
+              SECURE SOCKET LINK
+            </span>
+          </div>
         </div>
       </div>
     `;
@@ -994,14 +1044,42 @@ class AdminPage extends HTMLElement {
     // Check if authenticated
     if (!this.isAuthenticated) {
       const loginForm = shadow.getElementById('admin-login-form');
+      
+      // Bind eye toggle button
+      const togglePassBtn = shadow.getElementById('toggle-admin-pass');
+      const passInput = shadow.getElementById('admin-password');
+      if (togglePassBtn && passInput) {
+        togglePassBtn.addEventListener('click', () => {
+          const icon = togglePassBtn.querySelector('i');
+          if (passInput.type === 'password') {
+            passInput.type = 'text';
+            icon.classList.remove('ph-eye');
+            icon.classList.add('ph-eye-slash');
+          } else {
+            passInput.type = 'password';
+            icon.classList.remove('ph-eye-slash');
+            icon.classList.add('ph-eye');
+          }
+        });
+      }
+
+      // Bind exit to store button
+      const exitBtn = shadow.getElementById('exit-store-btn');
+      if (exitBtn) {
+        exitBtn.addEventListener('click', () => {
+          window.location.href = '/';
+        });
+      }
+
       if (loginForm) {
         loginForm.addEventListener('submit', (e) => {
           e.preventDefault();
-          const email = shadow.getElementById('admin-email').value.trim();
+          const email = shadow.getElementById('admin-email').value.trim().toLowerCase();
           const pass = shadow.getElementById('admin-password').value.trim();
           const errorMsg = shadow.getElementById('login-error-msg');
           
-          if (email === 'admin@sweetos.com' && pass === 'admin') {
+          const isValidEmail = email === 'admin@sweetos.com' || email === 'sweeto@sweetohub.com';
+          if (isValidEmail && pass === 'admin') {
             this.isAuthenticated = true;
             sessionStorage.setItem('SWEETOS_admin_authenticated', 'true');
             const sessionVersion = localStorage.getItem('SWEETOS_admin_session_version') || Date.now().toString();
@@ -1011,7 +1089,7 @@ class AdminPage extends HTMLElement {
             this.attachListeners();
             window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Welcome back, Admin Manager!' }));
           } else {
-            errorMsg.textContent = 'Invalid email address or password credentials.';
+            errorMsg.textContent = 'Invalid email address or decryption key.';
           }
         });
       }
