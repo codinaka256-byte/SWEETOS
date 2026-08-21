@@ -4462,24 +4462,29 @@ class ProductList extends HTMLElement {
                   userEmail = JSON.parse(loggedInUserStr).email;
                 } catch(e) {}
               }
-              
               let allOrders = [];
               try {
                 allOrders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
               } catch(e) {}
-              const qualifyingOrders = allOrders.filter(o => 
+              
+              // Count all orders placed by this user (including deleted or active ones for loyalty purchase count)
+              const customerOrdersCount = allOrders.filter(o => 
                 o.customerEmail === userEmail && 
-                (o.status === 'Livré' || o.status === 'Done') && 
-                parseFloat(o.total) >= 10000
-              );
+                (o.status || '').toLowerCase() !== 'deleted'
+              ).length;
               
               let couponValue = 0;
               let couponCodePrefix = 'OFF';
               
-              if (qualifyingOrders.length >= 3) {
+              if (totalCFA >= 10000 && totalCFA <= 20000 && customerOrdersCount >= 3) {
+                // From 10000-20000, if they buy up to 3 times, they receive a 5% off coupon
                 couponValue = 5;
                 couponCodePrefix = 'LOYAL5';
-              } else if (totalCFA >= 20000 && totalCFA <= 40000) {
+              } else if (totalCFA >= 2000 && totalCFA <= 20000) {
+                // From 2000-20000 gets the Oops / Good luck next time
+                couponValue = 0;
+              } else if (totalCFA >= 30000 && totalCFA <= 50000) {
+                // From 30000-50000 receives a 5% off coupon
                 couponValue = 5;
                 couponCodePrefix = 'SAVE5';
               } else if (totalCFA >= 50000 && totalCFA <= 100000) {
