@@ -196,28 +196,28 @@ export function renderAdminOrders(context) {
               </tr>
             ` : paginatedList.map(o => {
               let badgeHTML = '';
-              if (o.status === 'Pending') {
+              if (o.status === 'Pending' || o.status === 'Placed') {
                 badgeHTML = `
                   <span class="status-badge status-yellow" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 800; padding: 6px 12px; border-radius: 8px;">
                     <span class="pulse-indicator"></span>
-                    Pending
+                    Placed
                   </span>
                 `;
-              } else if (o.status === 'Confirmé') {
+              } else if (o.status === 'Confirm' || o.status === 'Confirmé') {
                 badgeHTML = `
                   <span class="status-badge status-blue" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(0, 82, 204, 0.15);">
                     <span>✓</span>
                     Confirmed
                   </span>
                 `;
-              } else if (o.status === 'En cours') {
+              } else if (o.status === 'Processing' || o.status === 'En cours') {
                 badgeHTML = `
                   <span class="status-badge status-blue" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800; padding: 6px 12px; border-radius: 8px; background: #e3f2fd; color: #0052cc;">
                     <span>⚡</span>
                     In Progress
                   </span>
                 `;
-              } else if (o.status === 'Shipped') {
+              } else if (o.status === 'Shipping' || o.status === 'Shipped') {
                 badgeHTML = `
                   <span class="status-badge status-blue" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800; padding: 6px 12px; border-radius: 8px; background: #ede7f6; color: #5e35b1;">
                     <span>🚚</span>
@@ -231,11 +231,18 @@ export function renderAdminOrders(context) {
                     Delivered
                   </span>
                 `;
-              } else {
+              } else if (o.status === 'Cancelled') {
                 badgeHTML = `
                   <span class="status-badge status-red" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800; padding: 6px 12px; border-radius: 8px;">
                     <span>✕</span>
                     Cancelled
+                  </span>
+                `;
+              } else {
+                badgeHTML = `
+                  <span class="status-badge status-yellow" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800; padding: 6px 12px; border-radius: 8px;">
+                    <span>⏳</span>
+                    ${o.status || 'Placed'}
                   </span>
                 `;
               }

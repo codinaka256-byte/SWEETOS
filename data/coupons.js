@@ -5,9 +5,9 @@ const coupons = [
     "value": 5,
     "minOrder": 5000,
     "limit": 1,
-    "used": 0,
+    "used": 1,
     "expiry": "2026-08-28",
-    "status": "active"
+    "status": "expired"
   },
   {
     "code": "SWEET-203351",
