@@ -618,22 +618,23 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
               const stateOptions = shadow.getElementById('state-options');
               const townOptions = shadow.getElementById('town-options');
 
-              // Hidden initially
-              countryContainer.style.display = 'none';
-              stateContainer.style.display = 'none';
-              townContainer.style.display = 'none';
-
               const countryDatabase = {
                 "+225": {
                   name: "Côte d'Ivoire",
                   states: {
-                    "Lagunes (Abidjan)": ["Cocody", "Plateau", "Yopougon", "Marcory", "Koumassi", "Treichville", "Abobo", "Bingerville", "Port-Bouët", "Songon"],
-                    "Yamoussoukro": ["Yamoussoukro Ville", "Morofé", "Zaher", "Assabou", "Dioulabougou"],
-                    "Vallée du Bandama (Bouaké)": ["Bouaké Ville", "Ahougnansou", "Air France", "Broukro", "N'Gattakro"],
-                    "Haut-Sassandra (Daloa)": ["Daloa Ville", "Tazibouo", "Gbeuliville", "Orly", "Loboguiguia"],
-                    "Poro (Korhogo)": ["Korhogo Ville", "Koko", "Soba", "Tchékélézo"],
-                    "Tonkpi (Man)": ["Man Ville", "Dompleu", "Gbépleu", "Kassiapleu"],
-                    "San-Pédro": ["San-Pédro Ville", "Bardot", "Balmer", "Nitoro"]
+                    "District d'Abidjan": ["Adjamé", "Cocody", "Plateau", "Yopougon", "Marcory", "Koumassi", "Treichville", "Abobo", "Bingerville", "Port-Bouët", "Songon", "Attécoubé", "Anyama"],
+                    "District de Yamoussoukro": ["Yamoussoukro Ville", "Attiégouakro", "Morofé", "Assabou", "Dioulabougou", "Zatta"],
+                    "Région du Gbêkê (Bouaké)": ["Bouaké", "Sakassou", "Béoumi", "Botro", "Diabo"],
+                    "Région du Haut-Sassandra (Daloa)": ["Daloa", "Issia", "Vavoua", "Zoukougbeu", "Bediala"],
+                    "Région de San-Pédro": ["San-Pédro", "Sassandra", "Grabo", "Grand-Béréby", "Tabou"],
+                    "Région du Poro (Korhogo)": ["Korhogo", "Ferkessédougou", "Boundiali", "Ouangolodougou", "Sinematiali"],
+                    "Région du Tonkpi (Man)": ["Man", "Danané", "Biankouma", "Zouan-Hounien", "Sangouiné"],
+                    "Région de l'Indénié-Djuablin": ["Abengourou", "Agnibilékrou", "Bettié"],
+                    "Région des Grands-Ponts": ["Dabou", "Grand-Lahou", "Jacqueville"],
+                    "Région du Sud-Comoé": ["Aboisso", "Grand-Bassam", "Bonoua", "Adiaké", "Tiapoum"],
+                    "Région de la Mé": ["Adzopé", "Akoupé", "Yakassé-Attobrou"],
+                    "Région de l'Agnéby-Tiassa": ["Agboville", "Sikensi", "Tiassalé"],
+                    "Région du Gôh": ["Gagnoa", "Oumé"]
                   }
                 },
                 "+233": {
@@ -662,7 +663,24 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
                 }
               };
 
-              let matchedKey = null;
+              let matchedKey = "+225"; // default to Côte d'Ivoire
+
+              // Initialize inputs with Côte d'Ivoire defaults immediately
+              phoneInput.value = "+225 ";
+              countryInput.value = "Côte d'Ivoire";
+              countryInput.setAttribute('readonly', 'true');
+              countryInput.style.background = "#f8fafc";
+              countryContainer.style.display = 'flex';
+              
+              // Load Côte d'Ivoire states immediately
+              const defaultDb = countryDatabase[matchedKey];
+              stateOptions.innerHTML = Object.keys(defaultDb.states).map(s => `<option value="${s}"></option>`).join('');
+              stateContainer.style.display = 'flex';
+              
+              // Clear values
+              stateInput.value = "";
+              townInput.value = "";
+              townContainer.style.display = 'none';
 
               phoneInput.addEventListener('input', () => {
                 const rawVal = phoneInput.value.trim().replace(/\s+/g, '');
