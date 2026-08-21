@@ -3,7 +3,16 @@ import { showEditAddressModal } from '../Modals/EditAddressModal.js';
 import { showCancelOrderModal } from '../Modals/CancelOrderModal.js';
 import { showDeleteOrderModal } from '../Modals/DeleteOrderModal.js';
 import { getAuthPageHTML, attachAuthListeners } from '../Auth/AuthPage.js';
-import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, formatPrice, syncDeliveredNotifications } from '../../utils/storage.js';
+import { 
+  getCartStorageKey, 
+  getProfileStorageKey, 
+  getNotificationsStorageKey, 
+  getWishlistStorageKey,
+  getScratchcardsStorageKey,
+  getActivityLogsStorageKey,
+  formatPrice, 
+  syncDeliveredNotifications 
+} from '../../utils/storage.js';
 import '../Admin/AdminPage.js';
 
 function renderCategoryIcon(icon) {
@@ -246,7 +255,8 @@ class ProductList extends HTMLElement {
 
   // --- Functional Wishlist Utility Methods ---
   loadWishlistFromStorage() {
-    const saved = localStorage.getItem('SWEETOS_wishlist');
+    const key = getWishlistStorageKey();
+    const saved = localStorage.getItem(key);
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -258,7 +268,8 @@ class ProductList extends HTMLElement {
   }
 
   saveWishlistToStorage(wishlist) {
-    localStorage.setItem('SWEETOS_wishlist', JSON.stringify(wishlist));
+    const key = getWishlistStorageKey();
+    localStorage.setItem(key, JSON.stringify(wishlist));
     window.dispatchEvent(new CustomEvent('wishlist:updated', { detail: wishlist }));
   }
 
@@ -1037,7 +1048,7 @@ class ProductList extends HTMLElement {
     } else if (this.currentPage === 'coupons') {
       let scratchcardsList = [];
       try {
-        const stored = localStorage.getItem('SWEETOS_user_scratchcards');
+        const stored = localStorage.getItem(getScratchcardsStorageKey());
         let rawList = stored ? JSON.parse(stored) : [];
         const now = Date.now();
         // Exclude scratchcards that are unscratched and past their 14-day expiry date
@@ -4537,7 +4548,8 @@ class ProductList extends HTMLElement {
           canvas.style.pointerEvents = 'none';
           
           try {
-            let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+            const scKey = getScratchcardsStorageKey();
+            let scratchcards = JSON.parse(localStorage.getItem(scKey) || '[]');
             const idx = scratchcards.findIndex(sc => sc.id === cardId);
             if (idx > -1 && !scratchcards[idx].scratched) {
               scratchcards[idx].scratched = true;
@@ -4700,7 +4712,8 @@ class ProductList extends HTMLElement {
                   }).catch(e => console.error('Failed to broadcast admin alert:', e));
                 }
               }
-              localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+              const scKey = getScratchcardsStorageKey();
+              localStorage.setItem(scKey, JSON.stringify(scratchcards));
               
               setTimeout(() => {
                 this.renderPageContent();
@@ -4818,8 +4831,9 @@ class ProductList extends HTMLElement {
     }
     
     let logs = [];
+    const logKey = getActivityLogsStorageKey();
     try {
-      logs = JSON.parse(localStorage.getItem('SWEETOS_activity_logs') || '[]');
+      logs = JSON.parse(localStorage.getItem(logKey) || '[]');
     } catch (err) {}
     
     let userName = 'Guest User';
@@ -4896,7 +4910,8 @@ class ProductList extends HTMLElement {
       sessionRecord.visits.push(pageName);
     }
     
-    localStorage.setItem('SWEETOS_activity_logs', JSON.stringify(logs));
+    const logKey = getActivityLogsStorageKey();
+    localStorage.setItem(logKey, JSON.stringify(logs));
   }
 
   // --- Functional Notifications Event Handlers ---
@@ -6466,7 +6481,8 @@ class ProductList extends HTMLElement {
           const totalCFA = parseFloat(targetOrder.total) || 0;
           if (totalCFA >= 2000) {
             try {
-              let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+              const scKey = getScratchcardsStorageKey();
+              let scratchcards = JSON.parse(localStorage.getItem(scKey) || '[]');
               if (!scratchcards.some(sc => sc.orderId === targetOrder.id)) {
                 scratchcards.push({
                   id: Date.now() + 1,
@@ -6477,7 +6493,7 @@ class ProductList extends HTMLElement {
                   createdAt: Date.now(),
                   expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
                 });
-                localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+                localStorage.setItem(scKey, JSON.stringify(scratchcards));
               }
             } catch(e) {
               console.error('Failed to create scratchcard on customer side:', e);

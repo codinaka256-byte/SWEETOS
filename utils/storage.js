@@ -40,6 +40,62 @@ export function getNotificationsStorageKey() {
   return 'SWEETOS_notifications_guest';
 }
 
+export function getWishlistStorageKey() {
+  const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+  if (userJson) {
+    try {
+      const user = JSON.parse(userJson);
+      if (user && user.email) {
+        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        return `SWEETOS_wishlist_${safeKey}`;
+      }
+    } catch (e) {}
+  }
+  return 'SWEETOS_wishlist_guest';
+}
+
+export function getScratchcardsStorageKey() {
+  const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+  if (userJson) {
+    try {
+      const user = JSON.parse(userJson);
+      if (user && user.email) {
+        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        return `SWEETOS_user_scratchcards_${safeKey}`;
+      }
+    } catch (e) {}
+  }
+  return 'SWEETOS_user_scratchcards_guest';
+}
+
+export function getProcessedDeliveriesStorageKey() {
+  const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+  if (userJson) {
+    try {
+      const user = JSON.parse(userJson);
+      if (user && user.email) {
+        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        return `SWEETOS_processed_deliveries_${safeKey}`;
+      }
+    } catch (e) {}
+  }
+  return 'SWEETOS_processed_deliveries_guest';
+}
+
+export function getActivityLogsStorageKey() {
+  const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+  if (userJson) {
+    try {
+      const user = JSON.parse(userJson);
+      if (user && user.email) {
+        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        return `SWEETOS_activity_logs_${safeKey}`;
+      }
+    } catch (e) {}
+  }
+  return 'SWEETOS_activity_logs_guest';
+}
+
 export function formatPrice(price) {
   const currency = localStorage.getItem('SWEETOS_currency') || 'CFA';
   let symbol = currency;
@@ -74,8 +130,9 @@ export function syncDeliveredNotifications() {
       if (!Array.isArray(serverOrders)) return;
       
       let processedDeliveries = [];
+      const procKey = getProcessedDeliveriesStorageKey();
       try {
-        processedDeliveries = JSON.parse(localStorage.getItem('SWEETOS_processed_deliveries') || '[]');
+        processedDeliveries = JSON.parse(localStorage.getItem(procKey) || '[]');
       } catch(e) {}
       
       const notifKey = getNotificationsStorageKey();
@@ -116,7 +173,8 @@ export function syncDeliveredNotifications() {
             if (totalCFA >= 2000) {
               // Add a scratch card to storage
               try {
-                let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+                const scKey = getScratchcardsStorageKey();
+                let scratchcards = JSON.parse(localStorage.getItem(scKey) || '[]');
                 if (!scratchcards.some(sc => sc.orderId === order.id)) {
                   scratchcards.push({
                     id: Date.now() + Math.floor(Math.random() * 1000) + 1,
@@ -127,7 +185,7 @@ export function syncDeliveredNotifications() {
                     createdAt: Date.now(),
                     expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
                   });
-                  localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+                  localStorage.setItem(scKey, JSON.stringify(scratchcards));
                 }
               } catch(e) {
                 console.error('Failed to create scratchcard during sync:', e);
@@ -148,7 +206,7 @@ export function syncDeliveredNotifications() {
       });
       
       if (changed) {
-        localStorage.setItem('SWEETOS_processed_deliveries', JSON.stringify(processedDeliveries));
+        localStorage.setItem(procKey, JSON.stringify(processedDeliveries));
       }
     })
     .catch(err => console.error('Failed to sync completed notifications from server:', err));

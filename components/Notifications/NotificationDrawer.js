@@ -1,4 +1,4 @@
-import { getNotificationsStorageKey, syncDeliveredNotifications } from '../../utils/storage.js';
+import { getNotificationsStorageKey, getScratchcardsStorageKey, syncDeliveredNotifications } from '../../utils/storage.js';
 
 class NotificationDrawer extends HTMLElement {
   constructor() {
@@ -61,7 +61,8 @@ class NotificationDrawer extends HTMLElement {
   generateExpiringReminders() {
     let scratchcards = [];
     try {
-      scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+      const scKey = getScratchcardsStorageKey();
+      scratchcards = JSON.parse(localStorage.getItem(scKey) || '[]');
     } catch(e) {}
     
     const now = Date.now();

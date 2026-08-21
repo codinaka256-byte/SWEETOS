@@ -1,5 +1,5 @@
 import products from '../../data/products.js';
-import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, formatPrice } from '../../utils/storage.js';
+import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, getWishlistStorageKey, formatPrice } from '../../utils/storage.js';
 
 class Header extends HTMLElement {
   constructor() {
@@ -92,7 +92,8 @@ class Header extends HTMLElement {
   }
 
   syncWishlistBadge() {
-    const saved = localStorage.getItem('SWEETOS_wishlist');
+    const wlKey = getWishlistStorageKey();
+    const saved = localStorage.getItem(wlKey);
     let count = 0;
     if (saved) {
       try {

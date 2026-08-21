@@ -6,7 +6,7 @@ if (window.location.pathname !== '/' && window.location.pathname !== '/index.htm
   }
 }
 
-import { getCartStorageKey } from './utils/storage.js';
+import { getCartStorageKey, getScratchcardsStorageKey } from './utils/storage.js';
 import products from './data/products.js';
 
 // Import all Web Components to auto-register them
@@ -668,7 +668,8 @@ document.addEventListener('DOMContentLoaded', () => {
       
       let scratchcards = [];
       try {
-        scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+        const scKey = getScratchcardsStorageKey();
+        scratchcards = JSON.parse(localStorage.getItem(scKey) || '[]');
       } catch(e) {}
       
       let coupons = [];

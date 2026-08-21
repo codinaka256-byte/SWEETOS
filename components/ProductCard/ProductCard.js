@@ -1,4 +1,4 @@
-import { formatPrice } from '../../utils/storage.js';
+import { formatPrice, getWishlistStorageKey } from '../../utils/storage.js';
 
 class ProductCard extends HTMLElement {
   constructor() {
@@ -57,7 +57,8 @@ class ProductCard extends HTMLElement {
     const isNew = p.id > 38; // Last 12 items are new arrivals
     const isBestSeller = parseFloat(averageRating) >= 4.8 && totalReviewsCount >= 5; // Best Seller requires >=5 real 4.8+ ratings
 
-    const wishlistSaved = localStorage.getItem('SWEETOS_wishlist');
+    const wlKey = getWishlistStorageKey();
+    const wishlistSaved = localStorage.getItem(wlKey);
     let isWishlisted = false;
     if (wishlistSaved) {
       try {
