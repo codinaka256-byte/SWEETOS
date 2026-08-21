@@ -757,7 +757,7 @@ class CheckoutModal extends HTMLElement {
         const newOrder = {
           id: orderId,
           date: new Date().toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', year: 'numeric' }),
-          status: "En cours",
+          status: "Placed",
           total: orderTotal || 20000.00,
           items: itemsLabel,
           products: cartItems
