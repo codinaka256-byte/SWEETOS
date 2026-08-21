@@ -525,7 +525,10 @@ class CheckoutModal extends HTMLElement {
         <div class="pricing-divider"></div>
         <div class="pricing-line total-row">
           <span>Total</span>
-          <span style="color: #0052cc; font-size: 18px; font-weight: 850;">${formatPrice(total)}</span>
+          <span style="color: #0052cc; font-size: 18px; font-weight: 850; display: flex; flex-direction: column; align-items: flex-end;">
+            ${discount > 0 ? `<span style="text-decoration: line-through; font-size: 12px; opacity: 0.65; font-weight: 500; color: #486581; margin-bottom: 2px;">${formatPrice(subtotal + shippingFee)}</span>` : ''}
+            <span style="${discount > 0 ? 'color: #36b37e; font-size: 20px;' : ''}">${formatPrice(total)}</span>
+          </span>
         </div>
       </div>
 

@@ -175,13 +175,18 @@ class CartDrawer extends HTMLElement {
               <span>Livraison</span>
               <span class="val-cyan">Free</span>
             </div>
-            <div class="totals-row discount-row">
-              <span>Réduction</span>
-              <span class="val-magenta">-${formatPrice(discount)}</span>
-            </div>
+            ${discount > 0 ? `
+              <div class="totals-row discount-row" style="color: var(--magenta); font-weight: 700;">
+                <span>Réduction (${appliedCoupon ? appliedCoupon.value : 0}%)</span>
+                <span class="val-magenta">-${formatPrice(discount)}</span>
+              </div>
+            ` : ''}
             <div class="totals-row total-line">
               <span class="total-label">Total</span>
-              <span class="total-val">${formatPrice(total)}</span>
+              <span class="total-val" style="display: flex; flex-direction: column; align-items: flex-end;">
+                ${discount > 0 ? `<span style="text-decoration: line-through; font-size: 11px; opacity: 0.6; font-weight: 500; margin-bottom: 2px;">${formatPrice(subtotal)}</span>` : ''}
+                <span style="${discount > 0 ? 'color: var(--cyan); font-size: 19px; font-weight: 800;' : ''}">${formatPrice(total)}</span>
+              </span>
             </div>
           </div>
 

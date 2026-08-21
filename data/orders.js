@@ -2,7 +2,7 @@ const orders = [
   {
     "id": "ORD-118879",
     "date": "21 août 2026",
-    "status": "Placed",
+    "status": "Cancelled",
     "total": 2839,
     "items": "Aero-Linear Switch Lubricant Kit (x1), Aero-75 Acrylic Frost (x10), Aero-Ear Pads Set (x41)",
     "products": [
@@ -77,7 +77,8 @@ const orders = [
     "customerAddress": "Ivory Coast",
     "customerZip": "",
     "paymentMethod": "cod",
-    "userProfileKey": "SWEETOS_user_profile_developer_SWEETOS_google_com"
+    "userProfileKey": "SWEETOS_user_profile_developer_SWEETOS_google_com",
+    "trackingNumber": ""
   },
   {
     "id": "ORD-698224",

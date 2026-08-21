@@ -198,7 +198,8 @@ const products = [
       "Tools Included": "Stem claw, switch opener, brush, keycap puller",
       "Opener Type": "Dual-socket MX & Box switch opener",
       "Container": "Air-tight glass container"
-    }
+    },
+    "stock": 1
   },
   {
     "id": 12,
@@ -216,7 +217,8 @@ const products = [
       "Switches": "Pre-lubed linear switches",
       "Backlighting": "PCB underglow + per-key LEDs (Ice-Blue settings)",
       "Connectivity": "Detachable USB-C"
-    }
+    },
+    "stock": 10
   },
   {
     "id": 13,
@@ -428,7 +430,8 @@ const products = [
       "External Fabric": "Sweat-wicking ice-cool sport mesh",
       "Inner Ring Dimensions": "65mm x 45mm oval layout",
       "Compatibility": "Fits standard over-ear ring mounting structures"
-    }
+    },
+    "stock": 41
   },
   {
     "id": 25,
