@@ -4779,3 +4779,23 @@ input:checked + .toggle-slider:before {
   border-color: var(--primary) !important;
   box-shadow: 0 8px 25px var(--primary-light) !important;
 }
+
+/* ================= HORIZONTAL SLIDERS / CAROUSELS ================= */
+.carousel-scroll-wrapper {
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  display: flex;
+  gap: 20px;
+  padding: 8px 4px 16px 4px;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+.carousel-scroll-wrapper::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.carousel-scroll-wrapper product-card {
+  flex: 0 0 280px; /* Force product card to have a fixed width in the horizontal row */
+  display: block;
+}

@@ -653,33 +653,45 @@ class ProductList extends HTMLElement {
           homepageSectionsHTML += `
             <!-- Hot Deals Section -->
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="deals">View All →</button>
+              <div class="section-header" style="margin-bottom: 24px;">
+                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin:0;">${s.name}</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button class="view-all-btn" data-target-page="deals" style="margin-right: 8px;">View All →</button>
+                  <button class="carousel-control-btn prev-btn" id="btn-prev-deals" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" id="btn-next-deals" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-hot-deals"></div>
+              <div class="carousel-scroll-wrapper" id="carousel-deals"></div>
             </div>
           `;
         } else if (s.type === 'new-arrivals') {
           homepageSectionsHTML += `
             <!-- New Arrivals Section -->
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="new-arrivals">View All →</button>
+              <div class="section-header" style="margin-bottom: 24px;">
+                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin:0;">${s.name}</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button class="view-all-btn" data-target-page="new-arrivals" style="margin-right: 8px;">View All →</button>
+                  <button class="carousel-control-btn prev-btn" id="btn-prev-new-arrivals" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" id="btn-next-new-arrivals" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-new-arrivals"></div>
+              <div class="carousel-scroll-wrapper" id="carousel-new-arrivals"></div>
             </div>
           `;
         } else if (s.type === 'best-sellers') {
           homepageSectionsHTML += `
             <!-- Best Sellers Section -->
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="best-sellers">View All →</button>
+              <div class="section-header" style="margin-bottom: 24px;">
+                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin:0;">${s.name}</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button class="view-all-btn" data-target-page="best-sellers" style="margin-right: 8px;">View All →</button>
+                  <button class="carousel-control-btn prev-btn" id="btn-prev-best-sellers" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" id="btn-next-best-sellers" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-best-sellers"></div>
+              <div class="carousel-scroll-wrapper" id="carousel-best-sellers"></div>
             </div>
           `;
         } else if (s.type === 'grid') {
@@ -690,8 +702,12 @@ class ProductList extends HTMLElement {
                   <span>${s.name}</span>
                   ${s.category ? `<span style="font-size: 11px; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 4px;">${s.category}</span>` : ''}
                 </h3>
+                <div style="display: flex; gap: 8px;">
+                  <button class="carousel-control-btn prev-btn" id="btn-prev-dynamic-${s.id}" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" id="btn-next-dynamic-${s.id}" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-dynamic-${s.id}"></div>
+              <div class="carousel-scroll-wrapper" id="carousel-dynamic-${s.id}"></div>
             </div>
           `;
         } else if (s.type === 'carousel') {
@@ -704,9 +720,7 @@ class ProductList extends HTMLElement {
                   <button class="carousel-control-btn next-btn" id="btn-next-${s.id}" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
                 </div>
               </div>
-              <div class="carousel-scroll-wrapper" id="carousel-${s.id}" style="overflow-x: auto; scroll-behavior: smooth; display: flex; gap: 20px; padding-bottom: 12px;">
-                <!-- Appended dynamically -->
-              </div>
+              <div class="carousel-scroll-wrapper" id="carousel-${s.id}"></div>
             </div>
           `;
         } else if (s.type === 'banner') {
@@ -1965,10 +1979,10 @@ class ProductList extends HTMLElement {
       const hasAssigned = assignedProducts.length > 0;
 
       if (s.type === 'deals') {
-        const gridHot = this.shadowRoot.getElementById('grid-hot-deals');
+        const gridHot = this.shadowRoot.getElementById('carousel-deals');
         if (gridHot) {
           gridHot.innerHTML = '';
-          const displayProducts = hasAssigned ? assignedProducts : this.products.filter(p => [5, 14, 28, 40].includes(p.id));
+          const displayProducts = hasAssigned ? assignedProducts : this.products.filter(p => [5, 14, 28, 40, 3, 12, 19, 31, 45, 48].includes(p.id));
           displayProducts.forEach(p => {
             const card = document.createElement('product-card');
             card.product = p;
@@ -1977,10 +1991,10 @@ class ProductList extends HTMLElement {
           });
         }
       } else if (s.type === 'new-arrivals') {
-        const gridNew = this.shadowRoot.getElementById('grid-new-arrivals');
+        const gridNew = this.shadowRoot.getElementById('carousel-new-arrivals');
         if (gridNew) {
           gridNew.innerHTML = '';
-          const displayProducts = hasAssigned ? assignedProducts : this.products.slice(46, 50);
+          const displayProducts = hasAssigned ? assignedProducts : this.products.slice(40, 50);
           displayProducts.forEach(p => {
             const card = document.createElement('product-card');
             card.product = p;
@@ -1988,10 +2002,10 @@ class ProductList extends HTMLElement {
           });
         }
       } else if (s.type === 'best-sellers') {
-        const gridBest = this.shadowRoot.getElementById('grid-best-sellers');
+        const gridBest = this.shadowRoot.getElementById('carousel-best-sellers');
         if (gridBest) {
           gridBest.innerHTML = '';
-          const displayProducts = hasAssigned ? assignedProducts : this.products.filter(p => [1, 13, 26, 39].includes(p.id));
+          const displayProducts = hasAssigned ? assignedProducts : this.products.filter(p => [1, 13, 26, 39, 2, 8, 15, 22, 33, 44].includes(p.id));
           displayProducts.forEach(p => {
             const card = document.createElement('product-card');
             card.product = p;
@@ -1999,7 +2013,7 @@ class ProductList extends HTMLElement {
           });
         }
       } else if (s.type === 'grid') {
-        const gridDynamic = this.shadowRoot.getElementById(`grid-dynamic-${s.id}`);
+        const gridDynamic = this.shadowRoot.getElementById(`carousel-dynamic-${s.id}`);
         if (gridDynamic) {
           gridDynamic.innerHTML = '';
           let displayProducts = [];
@@ -2007,11 +2021,11 @@ class ProductList extends HTMLElement {
             displayProducts = assignedProducts;
           } else {
             if (s.category === 'All' || !s.category) {
-              displayProducts = this.products.slice(0, 4);
+              displayProducts = this.products.slice(0, 10);
             } else if (s.category === 'Apple') {
-              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 4);
+              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 10);
             } else {
-              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 4);
+              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 10);
             }
           }
           displayProducts.forEach(p => {
@@ -2029,11 +2043,11 @@ class ProductList extends HTMLElement {
             displayProducts = assignedProducts;
           } else {
             if (s.category === 'All' || !s.category) {
-              displayProducts = this.products.slice(0, 8);
+              displayProducts = this.products.slice(0, 10);
             } else if (s.category === 'Apple') {
-              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 8);
+              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 10);
             } else {
-              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 8);
+              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 10);
             }
           }
           displayProducts.forEach(p => {
@@ -2106,10 +2120,34 @@ class ProductList extends HTMLElement {
   attachHomeCarouselListeners(activeSections) {
     const shadow = this.shadowRoot;
     activeSections.forEach(s => {
-      if (s.type === 'carousel') {
-        const prev = shadow.getElementById(`btn-prev-${s.id}`);
-        const next = shadow.getElementById(`btn-next-${s.id}`);
-        const carouselEl = shadow.getElementById(`carousel-${s.id}`);
+      let prevId = null, nextId = null, wrapperId = null;
+      
+      if (s.type === 'deals') {
+        prevId = 'btn-prev-deals';
+        nextId = 'btn-next-deals';
+        wrapperId = 'carousel-deals';
+      } else if (s.type === 'new-arrivals') {
+        prevId = 'btn-prev-new-arrivals';
+        nextId = 'btn-next-new-arrivals';
+        wrapperId = 'carousel-new-arrivals';
+      } else if (s.type === 'best-sellers') {
+        prevId = 'btn-prev-best-sellers';
+        nextId = 'btn-next-best-sellers';
+        wrapperId = 'carousel-best-sellers';
+      } else if (s.type === 'grid') {
+        prevId = `btn-prev-dynamic-${s.id}`;
+        nextId = `btn-next-dynamic-${s.id}`;
+        wrapperId = `carousel-dynamic-${s.id}`;
+      } else if (s.type === 'carousel') {
+        prevId = `btn-prev-${s.id}`;
+        nextId = `btn-next-${s.id}`;
+        wrapperId = `carousel-${s.id}`;
+      }
+      
+      if (wrapperId) {
+        const prev = shadow.getElementById(prevId);
+        const next = shadow.getElementById(nextId);
+        const carouselEl = shadow.getElementById(wrapperId);
         if (prev && next && carouselEl) {
           prev.addEventListener('click', () => {
             carouselEl.scrollBy({ left: -320, behavior: 'smooth' });
@@ -2118,7 +2156,9 @@ class ProductList extends HTMLElement {
             carouselEl.scrollBy({ left: 320, behavior: 'smooth' });
           });
         }
-      } else if (s.type === 'banner') {
+      }
+      
+      if (s.type === 'banner') {
         const btn = shadow.querySelector(`.shop-now-btn[data-category="${s.category}"]`);
         if (btn) {
           btn.addEventListener('click', () => {
