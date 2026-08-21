@@ -287,33 +287,50 @@ class ProductList extends HTMLElement {
         // Fallback below
       }
     }
+    
+    // Dynamically resolve logged in user info
+    const loggedInJson = localStorage.getItem('SWEETOS_logged_in_user');
+    let email = "";
+    let firstName = "Guest";
+    let lastName = "User";
+    
+    if (loggedInJson) {
+      try {
+        const userObj = JSON.parse(loggedInJson);
+        email = userObj.email || "";
+        const nameParts = (userObj.name || "").trim().split(" ");
+        if (nameParts.length > 0 && nameParts[0]) {
+          firstName = nameParts[0];
+        }
+        if (nameParts.length > 1) {
+          lastName = nameParts.slice(1).join(" ");
+        } else {
+          lastName = "";
+        }
+      } catch(e) {}
+    }
+    
     const defaultProfile = {
-      firstName: "Alina",
-      lastName: "Putri",
-      email: "alina.putri@designstudio.com",
-      phone: "+1 (555) 019-2834",
-      bio: "Workspace Designer & Minimalism Enthusiast. Building clean setups since 2024.",
-      address: "123 Blue Way, Sky City, NY 10001",
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      phone: "",
+      bio: "",
+      address: "",
       theme: "Ice Blue",
       twoFactor: false,
-      marketingEmails: true,
+      marketingEmails: false,
       smsUpdates: false,
-      addresses: [
-        { id: 1, label: "Home (Default)", street: "123 Blue Way", city: "Sky City", state: "NY", zip: "10001" },
-        { id: 2, label: "Office", street: "500 High Street, Floor 12", city: "Manhattan", state: "NY", zip: "10018" }
-      ],
-      orders: [
-        { id: "AET-582910", date: "Aug 10, 2026", status: "Delivered", total: 228.00, items: "Aero-75 Mech Keyboard" },
-        { id: "AET-394012", date: "Jul 24, 2026", status: "Processing", total: 39.00, items: "Aero-Mat Desk Pad" },
-        { id: "AET-918237", date: "Aug 12, 2026", status: "Shipped", total: 119.00, items: "Nebula Soundwave Pillar" }
-      ]
+      addresses: [],
+      orders: []
     };
-    localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
+    localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
     return defaultProfile;
   }
 
   saveUserProfile(profile) {
-    localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+    const profileKey = getProfileStorageKey();
+    localStorage.setItem(profileKey, JSON.stringify(profile));
   }
 
   // --- Wishlist utilities finish ---
@@ -4838,10 +4855,9 @@ class ProductList extends HTMLElement {
             <div class="profile-hero-info">
               <div class="profile-hero-name-row">
                 <h3>${profile.firstName} ${profile.lastName}</h3>
-                <span class="vip-member-badge">VIP Premium</span>
               </div>
               <p class="profile-hero-email">${profile.email}</p>
-              <p class="profile-hero-bio">"${profile.bio}"</p>
+              ${profile.bio ? `<p class="profile-hero-bio">"${profile.bio}"</p>` : ''}
             </div>
           </div>
 
