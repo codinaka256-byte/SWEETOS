@@ -2,7 +2,7 @@ const orders = [
   {
     "id": "ORD-222507",
     "date": "21 août 2026",
-    "status": "Placed",
+    "status": "Done",
     "total": 24765.55,
     "items": "Aero-Pad Numpad Pro (x1), chager (x13)",
     "products": [
@@ -57,7 +57,8 @@ const orders = [
     "customerAddress": "Ivory Coast",
     "customerZip": "",
     "paymentMethod": "cod",
-    "userProfileKey": "SWEETOS_user_profile_developer_SWEETOS_google_com"
+    "userProfileKey": "SWEETOS_user_profile_developer_SWEETOS_google_com",
+    "trackingNumber": ""
   },
   {
     "id": "ORD-118879",
