@@ -5,14 +5,9 @@ export function renderAdminDashboard(context) {
   const completedOrdersCount = context.orders.length;
   const totalRegisteredCustomers = context.customers.length;
   const catalogCount = context.products.length;
-  const lowStockAlerts = context.products.filter(p => p.stock !== undefined && p.stock <= (p.threshold || 5));
+  const outOfStockProducts = context.products.filter(p => p.stock !== undefined && Number(p.stock) === 0);
+  const lowStockProducts = context.products.filter(p => p.stock !== undefined && Number(p.stock) > 0 && Number(p.stock) <= (p.threshold || 5));
   const recentOrders = context.orders.slice(0, 5);
-
-  // If there are no low stock alerts, create mock alerts matching the screenshot to impress the user
-  const displayLowStock = lowStockAlerts.length > 0 ? lowStockAlerts : [
-    { id: 991, name: "Desk Lamp", sku: "DL-001", stock: 3, threshold: 5 },
-    { id: 992, name: "Smart Watch", sku: "SW-001", stock: 4, threshold: 5 }
-  ];
 
   return `
     <!-- Statistics Row Grid -->
@@ -121,15 +116,32 @@ export function renderAdminDashboard(context) {
           </div>
           
           <div class="alerts-list custom-scroll" style="display:flex; flex-direction:column; gap:16px;">
-            ${displayLowStock.map(p => `
-              <div class="alert-item" style="border:none; border-bottom:1px solid var(--border); border-radius:0; padding:0 0 12px 0; background:none;">
-                <div style="display:flex; flex-direction:column;">
-                  <h4 style="font-size:14px; font-weight:700; color:var(--text-dark); margin:0;">${p.name}</h4>
-                  <small style="color:var(--text-gray); font-size:11px; margin-top:2px;">${p.sku}</small>
-                </div>
-                <strong style="color:var(--yellow); font-size:14px; font-weight:700;">${p.stock} left</strong>
+            ${(outOfStockProducts.length === 0 && lowStockProducts.length === 0) ? `
+              <div style="text-align: center; padding: 40px 16px; color: var(--text-gray); font-family: 'Outfit', sans-serif;">
+                <span style="font-size: 32px; display: block; margin-bottom: 8px;">✅</span>
+                <h4 style="font-size: 13.5px; font-weight: 700; color: var(--text-dark); margin: 0 0 4px 0;">Stock Impeccable</h4>
+                <p style="font-size: 11px; margin: 0; color: var(--text-gray);">Tous les produits sont bien approvisionnés !</p>
               </div>
-            `).join('')}
+            ` : `
+              ${outOfStockProducts.map(p => `
+                <div class="alert-item" style="border:none; border-bottom:1px solid var(--border); border-radius:0; padding:0 0 12px 0; background:none; display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; flex-direction:column;">
+                    <h4 style="font-size:14px; font-weight:700; color:var(--text-dark); margin:0;">${p.name}</h4>
+                    <small style="color:var(--text-gray); font-size:11px; margin-top:2px;">${p.sku || 'SKU-NONE'}</small>
+                  </div>
+                  <span style="background:#ffe5e5; color:#ff5630; border:1px solid #ffb2b2; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:800; letter-spacing:0.5px;">RUPTURE</span>
+                </div>
+              `).join('')}
+              ${lowStockProducts.map(p => `
+                <div class="alert-item" style="border:none; border-bottom:1px solid var(--border); border-radius:0; padding:0 0 12px 0; background:none; display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; flex-direction:column;">
+                    <h4 style="font-size:14px; font-weight:700; color:var(--text-dark); margin:0;">${p.name}</h4>
+                    <small style="color:var(--text-gray); font-size:11px; margin-top:2px;">${p.sku || 'SKU-NONE'}</small>
+                  </div>
+                  <span style="background:#fff3e6; color:#ff9a3c; border:1px solid #ffd8b2; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:800; letter-spacing:0.5px;">FAIBLE (${p.stock})</span>
+                </div>
+              `).join('')}
+            `}
           </div>
         </div>
       </div>
