@@ -217,6 +217,7 @@ export function attachAdminCouponsListeners(context, shadow) {
     });
   });
 
+
   // WhatsApp Share action
   shadow.querySelectorAll('.share-coupon-whatsapp-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -231,7 +232,14 @@ export function attachAdminCouponsListeners(context, shadow) {
       
       const message = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${code}*\nRéduction : *${discountText}*\n${parseInt(min) > 0 ? `Minimum d'achat : *${min} FCFA*\n` : ''}Date d'expiration : *${expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
       
-      const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+      // Detect mobile vs desktop for optimal WhatsApp experience
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      // Open WhatsApp directly with pre-filled message
+      const whatsappUrl = isMobile
+        ? `https://wa.me/?text=${encodeURIComponent(message)}`
+        : `https://web.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+
       window.open(whatsappUrl, '_blank');
     });
   });

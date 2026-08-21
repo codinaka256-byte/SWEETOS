@@ -1666,14 +1666,10 @@ class ProductList extends HTMLElement {
                   <button class="col-dropdown-create-btn" id="pdp-col-create-btn">ï¼‹ Create New Collection</button>
                 </div>
  
-                <!-- Circle Share Button -->
-                <button class="pdp-action-circle-btn" id="pdp-share-btn" title="Share Product">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="18" cy="5" r="3"></circle>
-                    <circle cx="6" cy="12" r="3"></circle>
-                    <circle cx="18" cy="19" r="3"></circle>
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                <!-- Circle Share Button - WhatsApp Share -->
+                <button class="pdp-action-circle-btn" id="pdp-share-btn" title="Share on WhatsApp" style="background: #dcf8c6;">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="#25d366" stroke="#25d366" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
                   </svg>
                 </button>
               </div>
@@ -3426,27 +3422,33 @@ class ProductList extends HTMLElement {
       this.addToWishlist(product);
     });
 
-    // Share
+    // Share - Direct WhatsApp sharing like WhatsApp's own share feature
     shadow.getElementById('pdp-share-btn').addEventListener('click', () => {
       const shareUrl = `${window.location.origin}${window.location.pathname}?product=${product.id}`;
+      const productName = product.name;
+      const price = product.price ? formatPrice(product.price) : '';
       
-      if (navigator.share) {
-        navigator.share({
-          title: product.name,
-          text: `Check out the ${product.name} on SWEETOS!`,
-          url: shareUrl
-        }).catch(() => {
-          // Fallback if browser share fails/is cancelled
-          navigator.clipboard.writeText(shareUrl).then(() => {
-            window.dispatchEvent(new CustomEvent('toast:show', { detail: `Link to "${product.name}" copied to clipboard! 🔗` }));
-          });
-        });
-      } else {
-        // Clipboard fallback
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Link to "${product.name}" copied to clipboard! 🔗` }));
-        });
-      }
+      // Format message like WhatsApp share: includes product name, price, and link
+      const message = `🛍️ Check out this product on SWEETOS!\n\n${productName}\n💰 ${price}\n\n🔗 ${shareUrl}`;
+      
+      // Encode for URL
+      const encodedMessage = encodeURIComponent(message);
+      
+      // Detect mobile vs desktop for optimal WhatsApp experience
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      // Open WhatsApp directly with pre-filled message
+      const whatsappUrl = isMobile 
+        ? `https://wa.me/?text=${encodedMessage}`
+        : `https://web.whatsapp.com/send?text=${encodedMessage}`;
+      
+      // Open in new tab/window
+      window.open(whatsappUrl, '_blank');
+      
+      // Show confirmation toast
+      window.dispatchEvent(new CustomEvent('toast:show', { 
+        detail: `Opening WhatsApp to share "${productName}"... 💬` 
+      }));
     });
 
     // Quantity selectors
@@ -4495,9 +4497,20 @@ class ProductList extends HTMLElement {
       shadow.getElementById('contact-share-btn').addEventListener('click', () => {
         const addr = shadow.getElementById('contact-address-input').value.trim();
         if (addr) {
-          navigator.clipboard.writeText(addr).then(() => {
-            window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Address copied to clipboard! 📋' }));
-          });
+          // Format message for WhatsApp sharing
+          const message = `📍 My Location:\n\n${addr}`;
+          
+          // Detect mobile vs desktop for optimal WhatsApp experience
+          const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+          
+          // Open WhatsApp directly with pre-filled message
+          const whatsappUrl = isMobile 
+            ? `https://wa.me/?text=${encodeURIComponent(message)}`
+            : `https://web.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+          
+          window.open(whatsappUrl, '_blank');
+          
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Opening WhatsApp to share location... 📍' }));
         }
       });
     }
@@ -4859,13 +4872,21 @@ class ProductList extends HTMLElement {
       });
     }
 
-    // Share to WhatsApp
+    // Share to WhatsApp - Direct WhatsApp sharing like WhatsApp's own share feature
     const shareBtn = shadow.getElementById('detail-coupon-share-btn');
     if (shareBtn) {
       shareBtn.addEventListener('click', () => {
         const discountText = coupon.type === 'percentage' ? `${coupon.value}% OFF` : `${coupon.value} OFF`;
         const message = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${coupon.code}*\nRéduction : *${discountText}*\nDate d'expiration : *${coupon.expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        
+        // Detect mobile vs desktop for optimal WhatsApp experience
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        // Open WhatsApp directly with pre-filled message
+        const whatsappUrl = isMobile 
+          ? `https://wa.me/?text=${encodeURIComponent(message)}`
+          : `https://web.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        
         window.open(whatsappUrl, '_blank');
       });
     }
