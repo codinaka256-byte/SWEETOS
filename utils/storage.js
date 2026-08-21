@@ -104,19 +104,13 @@ export function syncDeliveredNotifications() {
             const totalCFA = parseFloat(order.total) || 0;
             
             // 1. Generate Delivered Notification
-            customerNotifs.unshift({
-              id: Date.now() + Math.floor(Math.random() * 1000),
-              type: 'shipping',
-              icon: '✅',
-              title: `Commande #${order.id} livrée !`,
-              desc: `${greeting} ! Merci infiniment pour votre achat chez SWEETOS. Votre commande #${order.id} a été livrée avec succès.<br>
-                <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                  <button class="download-receipt-btn" data-order-id="${order.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Reçu 📄</button>
-                  ${totalCFA >= 2000 ? `<button class="view-mystery-email-btn" data-order-id="${order.id}" style="background:#ff5630; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Mystery Box 🎁</button>` : ''}
-                </div>`,
-              time: 'Just now',
-              unread: true
-            });
+            const notifTitle = `Commande #${order.id} livrée !`;
+            const notifDesc = `${greeting} ! Merci infiniment pour votre achat chez SWEETOS. Votre commande #${order.id} a été livrée avec succès.<br>
+              <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                <button class="download-receipt-btn" data-order-id="${order.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Reçu 📄</button>
+                ${totalCFA >= 2000 ? `<button class="view-mystery-email-btn" data-order-id="${order.id}" style="background:#ff5630; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Mystery Box 🎁</button>` : ''}
+              </div>`;
+            addCustomerNotification('shipping', '✅', notifTitle, notifDesc);
             
             // 2. Generate Scratchcard and Email notification if total >= 2000 CFA
             if (totalCFA >= 2000) {
@@ -140,18 +134,12 @@ export function syncDeliveredNotifications() {
               }
               
               // Push simulated email notification
-              customerNotifs.unshift({
-                id: Date.now() + Math.floor(Math.random() * 1000) + 2,
-                type: 'email',
-                icon: '📧',
-                title: `Nouveau Message: Votre Boîte Mystère`,
-                desc: `Vous avez reçu un e-mail concernant votre Boîte Mystère de la commande #${order.id}.<br>
-                  <div style="margin-top:8px;">
-                    <button class="open-email-modal-btn" data-order-id="${order.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Ouvrir l'E-mail 📩</button>
-                  </div>`,
-                time: 'Just now',
-                unread: true
-              });
+              const emailTitle = `Nouveau Message: Votre Boîte Mystère`;
+              const emailDesc = `Vous avez reçu un e-mail concernant votre Boîte Mystère de la commande #${order.id}.<br>
+                <div style="margin-top:8px;">
+                  <button class="open-email-modal-btn" data-order-id="${order.id}" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Ouvrir l'E-mail 📩</button>
+                </div>`;
+              addCustomerNotification('email', '📧', emailTitle, emailDesc);
             }
             
             changed = true;
@@ -161,9 +149,53 @@ export function syncDeliveredNotifications() {
       
       if (changed) {
         localStorage.setItem('SWEETOS_processed_deliveries', JSON.stringify(processedDeliveries));
-        localStorage.setItem(notifKey, JSON.stringify(customerNotifs));
-        window.dispatchEvent(new CustomEvent('notifications:updated'));
       }
     })
     .catch(err => console.error('Failed to sync completed notifications from server:', err));
+}
+
+export function addCustomerNotification(type, icon, title, desc) {
+  const loggedInJson = localStorage.getItem('SWEETOS_logged_in_user');
+  if (!loggedInJson) return;
+  
+  let email = '';
+  try {
+    const userObj = JSON.parse(loggedInJson);
+    email = userObj.email;
+  } catch(e) {
+    return;
+  }
+  if (!email) return;
+
+  const key = getNotificationsStorageKey();
+  let notifs = [];
+  try {
+    notifs = JSON.parse(localStorage.getItem(key) || '[]');
+  } catch(e) {}
+
+  // Check for duplicate triggers in last 5 seconds to prevent spam
+  const isDuplicate = notifs.some(n => n.title === title && n.desc === desc && (Date.now() - n.id < 5000));
+  if (isDuplicate) return;
+
+  notifs.unshift({
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    type,
+    icon,
+    title,
+    desc,
+    time: 'Just now',
+    unread: true
+  });
+  localStorage.setItem(key, JSON.stringify(notifs));
+  
+  window.dispatchEvent(new CustomEvent('notifications:updated'));
+  const totalUnread = notifs.filter(n => n.unread).length;
+  window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
+
+  // Send real email in the background!
+  fetch('/api/send-notification-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, title, desc })
+  }).catch(err => console.error('Failed to send notification email:', err));
 }

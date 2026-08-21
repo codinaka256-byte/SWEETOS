@@ -79,6 +79,31 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // 2y. API: POST /api/send-notification-email
+  if (req.method === 'POST' && req.url === '/api/send-notification-email') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const { email, title, desc } = JSON.parse(body);
+        if (!email || !title || !desc) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing required fields' }));
+          return;
+        }
+        await sendNotificationEmail(email, title, desc);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
   // 2. API: GET /api/products (Load products directly)
   if (req.method === 'GET' && req.url === '/api/products') {
     db.getProducts().then(products => {
@@ -562,6 +587,41 @@ async function sendAdminShortageEmail(message) {
     });
   } catch(e) {
     console.error(`Failed to send admin shortage email to ${adminEmail}:`, e);
+  }
+}
+
+async function sendNotificationEmail(email, title, desc) {
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #f8fafc; border-radius: 16px; color: #1e293b; border: 1px solid #e2e8f0;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h1 style="color: #0052cc; font-size: 28px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">SWEETOS</h1>
+        <p style="color: #64748b; font-size: 12px; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;">🔔 Nouvelle Notification</p>
+      </div>
+      
+      <div style="background-color: #ffffff; padding: 32px 24px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px;">
+        <h2 style="font-size: 18px; margin: 0 0 16px 0; color: #0f172a; font-weight: 800; border-left: 4px solid #0052cc; padding-left: 12px; line-height: 1.2;">
+          ${title}
+        </h2>
+        <div style="font-size: 14px; line-height: 1.6; color: #475569; margin: 0;">
+          ${desc}
+        </div>
+      </div>
+      
+      <div style="text-align: center; color: #94a3b8; font-size: 11px; margin-top: 24px;">
+        <p style="margin: 0 0 4px 0;">&copy; ${new Date().getFullYear()} SWEETOS Store. Tous droits réservés.</p>
+        <p style="margin: 0;">Ce message vous a été envoyé automatiquement suite à une activité sur votre compte.</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sendMail({
+      to: email,
+      subject: `🔔 SWEETOS - ${title.replace(/<[^>]*>/g, '')}`,
+      html
+    });
+  } catch (err) {
+    console.error(`Failed to send notification email to ${email}:`, err);
   }
 }
 
