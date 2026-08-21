@@ -4799,3 +4799,8 @@ input:checked + .toggle-slider:before {
   flex: 0 0 280px; /* Force product card to have a fixed width in the horizontal row */
   display: block;
 }
+
+.carousel-scroll-wrapper .home-category-card {
+  flex: 0 0 280px; /* Force category card to have a fixed width in the horizontal row */
+  display: block;
+}

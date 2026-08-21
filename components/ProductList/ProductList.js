@@ -618,11 +618,15 @@ class ProductList extends HTMLElement {
           homepageSectionsHTML += `
             <!-- Shop by Category Section -->
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="catalog">View All →</button>
+              <div class="section-header" style="margin-bottom: 24px;">
+                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin:0;">${s.name}</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button class="view-all-btn" data-target-page="catalog" style="margin-right: 8px;">View All →</button>
+                  <button class="carousel-control-btn prev-btn" id="btn-prev-categories" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" id="btn-next-categories" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-category-grid">
+              <div class="carousel-scroll-wrapper" id="carousel-categories">
                 ${(() => {
                   const storedCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
                   return storedCats.map(c => {
@@ -637,7 +641,7 @@ class ProductList extends HTMLElement {
                         <div class="category-marquee-container" id="marquee-${(c.slug || c.name.toLowerCase())}"></div>
                         <div class="cat-glow-circle card-glow-${(c.slug || c.name.toLowerCase())}"></div>
                         <div class="home-category-card-content">
-                          <span class="cat-icon" style="display:inline-flex; align-items:center; justify-content:center;">${renderCategoryIcon(c.icon)}</span>
+                           <span class="cat-icon" style="display:inline-flex; align-items:center; justify-content:center;">${renderCategoryIcon(c.icon)}</span>
                           <h4>${c.name}</h4>
                           <p>${c.description || descMap[c.name] || 'Premium workspace hardware'}</p>
                           <span class="cat-explore-link">Explore →</span>
@@ -2122,7 +2126,11 @@ class ProductList extends HTMLElement {
     activeSections.forEach(s => {
       let prevId = null, nextId = null, wrapperId = null;
       
-      if (s.type === 'deals') {
+      if (s.type === 'categories') {
+        prevId = 'btn-prev-categories';
+        nextId = 'btn-next-categories';
+        wrapperId = 'carousel-categories';
+      } else if (s.type === 'deals') {
         prevId = 'btn-prev-deals';
         nextId = 'btn-next-deals';
         wrapperId = 'carousel-deals';
