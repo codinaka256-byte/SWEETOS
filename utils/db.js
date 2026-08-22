@@ -145,7 +145,9 @@ async function getProfiles() {
     }
     const profilesMap = {};
     data.forEach(item => {
-      profilesMap[item.email] = item.data;
+      if (item && item.email) {
+        profilesMap[item.email.toLowerCase()] = item.data;
+      }
     });
     return profilesMap;
   }
