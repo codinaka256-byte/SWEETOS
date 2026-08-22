@@ -51,6 +51,7 @@ ensureVapidKeys();
 const PORT = 8080;
 
 let clients = [];
+const notifiedEvents = new Set();
 
 function broadcastAlert(type, message) {
   const data = JSON.stringify({ type, message });
@@ -465,18 +466,22 @@ const requestHandler = (req, res) => {
         if (payload.table === 'orders' && payload.type === 'INSERT') {
           const newOrd = payload.record ? payload.record.data : null;
           if (newOrd) {
-            // Trigger confirmation email
-            sendOrderConfirmationEmail(newOrd, req.headers.host);
-            
-            // Trigger admin email + push notification
-            const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
-            const adminDesc = `Un client vient de passer une commande.<br><br>
-              <strong>ID Commande:</strong> #${newOrd.id}<br>
-              <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
-              <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
-              <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
-              <strong>Adresse de livraison:</strong> ${newOrd.address || 'Non spécifiée'}`;
-            sendAdminNotification(adminTitle, adminDesc);
+            const eventKey = `placed_${newOrd.id}`;
+            if (!notifiedEvents.has(eventKey)) {
+              notifiedEvents.add(eventKey);
+              // Trigger confirmation email
+              sendOrderConfirmationEmail(newOrd, req.headers.host);
+              
+              // Trigger admin email + push notification
+              const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
+              const adminDesc = `Un client vient de passer une commande.<br><br>
+                <strong>ID Commande:</strong> #${newOrd.id}<br>
+                <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
+                <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
+                <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
+                <strong>Adresse de livraison:</strong> ${newOrd.customerAddress || newOrd.address || 'Non spécifiée'}`;
+              sendAdminNotification(adminTitle, adminDesc);
+            }
           }
         }
         
@@ -488,8 +493,11 @@ const requestHandler = (req, res) => {
             const oldStatus = oldOrd.status;
             const newStatus = newOrd.status;
             if ((oldStatus !== 'Done' && oldStatus !== 'Livré') && (newStatus === 'Done' || newStatus === 'Livré')) {
-              // Order was delivered! Send delivery notification + scratchcard instructions!
-              sendOrderDeliveryEmail(newOrd, req.headers.host);
+              const deliveryKey = `delivered_${newOrd.id}`;
+              if (!notifiedEvents.has(deliveryKey)) {
+                notifiedEvents.add(deliveryKey);
+                sendOrderDeliveryEmail(newOrd, req.headers.host);
+              }
             }
           }
         }
@@ -517,7 +525,7 @@ const requestHandler = (req, res) => {
         // Enforce server-side email format regex validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         for (const order of list) {
-          const email = order.customerEmail || '';
+          const email = (order.customerEmail || '').trim();
           if (email && !emailRegex.test(email)) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: `Adresse e-mail invalide : ${email}` }));
@@ -537,33 +545,35 @@ const requestHandler = (req, res) => {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
 
-          // Trigger asynchronous email delivery in the background (only if Supabase webhooks are NOT active to avoid duplicates)
-          const isSupabaseActive = !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
-          if (!isSupabaseActive) {
-            try {
-              list.forEach(newOrd => {
-                const oldMatch = oldList.find(o => o.id === newOrd.id);
-                if (!oldMatch) {
-                  // This is a brand new order! Send confirmation email!
-                  sendOrderConfirmationEmail(newOrd, req.headers.host);
-                  
-                  // ALSO notify the admin!
-                  const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
-                  const adminDesc = `Un client vient de passer une commande.<br><br>
-                    <strong>ID Commande:</strong> #${newOrd.id}<br>
-                    <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
-                    <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
-                    <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
-                    <strong>Adresse de livraison:</strong> ${newOrd.address || 'Non spécifiée'}`;
-                  sendAdminNotification(adminTitle, adminDesc);
-                } else if (oldMatch && (oldMatch.status !== 'Done' && oldMatch.status !== 'Livré') && (newOrd.status === 'Done' || newOrd.status === 'Livré')) {
-                  // Order was delivered! Send delivery notification + scratchcard instructions!
+          // Always trigger email & admin push notification (with deduplication)
+          try {
+            list.forEach(newOrd => {
+              const oldMatch = oldList.find(o => o.id === newOrd.id);
+              const eventKey = `placed_${newOrd.id}`;
+              if (!oldMatch && !notifiedEvents.has(eventKey)) {
+                notifiedEvents.add(eventKey);
+                // This is a brand new order! Send confirmation email!
+                sendOrderConfirmationEmail(newOrd, req.headers.host);
+                
+                // ALSO notify the admin!
+                const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
+                const adminDesc = `Un client vient de passer une commande.<br><br>
+                  <strong>ID Commande:</strong> #${newOrd.id}<br>
+                  <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
+                  <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
+                  <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
+                  <strong>Adresse de livraison:</strong> ${newOrd.customerAddress || newOrd.address || 'Non spécifiée'}`;
+                sendAdminNotification(adminTitle, adminDesc);
+              } else if (oldMatch && (oldMatch.status !== 'Done' && oldMatch.status !== 'Livré') && (newOrd.status === 'Done' || newOrd.status === 'Livré')) {
+                const deliveryKey = `delivered_${newOrd.id}`;
+                if (!notifiedEvents.has(deliveryKey)) {
+                  notifiedEvents.add(deliveryKey);
                   sendOrderDeliveryEmail(newOrd, req.headers.host);
                 }
-              });
-            } catch(mailErr) {
-              console.error('Email trigger handling failed:', mailErr);
-            }
+              }
+            });
+          } catch(mailErr) {
+            console.error('Email trigger handling failed:', mailErr);
           }
         }
       } catch (e) {
