@@ -6894,7 +6894,7 @@ class ProductList extends HTMLElement {
         <h3 class="section-title" style="font-size: 20px; font-weight: 800; color: var(--text-dark); margin: 0;">More to Love</h3>
         <button class="view-all-btn" id="global-more-love-view-all" style="font-size: 13px; font-weight: 700; color: var(--primary); background: none; border: none; cursor: pointer;">View All →</button>
       </div>
-      <div class="home-grid-4" id="global-more-to-love-grid"></div>
+      <div class="home-grid-4 more-to-love-grid" id="global-more-to-love-grid"></div>
     `;
     
     contentArea.appendChild(wrapper);
