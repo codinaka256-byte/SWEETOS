@@ -257,20 +257,59 @@ class ProductList extends HTMLElement {
   loadWishlistFromStorage() {
     const key = getWishlistStorageKey();
     const saved = localStorage.getItem(key);
+    let currentList = [];
     if (saved) {
       try {
-        return JSON.parse(saved);
+        currentList = JSON.parse(saved);
       } catch (e) {
-        return [];
+        currentList = [];
       }
     }
-    return [];
+
+    // Cloud sync: fetch latest wishlist from server if logged in
+    const loggedInUser = localStorage.getItem('SWEETOS_logged_in_user');
+    if (loggedInUser && (!this._wishlistSynced)) {
+      this._wishlistSynced = true;
+      try {
+        const u = JSON.parse(loggedInUser);
+        if (u && u.email) {
+          fetch(`/api/user-sync?email=${encodeURIComponent(u.email)}`)
+            .then(r => r.json())
+            .then(cloudData => {
+              if (cloudData && Array.isArray(cloudData.wishlist)) {
+                localStorage.setItem(key, JSON.stringify(cloudData.wishlist));
+                if (this.currentPage === 'wishlist') {
+                  this.renderPageContent();
+                }
+                window.dispatchEvent(new CustomEvent('wishlist:updated', { detail: cloudData.wishlist }));
+              }
+            }).catch(() => {});
+        }
+      } catch(e) {}
+    }
+
+    return currentList;
   }
 
   saveWishlistToStorage(wishlist) {
     const key = getWishlistStorageKey();
     localStorage.setItem(key, JSON.stringify(wishlist));
     window.dispatchEvent(new CustomEvent('wishlist:updated', { detail: wishlist }));
+
+    // Cloud sync: push updated wishlist to server if logged in
+    const loggedInUser = localStorage.getItem('SWEETOS_logged_in_user');
+    if (loggedInUser) {
+      try {
+        const u = JSON.parse(loggedInUser);
+        if (u && u.email) {
+          fetch('/api/user-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email, type: 'wishlist', data: wishlist })
+          }).catch(() => {});
+        }
+      } catch(e) {}
+    }
   }
 
   addToWishlist(product) {

@@ -96,6 +96,27 @@ class NotificationDrawer extends HTMLElement {
     this.generateExpiringReminders();
     const totalUnread = this.notifications.filter(n => n.unread).length;
     window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
+
+    // Cloud sync: fetch latest notifications from server if logged in
+    const loggedInUser = localStorage.getItem('SWEETOS_logged_in_user');
+    if (loggedInUser) {
+      try {
+        const u = JSON.parse(loggedInUser);
+        if (u && u.email) {
+          fetch(`/api/user-sync?email=${encodeURIComponent(u.email)}`)
+            .then(r => r.json())
+            .then(cloudData => {
+              if (cloudData && Array.isArray(cloudData.notifications)) {
+                this.notifications = cloudData.notifications;
+                localStorage.setItem(key, JSON.stringify(this.notifications));
+                this.render();
+                const unreadCount = this.notifications.filter(n => n.unread).length;
+                window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: unreadCount }));
+              }
+            }).catch(() => {});
+        }
+      } catch(e) {}
+    }
   }
 
   generateExpiringReminders() {
@@ -207,6 +228,23 @@ class NotificationDrawer extends HTMLElement {
   saveNotifications() {
     const key = getNotificationsStorageKey();
     localStorage.setItem(key, JSON.stringify(this.notifications));
+    const totalUnread = this.notifications.filter(n => n.unread).length;
+    window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
+
+    // Cloud sync: push updated notifications to server if logged in
+    const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+    if (userJson) {
+      try {
+        const u = JSON.parse(userJson);
+        if (u && u.email) {
+          fetch('/api/user-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email, type: 'notifications', data: this.notifications })
+          }).catch(() => {});
+        }
+      } catch(e) {}
+    }
   }
 
   render() {

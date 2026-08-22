@@ -275,6 +275,61 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // 2x. API: GET /api/user-sync?email=...
+  if (req.method === 'GET' && req.url.startsWith('/api/user-sync')) {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const email = urlObj.searchParams.get('email');
+    if (!email) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing email' }));
+      return;
+    }
+    db.getProfiles().then(profiles => {
+      const profile = profiles[email.toLowerCase()] || {};
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        cart: profile.cart || [],
+        wishlist: profile.wishlist || [],
+        notifications: profile.notifications || null,
+        scratchcards: profile.scratchcards || [],
+        profile: profile
+      }));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to retrieve user sync data' }));
+    });
+    return;
+  }
+
+  // 2z. API: POST /api/user-sync
+  if (req.method === 'POST' && req.url === '/api/user-sync') {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', async () => {
+      try {
+        const { email, type, data } = JSON.parse(body);
+        if (!email || !type) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing email or type' }));
+          return;
+        }
+        const profiles = await db.getProfiles();
+        const userEmail = email.toLowerCase();
+        const profile = profiles[userEmail] || { email: userEmail };
+        
+        profile[type] = data;
+        
+        await db.saveProfile(userEmail, profile);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid payload' }));
+      }
+    });
+    return;
+  }
+
   // 2y. API: POST /api/send-notification-email
   if (req.method === 'POST' && req.url === '/api/send-notification-email') {
     let body = '';

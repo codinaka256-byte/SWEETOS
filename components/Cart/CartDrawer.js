@@ -27,12 +27,47 @@ class CartDrawer extends HTMLElement {
     } else {
       this.cart = [];
     }
+
+    // Cloud sync: fetch latest cart from server if logged in
+    const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+    if (userJson) {
+      try {
+        const u = JSON.parse(userJson);
+        if (u && u.email) {
+          fetch(`/api/user-sync?email=${encodeURIComponent(u.email)}`)
+            .then(r => r.json())
+            .then(cloudData => {
+              if (cloudData && Array.isArray(cloudData.cart)) {
+                this.cart = cloudData.cart;
+                localStorage.setItem(key, JSON.stringify(this.cart));
+                this.render();
+                window.dispatchEvent(new CustomEvent('cart:updated', { detail: this.cart }));
+              }
+            }).catch(() => {});
+        }
+      } catch(e) {}
+    }
   }
 
   saveCartToStorage() {
     const key = getCartStorageKey();
     localStorage.setItem(key, JSON.stringify(this.cart));
     window.dispatchEvent(new CustomEvent('cart:updated', { detail: this.cart }));
+
+    // Cloud sync: push updated cart to server if logged in
+    const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+    if (userJson) {
+      try {
+        const u = JSON.parse(userJson);
+        if (u && u.email) {
+          fetch('/api/user-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email, type: 'cart', data: this.cart })
+          }).catch(() => {});
+        }
+      } catch(e) {}
+    }
   }
 
   render() {
