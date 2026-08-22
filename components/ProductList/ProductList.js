@@ -418,10 +418,29 @@ class ProductList extends HTMLElement {
       <link rel="stylesheet" href="./components/ProductList/ProductList.css">
       <section class="shop-section">
 
-
         <!-- Dynamic Content Area -->
         <div id="page-content">
-          <!-- Injected via JS -->
+          <!-- Skeleton loading shown while products fetch from API -->
+          <div class="skeleton-page">
+            <!-- Skeleton hero banner -->
+            <div class="skeleton-banner skeleton-shimmer"></div>
+
+            <!-- Skeleton section title + cards row -->
+            <div class="skeleton-section">
+              <div class="skeleton-title skeleton-shimmer"></div>
+              <div class="skeleton-cards-row">
+                ${Array(4).fill('<div class="skeleton-card skeleton-shimmer"><div class="skeleton-img"></div><div class="skeleton-text-block"><div class="skeleton-line w80 skeleton-shimmer"></div><div class="skeleton-line w50 skeleton-shimmer"></div><div class="skeleton-line w60 skeleton-shimmer"></div></div></div>').join('')}
+              </div>
+            </div>
+
+            <!-- Second skeleton section -->
+            <div class="skeleton-section">
+              <div class="skeleton-title skeleton-shimmer"></div>
+              <div class="skeleton-cards-row">
+                ${Array(4).fill('<div class="skeleton-card skeleton-shimmer"><div class="skeleton-img"></div><div class="skeleton-text-block"><div class="skeleton-line w80 skeleton-shimmer"></div><div class="skeleton-line w50 skeleton-shimmer"></div><div class="skeleton-line w60 skeleton-shimmer"></div></div></div>').join('')}
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Custom Creation Modal Dialog Overlay -->
