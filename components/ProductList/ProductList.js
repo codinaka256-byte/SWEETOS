@@ -430,6 +430,15 @@ class ProductList extends HTMLElement {
           const localProfile = this.loadUserProfile();
           const serverProfile = data.profile;
           
+          const allUserOrdersMap = new Map();
+          if (Array.isArray(serverProfile.orders)) {
+            serverProfile.orders.forEach(o => { if (o && o.id) allUserOrdersMap.set(String(o.id), o); });
+          }
+          if (Array.isArray(localProfile.orders)) {
+            localProfile.orders.forEach(o => { if (o && o.id) allUserOrdersMap.set(String(o.id), o); });
+          }
+          const combinedUserOrders = Array.from(allUserOrdersMap.values());
+
           const mergedProfile = {
             ...localProfile,
             ...serverProfile,
@@ -440,7 +449,7 @@ class ProductList extends HTMLElement {
             bio: serverProfile.bio || localProfile.bio,
             address: serverProfile.address || localProfile.address,
             addresses: serverProfile.addresses || localProfile.addresses || [],
-            orders: localProfile.orders || [] // preserve orders since they sync with orders API
+            orders: combinedUserOrders
           };
           
           localStorage.setItem(profileKey, JSON.stringify(mergedProfile));

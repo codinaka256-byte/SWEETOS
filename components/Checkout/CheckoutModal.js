@@ -807,6 +807,15 @@ class CheckoutModal extends HTMLElement {
         localStorage.setItem('SWEETOS_all_orders', JSON.stringify(localOrders));
         window.dispatchEvent(new CustomEvent('orders:updated'));
 
+        // Sync directly to user cloud profile
+        if (finalEmail) {
+          fetch('/api/user-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: finalEmail, type: 'orders', data: profile.orders })
+          }).catch(() => {});
+        }
+
         // Sync to server reliably
         fetch('/api/orders', {
           method: 'POST',
