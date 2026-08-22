@@ -273,6 +273,11 @@ cart-drawer.closed, notification-drawer.closed {
   :root, body, body.sidebar-collapsed {
     --active-sidebar-width: 0px !important;
   }
+  html, body {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
   body {
     padding-bottom: 72px;
   }
@@ -294,8 +299,11 @@ cart-drawer.closed, notification-drawer.closed {
     transform: translateX(0) !important;
   }
   .main-content {
-    margin-left: 0;
-    margin-right: 0;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
   }
   .cart-overlay {
     display: block;
