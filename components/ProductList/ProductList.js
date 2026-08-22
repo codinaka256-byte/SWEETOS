@@ -1084,8 +1084,45 @@ class ProductList extends HTMLElement {
 
     } else if (this.currentPage === 'coupons') {
       let scratchcardsList = [];
+      const scKey = getScratchcardsStorageKey();
+
+      // ── Cross-device sync: pull latest scratchcards from server ──────────────
+      const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
+      let userEmail = null;
+      if (loggedIn) {
+        try { userEmail = JSON.parse(loggedIn).email; } catch(e) {}
+      }
+      if (userEmail) {
+        // Async fetch from server — re-renders coupons page once fresh data arrives
+        fetch(`/api/scratchcards?email=${encodeURIComponent(userEmail)}`)
+          .then(r => r.json())
+          .then(serverCards => {
+            if (Array.isArray(serverCards) && serverCards.length > 0) {
+              // Merge: server is source of truth for scratched state
+              const localCards = JSON.parse(localStorage.getItem(scKey) || '[]');
+              const merged = localCards.map(lc => {
+                const sc = serverCards.find(s => s.id === lc.id || s.orderId === lc.orderId);
+                if (sc && sc.scratched && !lc.scratched) {
+                  return { ...lc, scratched: true, couponWon: sc.couponWon };
+                }
+                return lc;
+              });
+              // Add any server cards not in local (new device scenario)
+              serverCards.forEach(sc => {
+                if (!merged.find(m => m.id === sc.id || m.orderId === sc.orderId)) {
+                  merged.push(sc);
+                }
+              });
+              localStorage.setItem(scKey, JSON.stringify(merged));
+              // Re-render so scratched state shows immediately
+              this.renderPageContent();
+            }
+          }).catch(() => {});
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       try {
-        const stored = localStorage.getItem(getScratchcardsStorageKey());
+        const stored = localStorage.getItem(scKey);
         let rawList = stored ? JSON.parse(stored) : [];
         const now = Date.now();
         // Exclude scratchcards that are unscratched and past their 14-day expiry date
@@ -1096,7 +1133,7 @@ class ProductList extends HTMLElement {
           return true;
         });
       } catch(e) {}
-      
+
       if (this.currentCouponCode) {
         let couponsList = [];
         try {
@@ -4799,6 +4836,22 @@ class ProductList extends HTMLElement {
               }
               const scKey = getScratchcardsStorageKey();
               localStorage.setItem(scKey, JSON.stringify(scratchcards));
+
+              // ── Cross-device sync: push scratched state to server ────────────
+              try {
+                const loggedUser = localStorage.getItem('SWEETOS_logged_in_user');
+                if (loggedUser) {
+                  const { email } = JSON.parse(loggedUser);
+                  if (email) {
+                    fetch('/api/scratchcards', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email, scratchcards })
+                    }).catch(() => {});
+                  }
+                }
+              } catch(syncErr) {}
+              // ────────────────────────────────────────────────────────────────
               
               setTimeout(() => {
                 this.renderPageContent();

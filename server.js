@@ -650,6 +650,54 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // 2h. API: GET /api/scratchcards?email=xxx  — fetch user's scratchcards from server
+  if (req.method === 'GET' && req.url.startsWith('/api/scratchcards')) {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const email = urlObj.searchParams.get('email');
+    if (!email) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing email' }));
+      return;
+    }
+    db.getProfiles().then(profiles => {
+      const profile = profiles[email.toLowerCase()] || {};
+      const scratchcards = profile.scratchcards || [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(scratchcards));
+    }).catch(() => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to read scratchcards' }));
+    });
+    return;
+  }
+
+  // 2i. API: POST /api/scratchcards  — save user's scratchcards to server
+  if (req.method === 'POST' && req.url === '/api/scratchcards') {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const { email, scratchcards } = JSON.parse(body);
+        if (!email || !Array.isArray(scratchcards)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing email or scratchcards' }));
+          return;
+        }
+        const profiles = await db.getProfiles();
+        const key = email.toLowerCase();
+        if (!profiles[key]) profiles[key] = {};
+        profiles[key].scratchcards = scratchcards;
+        await db.saveProfile(key, profiles[key]);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+      }
+    });
+    return;
+  }
+
   // 3. Static File Server with SPA Fallback
   let filePath = path.join(__dirname, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
   
