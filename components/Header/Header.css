@@ -336,8 +336,56 @@
   text-align: center;
 }
 
-@media (max-width: 968px) {
-  #wishlist-btn, #cart-btn, #profile-pill {
+@media (max-width: 768px) {
+  .top-nav {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .logo {
+    min-width: unset;
+    font-size: 16px;
+    gap: 4px;
+  }
+  .logo svg {
+    width: 22px;
+    height: 22px;
+  }
+  .search-bar {
+    max-width: unset;
+  }
+  .search-bar input {
+    height: 38px;
+    font-size: 13px;
+    padding: 0 44px 0 12px;
+  }
+  .camera-search-btn, .voice-search-btn {
     display: none !important;
+  }
+  .search-action-btn {
+    width: 38px;
+  }
+  .nav-actions {
+    gap: 6px;
+  }
+  .nav-btn {
+    font-size: 0 !important;
+    padding: 6px !important;
+  }
+  .nav-btn svg {
+    width: 22px !important;
+    height: 22px !important;
+    margin: 0 !important;
+  }
+  #wishlist-btn, #profile-pill {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo span {
+    display: none !important;
+  }
+  .top-nav {
+    padding: 0 8px;
   }
 }
