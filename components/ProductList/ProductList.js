@@ -5525,50 +5525,21 @@ class ProductList extends HTMLElement {
       return;
     }
 
-    // Fetch latest orders from server to synchronize status
-    fetch('/api/orders')
+    // Fetch latest user orders directly by account email from database
+    fetch(`/api/user-orders?email=${encodeURIComponent(userEmail.trim().toLowerCase())}`)
       .then(res => res.json())
-      .then(serverOrders => {
-        if (Array.isArray(serverOrders)) {
+      .then(data => {
+        if (data && Array.isArray(data.orders)) {
           const profile = this.loadUserProfile();
-          let profileChanged = false;
-          
-          if (!profile.orders) profile.orders = [];
-          
-          // 1. Update existing orders in profile with latest status from server
-          profile.orders.forEach(po => {
-            const latest = serverOrders.find(so => so.id === po.id);
-            if (latest) {
-              if (po.status !== latest.status || po.trackingNumber !== latest.trackingNumber) {
-                po.status = latest.status;
-                po.trackingNumber = latest.trackingNumber;
-                profileChanged = true;
-              }
-            }
-          });
-          
-          // 2. Fetch missing orders that belong to this customer
-          serverOrders.forEach(so => {
-            const orderEmail = (so.customerEmail || '').toLowerCase();
-            const currentEmail = (userEmail || '').toLowerCase();
-            if (orderEmail === currentEmail && (so.status || '').toLowerCase() !== 'deleted') {
-              if (!profile.orders.some(po => po.id === so.id)) {
-                profile.orders.unshift(so);
-                profileChanged = true;
-              }
-            }
-          });
-          
-          if (profileChanged) {
-            const profileKey = getProfileStorageKey();
-            localStorage.setItem(profileKey, JSON.stringify(profile));
-            localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
-          }
+          profile.orders = data.orders;
+          const profileKey = getProfileStorageKey();
+          localStorage.setItem(profileKey, JSON.stringify(profile));
+          localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
         }
         this.renderOrdersDashboardList();
       })
       .catch(err => {
-        console.error('Failed to sync orders from server on dashboard open:', err);
+        console.error('Failed to sync user orders from server:', err);
         this.renderOrdersDashboardList();
       });
   }

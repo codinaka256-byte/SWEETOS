@@ -659,6 +659,48 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // 2f-user. API: GET /api/user-orders?email=...
+  if (req.method === 'GET' && req.url.startsWith('/api/user-orders')) {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const email = (urlObj.searchParams.get('email') || '').trim().toLowerCase();
+    if (!email) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing email parameter', orders: [] }));
+      return;
+    }
+
+    Promise.all([db.getOrders(), db.getProfiles()]).then(([allOrders, profiles]) => {
+      const userOrdersMap = new Map();
+      
+      // 1. Check all global orders in database matching this email
+      if (Array.isArray(allOrders)) {
+        allOrders.forEach(o => {
+          if (o && o.id && (o.customerEmail || '').trim().toLowerCase() === email) {
+            userOrdersMap.set(String(o.id), o);
+          }
+        });
+      }
+
+      // 2. Check user's profile in database
+      const profile = profiles[email] || {};
+      if (Array.isArray(profile.orders)) {
+        profile.orders.forEach(o => {
+          if (o && o.id) {
+            userOrdersMap.set(String(o.id), o);
+          }
+        });
+      }
+
+      const userOrders = Array.from(userOrdersMap.values());
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ orders: userOrders }));
+    }).catch(err => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Failed to fetch user orders', orders: [] }));
+    });
+    return;
+  }
+
   // 1g. API: POST /api/broadcast-alert
   if (req.method === 'POST' && req.url === '/api/broadcast-alert') {
     let body = '';

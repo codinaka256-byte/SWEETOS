@@ -941,28 +941,18 @@ setInterval(() => {
         }
       }
 
-      // 4. Live Orders Sync (updates orders list across devices in real time!)
-      fetch('/api/orders')
+      // 4. Live Orders Sync (Direct API query by user account email!)
+      fetch(`/api/user-orders?email=${encodeURIComponent(email.trim().toLowerCase())}`)
         .then(res => res.json())
-        .then(serverOrders => {
-          if (Array.isArray(serverOrders)) {
+        .then(data => {
+          if (data && Array.isArray(data.orders)) {
             const profileKey = `SWEETOS_user_profile_${safeKey}`;
             let profileSaved = localStorage.getItem(profileKey) || localStorage.getItem('SWEETOS_user_profile');
             let profileObj = profileSaved ? JSON.parse(profileSaved) : {};
-            if (!profileObj.orders) profileObj.orders = [];
-            
-            let changed = false;
-            serverOrders.forEach(so => {
-              const oEmail = (so.customerEmail || '').toLowerCase();
-              if (oEmail === email.toLowerCase() && (so.status || '').toLowerCase() !== 'deleted') {
-                if (!profileObj.orders.some(po => po.id === so.id)) {
-                  profileObj.orders.unshift(so);
-                  changed = true;
-                }
-              }
-            });
-            
-            if (changed) {
+            const oldOrdersStr = JSON.stringify(profileObj.orders || []);
+            const newOrdersStr = JSON.stringify(data.orders);
+            if (oldOrdersStr !== newOrdersStr) {
+              profileObj.orders = data.orders;
               localStorage.setItem(profileKey, JSON.stringify(profileObj));
               localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profileObj));
               window.dispatchEvent(new CustomEvent('orders:updated'));
