@@ -879,3 +879,70 @@ function performSubscription(reg, email) {
       console.log('Push subscription sync deferred:', err.message || err);
     });
 }
+
+// ── Real-Time Multi-Device Live Sync (Cart, Wishlist, Notifications) ──────────
+let _liveSyncRunning = false;
+setInterval(() => {
+  if (_liveSyncRunning) return;
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+  const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+  if (!userJson) return;
+
+  let email = '';
+  try {
+    email = JSON.parse(userJson).email;
+  } catch(e) {
+    return;
+  }
+  if (!email) return;
+
+  _liveSyncRunning = true;
+  fetch(`/api/user-sync?email=${encodeURIComponent(email)}`)
+    .then(r => r.json())
+    .then(cloud => {
+      _liveSyncRunning = false;
+      if (!cloud) return;
+
+      const safeKey = email.replace(/[^a-zA-Z0-9]/g, '_');
+
+      // 1. Live Cart Sync (updates live counter on other devices!)
+      if (Array.isArray(cloud.cart)) {
+        const cartKey = `SWEETOS_cart_${safeKey}`;
+        const localCartStr = localStorage.getItem(cartKey) || '[]';
+        const cloudCartStr = JSON.stringify(cloud.cart);
+        if (localCartStr !== cloudCartStr) {
+          localStorage.setItem(cartKey, cloudCartStr);
+          window.dispatchEvent(new CustomEvent('cart:updated', { detail: cloud.cart }));
+        }
+      }
+
+      // 2. Live Wishlist Sync
+      if (Array.isArray(cloud.wishlist)) {
+        const wishKey = `SWEETOS_wishlist_${safeKey}`;
+        const localWishStr = localStorage.getItem(wishKey) || '[]';
+        const cloudWishStr = JSON.stringify(cloud.wishlist);
+        if (localWishStr !== cloudWishStr) {
+          localStorage.setItem(wishKey, cloudWishStr);
+          window.dispatchEvent(new CustomEvent('wishlist:updated', { detail: cloud.wishlist }));
+        }
+      }
+
+      // 3. Live Notifications Sync
+      if (Array.isArray(cloud.notifications)) {
+        const notifKey = `SWEETOS_notifications_${safeKey}`;
+        const localNotifStr = localStorage.getItem(notifKey) || '[]';
+        const cloudNotifStr = JSON.stringify(cloud.notifications);
+        if (localNotifStr !== cloudNotifStr) {
+          localStorage.setItem(notifKey, cloudNotifStr);
+          const unreadCount = cloud.notifications.filter(n => n.unread).length;
+          window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: unreadCount }));
+          window.dispatchEvent(new CustomEvent('notifications:updated'));
+        }
+      }
+    })
+    .catch(() => {
+      _liveSyncRunning = false;
+    });
+}, 2500);
+
