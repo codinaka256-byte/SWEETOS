@@ -3048,9 +3048,28 @@ input:checked + .toggle-slider:before {
 }
 
 @media (max-width: 580px) {
+  /* Mobile: horizontal snap scroll showing 2 cards at a time */
   .home-grid-4 {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 10px !important;
+    padding-bottom: 12px !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .home-grid-4::-webkit-scrollbar {
+    display: none;
+  }
+  /* Each card takes exactly 47% width so 2 fit per view */
+  .home-grid-4 > * {
+    flex: 0 0 47% !important;
+    min-width: 0 !important;
+    max-width: 47% !important;
+    scroll-snap-align: start !important;
   }
   /* Mobile: horizontal snap scroll showing 2 cards at a time */
   .product-grid {
