@@ -1676,6 +1676,13 @@ class ProductList extends HTMLElement {
                     <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                   </svg>
                 </button>
+
+                <!-- WhatsApp Share Button -->
+                <button class="pdp-action-circle-btn" id="pdp-share-whatsapp-btn" title="Partager sur WhatsApp" style="background: rgba(37, 211, 102, 0.1); border-color: rgba(37, 211, 102, 0.2); color: #25d366;">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.717-1.456L0 24zm6.59-4.846c1.6.95 3.197 1.451 4.785 1.453 5.461 0 9.897-4.432 9.9-9.893.002-2.646-1.02-5.132-2.88-6.994-1.86-1.863-4.343-2.884-6.99-2.886-5.468 0-9.907 4.437-9.91 9.9-.001 1.77.465 3.5 1.346 5.03l-.974 3.565 3.663-.96zm12.39-7.234c.046-.078.046-.14.032-.164-.014-.024-.053-.038-.11-.066-.056-.028-.335-.165-.387-.185-.053-.018-.09-.028-.13.028-.038.056-.15.185-.183.223-.033.038-.067.042-.124.014-.056-.028-.237-.087-.452-.279-.168-.15-.282-.335-.315-.39-.033-.056-.003-.087.025-.115.025-.025.056-.066.084-.1.028-.033.038-.056.056-.094.019-.038.01-.07-.005-.1-.015-.028-.13-.311-.178-.429-.047-.113-.094-.098-.13-.098h-.11c-.038 0-.1.014-.153.07-.053.056-.201.197-.201.482s.207.56.235.6c.028.038.407.622.986.872.138.06.246.095.33.122.138.044.264.038.364.023.11-.016.335-.137.382-.268.046-.13.046-.244.032-.268z"/>
+                  </svg>
+                </button>
               </div>
 
               <!-- Full Width Buy It Now Button -->
@@ -3448,6 +3455,17 @@ class ProductList extends HTMLElement {
         });
       }
     });
+
+    // WhatsApp Direct Share
+    const waBtn = shadow.getElementById('pdp-share-whatsapp-btn');
+    if (waBtn) {
+      waBtn.addEventListener('click', () => {
+        const shareUrl = `${window.location.origin}${window.location.pathname}?product=${product.id}`;
+        const waText = encodeURIComponent(`Découvrez le ${product.name} sur SWEETOS ! 🔥\n\n👉 ${shareUrl}`);
+        const waUrl = `https://api.whatsapp.com/send?text=${waText}`;
+        window.open(waUrl, '_blank');
+      });
+    }
 
     // Quantity selectors
     const qtyValEl = shadow.getElementById('pdp-qty-val');

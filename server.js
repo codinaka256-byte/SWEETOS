@@ -620,13 +620,61 @@ const requestHandler = (req, res) => {
       ext = '.html';
     }
 
-    fs.readFile(filePath, (err, data) => {
+    fs.readFile(filePath, async (err, data) => {
       if (err) {
         res.writeHead(500, { 'Content-Type': 'text/plain' });
         res.end('500 Internal Server Error');
       } else {
+        let responseData = data;
+        
+        // Dynamic Open Graph tags for product link sharing previews
+        if (filePath.endsWith('index.html')) {
+          try {
+            const queryStr = req.url.split('?')[1];
+            const productId = queryStr ? new URLSearchParams(queryStr).get('product') : null;
+            if (productId) {
+              const products = await db.getProducts();
+              const product = products.find(p => p.id === parseInt(productId));
+              if (product) {
+                let html = data.toString('utf8');
+                const dynamicTitle = `${product.name} | SWEETOS`;
+                const dynamicDesc = `${parseFloat(product.price).toLocaleString()} CFA - ${product.shortDesc || 'Découvrez ce produit premium sur SWEETOS'}`;
+                
+                // Get absolute URL components for sharing card
+                const protocol = (req.headers['x-forwarded-proto'] || 'https');
+                const host = req.headers.host || 'sweeto.store';
+                const cleanImgPath = product.image.replace(/^\.\//, '/');
+                const ogImage = `${protocol}://${host}${cleanImgPath}`;
+                const ogUrl = `${protocol}://${host}/?product=${product.id}`;
+                
+                const ogTags = `
+  <!-- Dynamic Open Graph meta tags for product preview cards -->
+  <meta property="og:type" content="product" />
+  <meta property="og:title" content="${dynamicTitle}" />
+  <meta property="og:description" content="${dynamicDesc}" />
+  <meta property="og:image" content="${ogImage}" />
+  <meta property="og:url" content="${ogUrl}" />
+  <meta property="og:site_name" content="SWEETOS" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${dynamicTitle}" />
+  <meta name="twitter:description" content="${dynamicDesc}" />
+  <meta name="twitter:image" content="${ogImage}" />
+`;
+                
+                html = html.replace(/<title>.*?<\/title>/i, `<title>${dynamicTitle}</title>`);
+                html = html.replace(/<meta name="description" content=".*?">/i, `<meta name="description" content="${dynamicDesc}">`);
+                html = html.replace('<head>', `<head>${ogTags}`);
+                
+                responseData = Buffer.from(html, 'utf8');
+              }
+            }
+          } catch(ogErr) {
+            console.error('Failed to inject dynamic OG tags on request:', ogErr);
+          }
+        }
+        
         res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-        res.end(data);
+        res.end(responseData);
       }
     });
   });
