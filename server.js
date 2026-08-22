@@ -520,7 +520,8 @@ const requestHandler = (req, res) => {
     });
     req.on('end', async () => {
       try {
-        const list = JSON.parse(body);
+        const input = JSON.parse(body);
+        const list = Array.isArray(input) ? input : [input];
         
         // Enforce server-side email format regex validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -533,17 +534,24 @@ const requestHandler = (req, res) => {
           }
         }
         
-        // Load old orders list to compare
+        // Load old orders list to compare & merge
         const oldList = await db.getOrders();
+        const oldOrders = Array.isArray(oldList) ? oldList : [];
 
-        const success = await db.saveOrders(list);
+        // Merge orders preserving existing records
+        const mergedMap = new Map();
+        list.forEach(o => { if (o && o.id) mergedMap.set(String(o.id), o); });
+        oldOrders.forEach(o => { if (o && o.id && !mergedMap.has(String(o.id))) mergedMap.set(String(o.id), o); });
+        const finalList = Array.from(mergedMap.values());
+
+        const success = await db.saveOrders(finalList);
         if (!success) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Failed to write orders' }));
         } else {
           broadcastAlert('orders', 'New order received!');
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true }));
+          res.end(JSON.stringify({ success: true, count: finalList.length }));
 
           // Always trigger email & admin push notification (with deduplication)
           try {

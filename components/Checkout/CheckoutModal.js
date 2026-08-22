@@ -757,46 +757,53 @@ class CheckoutModal extends HTMLElement {
           };
         }
 
-        const newOrder = {
+        const sanitizedProducts = cartItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image && item.image.startsWith('data:') ? (item.image.length > 200 ? item.image.substring(0, 100) : item.image) : (item.image || ''),
+          category: item.category || '',
+          sku: item.sku || ''
+        }));
+
+        const orderRecord = {
           id: orderId,
           date: new Date().toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', year: 'numeric' }),
           status: "Placed",
           total: orderTotal || 0,
           items: itemsLabel,
-          products: cartItems
+          products: sanitizedProducts,
+          customerName: this.formData.name || "Client",
+          customerEmail: this.formData.email || "",
+          customerPhone: this.formData.phone || "",
+          customerAddress: this.formData.address || "",
+          customerZip: this.formData.zip || "",
+          paymentMethod: this.selectedPaymentMethod || "cod",
+          userProfileKey: profileKey
         };
 
         if (!profile.orders) profile.orders = [];
-        profile.orders.unshift(newOrder);
+        profile.orders.unshift(orderRecord);
         localStorage.setItem(profileKey, JSON.stringify(profile));
         localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
 
-        // Fetch latest orders from server first to prevent overwriting with stale local orders!
-        fetch('/api/orders')
-          .then(res => res.json())
-          .then(serverOrders => {
-            let allOrders = Array.isArray(serverOrders) ? serverOrders : [];
-            allOrders.unshift({
-              ...newOrder,
-              customerName: this.formData.name || "",
-              customerEmail: this.formData.email || "",
-              customerPhone: this.formData.phone || "",
-              customerAddress: this.formData.address || "",
-              customerZip: this.formData.zip || "",
-              paymentMethod: this.selectedPaymentMethod || "cod",
-              userProfileKey: profileKey
-            });
-            localStorage.setItem('SWEETOS_all_orders', JSON.stringify(allOrders));
+        // Update local orders list immediately
+        let localOrders = [];
+        try {
+          localOrders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
+        } catch(e) {}
+        localOrders = localOrders.filter(o => o.id !== orderId);
+        localOrders.unshift(orderRecord);
+        localStorage.setItem('SWEETOS_all_orders', JSON.stringify(localOrders));
+        window.dispatchEvent(new CustomEvent('orders:updated'));
 
-            // Sync to server (which will trigger real-time SSE notifications)
-            return fetch('/api/orders', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(allOrders)
-            });
-          })
+        // Sync to server reliably
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(localOrders)
+        })
           .then(res => res.json())
           .then(data => {
             if (data.success) {
