@@ -106,12 +106,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const overlay = document.getElementById('cartOverlay');
   const toastEl = document.getElementById('toast');
 
-  let toastTimeout = null;
+  // ─── Notification Feedback: vibration + sound for every alert ───────────────
+  const playNotificationFeedback = () => {
+    // 1. Device vibration (works on Android / mobile browsers)
+    if ('vibrate' in navigator) {
+      navigator.vibrate([80, 40, 80]);
+    }
+
+    // 2. Soft notification beep via Web Audio API (no file needed)
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime);       // A5 note
+        oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15); // slide down to A4
+
+        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
+      }
+    } catch (e) {}
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // 1. Toast Notification Utility
   const showToast = (message) => {
     toastEl.textContent = message;
     toastEl.classList.add('show');
+    playNotificationFeedback();
     clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => {
       toastEl.classList.remove('show');

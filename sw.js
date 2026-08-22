@@ -21,7 +21,8 @@ self.addEventListener('push', event => {
     body: data.body || 'New update from SWEETOS!',
     icon: data.icon || '/assets/favicon.png',
     badge: '/assets/favicon.png',
-    vibrate: [100, 50, 100],
+    vibrate: [100, 50, 100, 50, 200],
+    sound: data.sound || null,
     data: {
       url: data.url || '/'
     }
