@@ -6651,9 +6651,11 @@ class ProductList extends HTMLElement {
               greeting = 'Bonsoir';
             }
             
+            const now = Date.now();
             // Push delivered notification
             customerNotifs.unshift({
-              id: Date.now(),
+              id: now,
+              timestamp: now,
               type: 'shipping',
               icon: '✅',
               title: `Commande #${targetOrder.id} livrée !`,
@@ -6668,7 +6670,8 @@ class ProductList extends HTMLElement {
             
             // Push simulated email notification
             customerNotifs.unshift({
-              id: Date.now() + 2,
+              id: now + 2,
+              timestamp: now,
               type: 'email',
               icon: '📧',
               title: `Nouveau Message: Votre Boîte Mystère`,

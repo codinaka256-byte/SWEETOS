@@ -235,8 +235,10 @@ export function addCustomerNotification(type, icon, title, desc) {
   const isDuplicate = notifs.some(n => n.title === title && n.desc === desc && (Date.now() - n.id < 5000));
   if (isDuplicate) return;
 
+  const now = Date.now();
   notifs.unshift({
-    id: Date.now() + Math.floor(Math.random() * 1000),
+    id: now + Math.floor(Math.random() * 1000),
+    timestamp: now,
     type,
     icon,
     title,

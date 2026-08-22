@@ -1,5 +1,24 @@
 import { getNotificationsStorageKey, getScratchcardsStorageKey, syncDeliveredNotifications } from '../../utils/storage.js';
 
+// ── Real-time relative timestamp helper ─────────────────────────────────────
+function getRelativeTime(timestamp) {
+  if (!timestamp) return 'Just now';
+  const diff = Math.floor((Date.now() - timestamp) / 1000); // seconds ago
+  if (diff < 10)  return 'Just now';
+  if (diff < 60)  return `${diff}s ago`;
+  if (diff < 3600) {
+    const m = Math.floor(diff / 60);
+    return `${m} min ago`;
+  }
+  if (diff < 86400) {
+    const h = Math.floor(diff / 3600);
+    return `${h}h ago`;
+  }
+  const d = Math.floor(diff / 86400);
+  return d === 1 ? 'Yesterday' : `${d} days ago`;
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 class NotificationDrawer extends HTMLElement {
   constructor() {
     super();
@@ -12,6 +31,27 @@ class NotificationDrawer extends HTMLElement {
     this.render();
     this.setupEventListeners();
     syncDeliveredNotifications();
+    this.startTimeUpdater();
+  }
+
+  disconnectedCallback() {
+    if (this.timeInterval) {
+      clearInterval(this.timeInterval);
+    }
+  }
+
+  startTimeUpdater() {
+    if (this.timeInterval) clearInterval(this.timeInterval);
+    this.timeInterval = setInterval(() => {
+      if (!this.shadowRoot) return;
+      const timeElements = this.shadowRoot.querySelectorAll('.notif-time');
+      timeElements.forEach(el => {
+        const ts = parseInt(el.getAttribute('data-timestamp'));
+        if (ts) {
+          el.textContent = getRelativeTime(ts);
+        }
+      });
+    }, 5000);
   }
 
   loadNotifications() {
@@ -42,12 +82,12 @@ class NotificationDrawer extends HTMLElement {
 
       this.notifications = [
         {
-          id: 1,
+          id: Date.now(),
+          timestamp: Date.now(),
           type: 'promo',
           icon: '🎁',
           title: `Welcome to SWEETOS! 🎉`,
           desc: `Welcome to SWEETOS!`,
-          time: 'Just now',
           unread: true
         }
       ];
@@ -76,6 +116,7 @@ class NotificationDrawer extends HTMLElement {
         if (daysRemaining > 0 && daysRemaining <= 14) {
           const uniqueId = `reminder-mystery-${card.id}-${daysRemaining}`;
           if (!this.notifications.some(n => n.uniqueKey === uniqueId)) {
+            const reminderTime = Date.now();
             this.notifications.unshift({
               id: Date.now() + Math.floor(Math.random() * 1000),
               uniqueKey: uniqueId,
@@ -83,7 +124,7 @@ class NotificationDrawer extends HTMLElement {
               icon: '⏰',
               title: `Rappel: Boîte Mystère expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}! 🎁`,
               desc: `Votre boîte mystère de la commande #${card.orderId} va bientôt expirer. Grattez-la maintenant pour découvrir votre offre !`,
-              time: 'Just now',
+              timestamp: reminderTime,
               unread: true
             });
             updated = true;
@@ -107,6 +148,7 @@ class NotificationDrawer extends HTMLElement {
         if (daysRemaining > 0 && daysRemaining <= 7) {
           const uniqueId = `reminder-coupon-${c.code}-${daysRemaining}`;
           if (!this.notifications.some(n => n.uniqueKey === uniqueId)) {
+            const reminderTime = Date.now();
             this.notifications.unshift({
               id: Date.now() + Math.floor(Math.random() * 1000),
               uniqueKey: uniqueId,
@@ -114,7 +156,7 @@ class NotificationDrawer extends HTMLElement {
               icon: '⏰',
               title: `Rappel Coupon: ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''}! 🎟️`,
               desc: `Votre coupon de réduction exclusif ${c.code} (${c.value}% OFF) expire bientôt. Utilisez-le vite à la caisse !`,
-              time: 'Just now',
+              timestamp: reminderTime,
               unread: true
             });
             updated = true;
@@ -183,7 +225,7 @@ class NotificationDrawer extends HTMLElement {
               <div class="notif-info">
                 <div class="notif-title-row">
                   <h4>${n.title}</h4>
-                  <span class="notif-time">${n.time}</span>
+                  <span class="notif-time" data-timestamp="${n.timestamp || (n.id > 1000000000000 ? n.id : Date.now())}">${getRelativeTime(n.timestamp || (n.id > 1000000000000 ? n.id : Date.now()))}</span>
                 </div>
                 <div class="notif-desc" style="font-size: 12px; color: var(--text-gray); line-height: 1.5; margin-top: 4px;">${n.desc}</div>
               </div>

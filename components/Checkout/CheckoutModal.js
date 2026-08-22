@@ -873,8 +873,10 @@ class CheckoutModal extends HTMLElement {
                       customerNotifs = JSON.parse(localStorage.getItem(notifKey) || '[]');
                     } catch(e) {}
                     
+                    const now = Date.now();
                     customerNotifs.unshift({
-                      id: Date.now(),
+                      id: now,
+                      timestamp: now,
                       type: 'promo',
                       icon: '🎁',
                       title: `Coupon Doublé Reçu ! 🎉`,
@@ -957,8 +959,10 @@ class CheckoutModal extends HTMLElement {
             }
           }
           
+          const now = Date.now();
           const newNotif = {
-            id: Date.now(),
+            id: now,
+            timestamp: now,
             type: 'shipping',
             icon: '📦',
             title: `Commande ${orderId} passée`,
