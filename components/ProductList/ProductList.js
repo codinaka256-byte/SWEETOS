@@ -1131,32 +1131,43 @@ class ProductList extends HTMLElement {
       if (loggedIn) {
         try { userEmail = JSON.parse(loggedIn).email; } catch(e) {}
       }
-      if (userEmail) {
-        // Async fetch from server — re-renders coupons page once fresh data arrives
+      if (userEmail && !this._scratchcardsFetching) {
+        this._scratchcardsFetching = true;
         fetch(`/api/scratchcards?email=${encodeURIComponent(userEmail)}`)
           .then(r => r.json())
           .then(serverCards => {
+            this._scratchcardsFetching = false;
             if (Array.isArray(serverCards) && serverCards.length > 0) {
-              // Merge: server is source of truth for scratched state
               const localCards = JSON.parse(localStorage.getItem(scKey) || '[]');
-              const merged = localCards.map(lc => {
-                const sc = serverCards.find(s => s.id === lc.id || s.orderId === lc.orderId);
-                if (sc && sc.scratched && !lc.scratched) {
-                  return { ...lc, scratched: true, couponWon: sc.couponWon };
-                }
-                return lc;
-              });
-              // Add any server cards not in local (new device scenario)
+              const mergedMap = new Map();
+              
+              // Seed from server first (server is authoritative)
               serverCards.forEach(sc => {
-                if (!merged.find(m => m.id === sc.id || m.orderId === sc.orderId)) {
-                  merged.push(sc);
+                if (sc && (sc.id || sc.orderId)) {
+                  mergedMap.set(String(sc.id || sc.orderId), sc);
                 }
               });
+
+              // Merge local cards
+              localCards.forEach(lc => {
+                const key = String(lc.id || lc.orderId);
+                if (mergedMap.has(key)) {
+                  const sc = mergedMap.get(key);
+                  if (sc.scratched) {
+                    mergedMap.set(key, { ...lc, scratched: true, couponWon: sc.couponWon });
+                  }
+                } else {
+                  mergedMap.set(key, lc);
+                }
+              });
+
+              const merged = Array.from(mergedMap.values());
               localStorage.setItem(scKey, JSON.stringify(merged));
-              // Re-render so scratched state shows immediately
               this.renderPageContent();
             }
-          }).catch(() => {});
+          }).catch(() => {
+            this._scratchcardsFetching = false;
+          });
       }
       // ─────────────────────────────────────────────────────────────────────────
 
@@ -6672,6 +6683,16 @@ class ProductList extends HTMLElement {
                   expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
                 });
                 localStorage.setItem(scKey, JSON.stringify(scratchcards));
+
+                // Push new scratchcards immediately to server
+                const syncEmail = (targetOrder.customerEmail || userEmail || '').toLowerCase();
+                if (syncEmail) {
+                  fetch('/api/scratchcards', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: syncEmail, scratchcards })
+                  }).catch(() => {});
+                }
               }
             } catch(e) {
               console.error('Failed to create scratchcard on customer side:', e);
