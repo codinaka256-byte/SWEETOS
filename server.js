@@ -444,6 +444,66 @@ const requestHandler = (req, res) => {
     return;
   }
 
+  // Secure internal endpoint called by Supabase Edge Functions or Webhooks
+  if (req.method === 'POST' && req.url === '/api/internal/webhook-notification') {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', async () => {
+      try {
+        const secret = req.headers['x-webhook-secret'];
+        if (secret !== process.env.WEBHOOK_SECRET) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        const payload = JSON.parse(body);
+        
+        // Handle orders inserts dynamically from database webhook triggers
+        if (payload.table === 'orders' && payload.type === 'INSERT') {
+          const newOrd = payload.record ? payload.record.data : null;
+          if (newOrd) {
+            // Trigger confirmation email
+            sendOrderConfirmationEmail(newOrd, req.headers.host);
+            
+            // Trigger admin email + push notification
+            const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
+            const adminDesc = `Un client vient de passer une commande.<br><br>
+              <strong>ID Commande:</strong> #${newOrd.id}<br>
+              <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
+              <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
+              <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
+              <strong>Adresse de livraison:</strong> ${newOrd.address || 'Non spécifiée'}`;
+            sendAdminNotification(adminTitle, adminDesc);
+          }
+        }
+        
+        // Handle orders updates dynamically from database webhook triggers (e.g. delivery state transition)
+        if (payload.table === 'orders' && payload.type === 'UPDATE') {
+          const oldOrd = payload.old_record ? payload.old_record.data : null;
+          const newOrd = payload.record ? payload.record.data : null;
+          if (newOrd && oldOrd) {
+            const oldStatus = oldOrd.status;
+            const newStatus = newOrd.status;
+            if ((oldStatus !== 'Done' && oldStatus !== 'Livré') && (newStatus === 'Done' || newStatus === 'Livré')) {
+              // Order was delivered! Send delivery notification + scratchcard instructions!
+              sendOrderDeliveryEmail(newOrd, req.headers.host);
+            }
+          }
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // 1f. API: POST /api/orders
   if (req.method === 'POST' && req.url === '/api/orders') {
     let body = '';
@@ -477,30 +537,33 @@ const requestHandler = (req, res) => {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true }));
 
-          // Trigger asynchronous email delivery in the background
-          try {
-            list.forEach(newOrd => {
-              const oldMatch = oldList.find(o => o.id === newOrd.id);
-              if (!oldMatch) {
-                // This is a brand new order! Send confirmation email!
-                sendOrderConfirmationEmail(newOrd, req.headers.host);
-                
-                // ALSO notify the admin!
-                const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
-                const adminDesc = `Un client vient de passer une commande.<br><br>
-                  <strong>ID Commande:</strong> #${newOrd.id}<br>
-                  <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
-                  <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
-                  <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
-                  <strong>Adresse de livraison:</strong> ${newOrd.address || 'Non spécifiée'}`;
-                sendAdminNotification(adminTitle, adminDesc);
-              } else if (oldMatch && (oldMatch.status !== 'Done' && oldMatch.status !== 'Livré') && (newOrd.status === 'Done' || newOrd.status === 'Livré')) {
-                // Order was delivered! Send delivery notification + scratchcard instructions!
-                sendOrderDeliveryEmail(newOrd, req.headers.host);
-              }
-            });
-          } catch(mailErr) {
-            console.error('Email trigger handling failed:', mailErr);
+          // Trigger asynchronous email delivery in the background (only if Supabase webhooks are NOT active to avoid duplicates)
+          const isSupabaseActive = !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
+          if (!isSupabaseActive) {
+            try {
+              list.forEach(newOrd => {
+                const oldMatch = oldList.find(o => o.id === newOrd.id);
+                if (!oldMatch) {
+                  // This is a brand new order! Send confirmation email!
+                  sendOrderConfirmationEmail(newOrd, req.headers.host);
+                  
+                  // ALSO notify the admin!
+                  const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
+                  const adminDesc = `Un client vient de passer une commande.<br><br>
+                    <strong>ID Commande:</strong> #${newOrd.id}<br>
+                    <strong>Nom:</strong> ${newOrd.customerName || 'Client'}<br>
+                    <strong>Email:</strong> ${newOrd.customerEmail || ''}<br>
+                    <strong>Montant Total:</strong> ${parseFloat(newOrd.total).toLocaleString()} CFA<br>
+                    <strong>Adresse de livraison:</strong> ${newOrd.address || 'Non spécifiée'}`;
+                  sendAdminNotification(adminTitle, adminDesc);
+                } else if (oldMatch && (oldMatch.status !== 'Done' && oldMatch.status !== 'Livré') && (newOrd.status === 'Done' || newOrd.status === 'Livré')) {
+                  // Order was delivered! Send delivery notification + scratchcard instructions!
+                  sendOrderDeliveryEmail(newOrd, req.headers.host);
+                }
+              });
+            } catch(mailErr) {
+              console.error('Email trigger handling failed:', mailErr);
+            }
           }
         }
       } catch (e) {
