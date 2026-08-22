@@ -113,6 +113,9 @@ export function attachAdminSidebarListeners(context, shadow) {
 
       context.render();
       context.attachListeners();
+      if (typeof context.syncAllDatabasesFromServer === 'function') {
+        context.syncAllDatabasesFromServer();
+      }
     });
   });
 

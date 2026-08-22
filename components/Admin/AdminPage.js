@@ -422,11 +422,39 @@ class AdminPage extends HTMLElement {
     window.addEventListener('toast:show', this._toastListener);
   }
 
+  disconnectedCallback() {
+    if (this.pollInterval) clearInterval(this.pollInterval);
+    if (this.eventSource) this.eventSource.close();
+    if (this._storageEventListener) window.removeEventListener('storage', this._storageEventListener);
+    if (this._toastListener) window.removeEventListener('toast:show', this._toastListener);
+  }
+
   connectedCallback() {
     this.checkSessionValidity();
     this.render();
     this.attachListeners();
     this.setupToastListener();
+
+    // Auto-poll orders from server every 6 seconds to ensure live sync across devices
+    this.pollInterval = setInterval(() => {
+      if (this.isAuthenticated) {
+        fetch('/api/orders')
+          .then(res => res.json())
+          .then(serverOrders => {
+            if (serverOrders && Array.isArray(serverOrders)) {
+              const currentLength = this.orders ? this.orders.length : 0;
+              const hasNew = serverOrders.length !== currentLength || 
+                             (serverOrders.length > 0 && this.orders.length > 0 && serverOrders[0].id !== this.orders[0].id);
+              if (hasNew) {
+                this.orders = serverOrders;
+                localStorage.setItem('SWEETOS_all_orders', JSON.stringify(serverOrders));
+                this.render();
+                this.attachListeners();
+              }
+            }
+          }).catch(() => {});
+      }
+    }, 6000);
 
     this._storageEventListener = (e) => {
       if (e.key === 'SWEETOS_admin_session_version') {
@@ -440,6 +468,12 @@ class AdminPage extends HTMLElement {
           this.attachListeners();
           window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Session expired: logged out from another device.' }));
         }
+      } else if (e.key === 'SWEETOS_all_orders') {
+        try {
+          this.orders = JSON.parse(e.newValue || '[]');
+          this.render();
+          this.attachListeners();
+        } catch(err) {}
       }
     };
     window.addEventListener('storage', this._storageEventListener);
