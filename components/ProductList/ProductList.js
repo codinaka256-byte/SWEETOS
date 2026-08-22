@@ -2843,7 +2843,7 @@ class ProductList extends HTMLElement {
     });
 
     window.addEventListener('orders:updated', () => {
-      if (this.currentPage === 'orders') {
+      if (this.currentPage === 'orders' || this.currentPage === 'profile') {
         this.injectOrdersDashboardList();
       }
     });

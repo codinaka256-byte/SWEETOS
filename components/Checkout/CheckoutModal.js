@@ -767,6 +767,15 @@ class CheckoutModal extends HTMLElement {
           sku: item.sku || ''
         }));
 
+        const loggedInUserEmail = (() => {
+          try {
+            const u = JSON.parse(localStorage.getItem('SWEETOS_logged_in_user') || '{}');
+            return u.email || '';
+          } catch(e) { return ''; }
+        })();
+
+        const finalEmail = (this.formData.email || loggedInUserEmail || profile.email || '').trim().toLowerCase();
+
         const orderRecord = {
           id: orderId,
           date: new Date().toLocaleDateString('fr-FR', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -774,10 +783,10 @@ class CheckoutModal extends HTMLElement {
           total: orderTotal || 0,
           items: itemsLabel,
           products: sanitizedProducts,
-          customerName: this.formData.name || "Client",
-          customerEmail: this.formData.email || "",
-          customerPhone: this.formData.phone || "",
-          customerAddress: this.formData.address || "",
+          customerName: (this.formData.name || `${profile.firstName || ''} ${profile.lastName || ''}`).trim() || "Client",
+          customerEmail: finalEmail,
+          customerPhone: (this.formData.phone || profile.phone || "").trim(),
+          customerAddress: (this.formData.address || profile.address || "").trim(),
           customerZip: this.formData.zip || "",
           paymentMethod: this.selectedPaymentMethod || "cod",
           userProfileKey: profileKey

@@ -940,6 +940,35 @@ setInterval(() => {
           window.dispatchEvent(new CustomEvent('notifications:updated'));
         }
       }
+
+      // 4. Live Orders Sync (updates orders list across devices in real time!)
+      fetch('/api/orders')
+        .then(res => res.json())
+        .then(serverOrders => {
+          if (Array.isArray(serverOrders)) {
+            const profileKey = `SWEETOS_user_profile_${safeKey}`;
+            let profileSaved = localStorage.getItem(profileKey) || localStorage.getItem('SWEETOS_user_profile');
+            let profileObj = profileSaved ? JSON.parse(profileSaved) : {};
+            if (!profileObj.orders) profileObj.orders = [];
+            
+            let changed = false;
+            serverOrders.forEach(so => {
+              const oEmail = (so.customerEmail || '').toLowerCase();
+              if (oEmail === email.toLowerCase() && (so.status || '').toLowerCase() !== 'deleted') {
+                if (!profileObj.orders.some(po => po.id === so.id)) {
+                  profileObj.orders.unshift(so);
+                  changed = true;
+                }
+              }
+            });
+            
+            if (changed) {
+              localStorage.setItem(profileKey, JSON.stringify(profileObj));
+              localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profileObj));
+              window.dispatchEvent(new CustomEvent('orders:updated'));
+            }
+          }
+        }).catch(() => {});
     })
     .catch(() => {
       _liveSyncRunning = false;
