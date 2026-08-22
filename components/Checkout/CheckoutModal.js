@@ -887,6 +887,17 @@ class CheckoutModal extends HTMLElement {
                     localStorage.setItem(notifKey, JSON.stringify(customerNotifs));
                     window.dispatchEvent(new CustomEvent('notifications:updated'));
                     
+                    // Send real email to customer inbox!
+                    fetch('/api/send-notification-email', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        email: email,
+                        title: 'Coupon Doublé Reçu ! 🎉',
+                        desc: `En compensation de la rupture de stock précédente, vous avez reçu un coupon doublé de ${doubleVal}% : <strong>${doubleCode}</strong> (valide pour tout achat dès 5000 CFA) !`
+                      })
+                    }).catch(err => console.error('Failed to send double coupon notification email:', err));
+                    
                     setTimeout(() => {
                       window.dispatchEvent(new CustomEvent('toast:show', { detail: `Compensation : Coupon doublé de ${doubleVal}% accordé ! Code : ${doubleCode} 🎁` }));
                     }, 2000);

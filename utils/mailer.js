@@ -84,7 +84,14 @@ function getTransporter() {
 async function sendMail({ to, subject, html }) {
   try {
     const transporter = await getTransporter();
-    const from = process.env.SMTP_FROM || `"SWEETOS Store" <${process.env.SMTP_USER || 'no-reply@sweetos.com'}>`;
+    let from = process.env.SMTP_FROM;
+    if (!from) {
+      if (process.env.SMTP_USER === 'resend' || (process.env.SMTP_HOST && process.env.SMTP_HOST.includes('resend'))) {
+        from = `"SWEETOS" <onboarding@resend.dev>`;
+      } else {
+        from = `"SWEETOS Store" <${process.env.SMTP_USER || 'no-reply@sweetos.store'}>`;
+      }
+    }
     
     const info = await transporter.sendMail({
       from,

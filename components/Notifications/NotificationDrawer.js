@@ -115,19 +115,34 @@ class NotificationDrawer extends HTMLElement {
         
         if (daysRemaining > 0 && daysRemaining <= 14) {
           const uniqueId = `reminder-mystery-${card.id}-${daysRemaining}`;
-          if (!this.notifications.some(n => n.uniqueKey === uniqueId)) {
-            const reminderTime = Date.now();
+            const reminderTitle = `Rappel: Boîte Mystère expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}! 🎁`;
+            const reminderDesc = `Votre boîte mystère de la commande #${card.orderId} va bientôt expirer. Grattez-la maintenant pour découvrir votre offre !`;
             this.notifications.unshift({
               id: Date.now() + Math.floor(Math.random() * 1000),
               uniqueKey: uniqueId,
               type: 'promo',
               icon: '⏰',
-              title: `Rappel: Boîte Mystère expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}! 🎁`,
-              desc: `Votre boîte mystère de la commande #${card.orderId} va bientôt expirer. Grattez-la maintenant pour découvrir votre offre !`,
+              title: reminderTitle,
+              desc: reminderDesc,
               timestamp: reminderTime,
               unread: true
             });
             updated = true;
+
+            // Send real email if user is logged in
+            const loggedInStr = localStorage.getItem('SWEETOS_logged_in_user');
+            if (loggedInStr) {
+              try {
+                const u = JSON.parse(loggedInStr);
+                if (u.email) {
+                  fetch('/api/send-notification-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: u.email, title: reminderTitle, desc: reminderDesc })
+                  }).catch(() => {});
+                }
+              } catch(e) {}
+            }
           }
         }
       }
@@ -149,17 +164,34 @@ class NotificationDrawer extends HTMLElement {
           const uniqueId = `reminder-coupon-${c.code}-${daysRemaining}`;
           if (!this.notifications.some(n => n.uniqueKey === uniqueId)) {
             const reminderTime = Date.now();
+            const couponTitle = `Rappel Coupon: ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''}! 🎟️`;
+            const couponDesc = `Votre coupon de réduction exclusif ${c.code} (${c.value}% OFF) expire bientôt. Utilisez-le vite à la caisse !`;
             this.notifications.unshift({
               id: Date.now() + Math.floor(Math.random() * 1000),
               uniqueKey: uniqueId,
               type: 'promo',
               icon: '⏰',
-              title: `Rappel Coupon: ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''}! 🎟️`,
-              desc: `Votre coupon de réduction exclusif ${c.code} (${c.value}% OFF) expire bientôt. Utilisez-le vite à la caisse !`,
+              title: couponTitle,
+              desc: couponDesc,
               timestamp: reminderTime,
               unread: true
             });
             updated = true;
+
+            // Send real email if user is logged in
+            const loggedInStr = localStorage.getItem('SWEETOS_logged_in_user');
+            if (loggedInStr) {
+              try {
+                const u = JSON.parse(loggedInStr);
+                if (u.email) {
+                  fetch('/api/send-notification-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: u.email, title: couponTitle, desc: couponDesc })
+                  }).catch(() => {});
+                }
+              } catch(e) {}
+            }
           }
         }
       }

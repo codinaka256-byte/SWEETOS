@@ -647,8 +647,10 @@ export function attachAdminOrdersListeners(context, shadow) {
             desc = `Votre commande #${order.id} a été confirmée et est en cours de traitement.`;
           }
           
+          const now = Date.now();
           customerNotifs.unshift({
-            id: Date.now(),
+            id: now,
+            timestamp: now,
             type: 'shipping',
             icon: icon,
             title: title,
@@ -658,6 +660,15 @@ export function attachAdminOrdersListeners(context, shadow) {
           });
           
           localStorage.setItem(notifKey, JSON.stringify(customerNotifs));
+          
+          // Send real email to customer inbox!
+          if (clientEmail) {
+            fetch('/api/send-notification-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: clientEmail, title: title, desc: desc })
+            }).catch(e => console.error('Failed to dispatch status email to customer:', e));
+          }
           
           // If the customer is currently logged in, trigger badge sync instantly
           const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
