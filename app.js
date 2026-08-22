@@ -105,19 +105,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const floatBtn = document.getElementById('cartFloatBtn');
   const overlay = document.getElementById('cartOverlay');
   const toastEl = document.getElementById('toast');
+  let toastTimeout = null;
 
   // ─── Notification Feedback: vibration + sound for every alert ───────────────
   const playNotificationFeedback = () => {
     // 1. Device vibration (works on Android / mobile browsers)
-    if ('vibrate' in navigator) {
-      navigator.vibrate([80, 40, 80]);
-    }
+    try {
+      if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
+        navigator.vibrate([80, 40, 80]);
+      }
+    } catch (e) {}
 
     // 2. Soft notification beep via Web Audio API (no file needed)
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
         const oscillator = ctx.createOscillator();
         const gainNode = ctx.createGain();
 
@@ -140,10 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 1. Toast Notification Utility
   const showToast = (message) => {
+    if (!toastEl) return;
     toastEl.textContent = message;
     toastEl.classList.add('show');
     playNotificationFeedback();
-    clearTimeout(toastTimeout);
+    if (toastTimeout) clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => {
       toastEl.classList.remove('show');
     }, 2500);
