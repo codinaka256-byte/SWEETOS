@@ -1019,7 +1019,21 @@ class CheckoutModal extends HTMLElement {
             }
           }));
 
-          localStorage.removeItem(getCartStorageKey());
+          // 1. Clear local cart
+          const cartKey = getCartStorageKey();
+          localStorage.setItem(cartKey, '[]');
+          localStorage.removeItem(cartKey);
+
+          // 2. Clear cloud cart so other devices immediately show empty cart
+          if (finalEmail) {
+            fetch('/api/user-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: finalEmail, type: 'cart', data: [] })
+            }).catch(() => {});
+          }
+
+          // 3. Dispatch cart:updated to all UI components
           window.dispatchEvent(new CustomEvent('cart:updated', { detail: [] }));
           window.dispatchEvent(new CustomEvent('toast:show', { detail: `Commande ${orderId} passée avec succès ! 📦` }));
           this.render();

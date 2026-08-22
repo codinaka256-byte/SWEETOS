@@ -456,8 +456,11 @@ class CartDrawer extends HTMLElement {
       });
     });
 
-    // Recommendations section removed to unclutter the drawer
-  }
+    // Listen to global cart update events (e.g. checkout completion clearing cart)
+    window.addEventListener('cart:updated', (e) => {
+      this.cart = e.detail || [];
+      this.render();
+    });
 }
 
 customElements.define('cart-drawer', CartDrawer);
