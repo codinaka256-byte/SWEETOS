@@ -376,7 +376,7 @@
     height: 22px !important;
     margin: 0 !important;
   }
-  #wishlist-btn, #profile-pill {
+  #wishlist-btn, #profile-pill, #cart-btn {
     display: none !important;
   }
 }

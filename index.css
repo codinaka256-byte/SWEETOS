@@ -309,8 +309,8 @@ cart-drawer.closed, notification-drawer.closed {
 }
 
 @media (max-width: 600px) {
-  cart-drawer {
-    width: 100%;
+  cart-drawer, notification-drawer {
+    width: 100% !important;
   }
   .main-content {
     padding: 16px;

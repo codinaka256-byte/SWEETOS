@@ -229,3 +229,30 @@
   color: white;
   transform: translateY(-1px);
 }
+
+@media (max-width: 600px) {
+  .info-container {
+    padding: 10px !important;
+  }
+  .product-title {
+    font-size: 0.95rem !important;
+    margin-bottom: 4px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .product-desc {
+    display: none !important;
+  }
+  .rating-row {
+    margin-bottom: 6px !important;
+    font-size: 0.75rem !important;
+  }
+  .price {
+    font-size: 1.05rem !important;
+  }
+  .buy-btn {
+    padding: 6px 10px !important;
+    font-size: 0.75rem !important;
+  }
+}

@@ -3052,9 +3052,28 @@ input:checked + .toggle-slider:before {
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
   }
+  /* Mobile: horizontal snap scroll showing 2 cards at a time */
   .product-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 14px;
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    gap: 12px !important;
+    padding-bottom: 12px !important;
+    /* hide the scrollbar visually */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .product-grid::-webkit-scrollbar {
+    display: none;
+  }
+  /* Each card takes exactly 47% width so 2 fit per view */
+  .product-grid > * {
+    flex: 0 0 47% !important;
+    min-width: 0 !important;
+    scroll-snap-align: start !important;
   }
   .brands-grid, .collections-grid {
     grid-template-columns: repeat(2, 1fr);
