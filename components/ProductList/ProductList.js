@@ -759,7 +759,7 @@ class ProductList extends HTMLElement {
           <div class="section-header" style="margin-bottom: 24px;">
             <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin:0;">For You</h3>
           </div>
-          <div class="home-grid-4" id="grid-for-you"></div>
+          <div class="home-grid-4 for-you-grid" id="grid-for-you"></div>
           
           <div id="for-you-loading" style="display: flex; justify-content: center; align-items: center; padding: 40px; font-weight: 750; color: #ff2e93; gap: 10px; font-size: 14px; opacity: 0; transition: opacity 0.2s ease;">
             <svg width="20" height="20" viewBox="0 0 50 50" style="animation: rotate 1s linear infinite; fill: none; stroke: #ff2e93; stroke-width: 5; stroke-linecap: round;">

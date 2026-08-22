@@ -3071,6 +3071,25 @@ input:checked + .toggle-slider:before {
     max-width: 47% !important;
     scroll-snap-align: start !important;
   }
+
+  /* FOR YOU section: stays as vertical 2-column grid on mobile (no slide) */
+  .for-you-grid {
+    display: grid !important;
+    flex-direction: unset !important;
+    overflow-x: unset !important;
+    overflow-y: unset !important;
+    scroll-snap-type: unset !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    padding-bottom: 0 !important;
+  }
+  .for-you-grid > * {
+    flex: unset !important;
+    max-width: unset !important;
+    min-width: 0 !important;
+    scroll-snap-align: unset !important;
+    width: 100% !important;
+  }
   /* Mobile: horizontal snap scroll showing 2 cards at a time */
   .product-grid {
     display: flex !important;
