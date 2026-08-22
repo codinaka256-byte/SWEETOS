@@ -5092,7 +5092,7 @@ class ProductList extends HTMLElement {
                 <h3>${profile.firstName} ${profile.lastName}</h3>
               </div>
               <p class="profile-hero-email">${profile.email}</p>
-              ${profile.bio ? `<p class="profile-hero-bio">"${profile.bio}"</p>` : ''}
+              ${profile.bio ? `<p class="profile-hero-bio">&ldquo;${profile.bio}&rdquo;</p>` : ''}
             </div>
           </div>
 

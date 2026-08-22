@@ -233,7 +233,7 @@ class NotificationDrawer extends HTMLElement {
         <div class="drawer-swipe-handle"></div>
         <!-- Header -->
         <div class="notifications-header">
-          <h3>Notifications Hub ${totalUnread > 0 ? `(<span class="unread-count">${totalUnread}</span>)` : ''}</h3>
+          <h3>Notifications Hub ${totalUnread > 0 ? `<span class="unread-count">(${totalUnread})</span>` : ''}</h3>
           <button class="notif-close" id="notifCloseBtn" title="Close Hub">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 15px; height: 15px; flex-shrink: 0; display: inline-block;">
               <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
