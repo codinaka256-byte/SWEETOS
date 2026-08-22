@@ -217,7 +217,8 @@ export function attachAdminCouponsListeners(context, shadow) {
     });
   });
 
-  // WhatsApp Share action
+
+  // Multi-platform Share action
   shadow.querySelectorAll('.share-coupon-whatsapp-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -231,10 +232,105 @@ export function attachAdminCouponsListeners(context, shadow) {
       
       const message = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${code}*\nRéduction : *${discountText}*\n${parseInt(min) > 0 ? `Minimum d'achat : *${min} FCFA*\n` : ''}Date d'expiration : *${expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
       
-      const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
+      showCouponShareOptions(message, window.location.origin);
     });
   });
+  
+  function showCouponShareOptions(message, shareUrl) {
+    const options = [
+      { name: 'WhatsApp', icon: 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z', color: '#25d366', bg: '#dcf8c6', action: 'whatsapp' },
+      { name: 'Facebook', icon: 'M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z', color: '#1877f2', bg: '#e7f3ff', action: 'facebook' },
+      { name: 'Twitter', icon: 'M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z', color: '#1da1f2', bg: '#e7f5ff', action: 'twitter' },
+      { name: 'Copy Code', icon: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', color: '#666', bg: '#f0f0f0', action: 'copy' }
+    ];
+    
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 99999; display: flex; align-items: flex-end; justify-content: center;';
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background: white; border-radius: 20px 20px 0 0; padding: 24px; width: 100%; max-width: 500px; max-height: 80vh; overflow-y: auto; animation: slideUp 0.3s ease;';
+    
+    const title = document.createElement('h3');
+    title.textContent = 'Share Coupon';
+    title.style.cssText = 'margin: 0 0 20px 0; font-size: 18px; font-weight: 600; text-align: center; color: #333;';
+    
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;';
+    
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.style.cssText = `display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 8px; border: none; background: ${opt.bg}; border-radius: 12px; cursor: pointer; transition: transform 0.2s;`;
+      btn.onmouseenter = () => btn.style.transform = 'scale(1.05)';
+      btn.onmouseleave = () => btn.style.transform = 'scale(1)';
+      
+      const iconSvg = `<svg viewBox="0 0 24 24" width="28" height="28" fill="${opt.color}" stroke="${opt.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${opt.icon}"/></svg>`;
+      const label = document.createElement('span');
+      label.textContent = opt.name;
+      label.style.cssText = 'font-size: 12px; color: #333; font-weight: 500;';
+      
+      btn.innerHTML = iconSvg;
+      btn.appendChild(label);
+      
+      btn.onclick = () => {
+        handleCouponShareAction(opt.action, message, shareUrl);
+        overlay.remove();
+      };
+      
+      grid.appendChild(btn);
+    });
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = 'width: 100%; padding: 14px; margin-top: 20px; border: none; background: #f5f5f5; border-radius: 12px; font-size: 16px; font-weight: 600; color: #666; cursor: pointer;';
+    cancelBtn.onclick = () => overlay.remove();
+    
+    modal.appendChild(title);
+    modal.appendChild(grid);
+    modal.appendChild(cancelBtn);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    
+    if (!document.querySelector('#share-animation-style')) {
+      const style = document.createElement('style');
+      style.id = 'share-animation-style';
+      style.textContent = '@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }';
+      document.head.appendChild(style);
+    }
+  }
+  
+  function handleCouponShareAction(action, message, shareUrl) {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    let url = '';
+    
+    switch(action) {
+      case 'whatsapp':
+        url = isMobile ? `https://wa.me/?text=${encodeURIComponent(message)}` : `https://web.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+        break;
+      case 'facebook':
+        url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+        break;
+      case 'twitter':
+        url = `https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out this special offer!')}&url=${encodeURIComponent(shareUrl)}`;
+        break;
+      case 'copy':
+        navigator.clipboard.writeText(message).then(() => {
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Coupon details copied! 📋' }));
+        }).catch(() => {
+          const textarea = document.createElement('textarea');
+          textarea.value = message;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Coupon details copied! 📋' }));
+        });
+        return;
+    }
+    
+    if (url) {
+      window.open(url, '_blank');
+    }
+  }
 
   // Delete action
   shadow.querySelectorAll('.delete-coupon-action-btn').forEach(btn => {
