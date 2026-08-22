@@ -858,36 +858,62 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         btn.disabled = false;
         btn.classList.remove('opacity-70');
         
-        localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
+        localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email, name: userMatch.name }));
 
         const profileKey = getProfileStorageKey();
         let saved = localStorage.getItem(profileKey);
         if (!saved) {
-          const parts = userMatch.name.split(' ');
-          const first = parts[0] || 'User';
-          const last = parts.slice(1).join(' ') || 'SWEETOS';
-          
-          const defaultProfile = {
-            firstName: first,
-            lastName: last,
-            email: email,
-            phone: userMatch.phone || "+225 600 000 000",
-            bio: "SWEETOS member. Workspace curations.",
-            address: userMatch.address || "Ivory Coast",
-            theme: "Ice Blue",
-            twoFactor: false,
-            marketingEmails: true,
-            smsUpdates: false,
-            addresses: [userMatch.address || "Ivory Coast"],
-            orders: []
-          };
-          localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
-          localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
+          fetch(`/api/profile?email=${encodeURIComponent(email)}`)
+            .then(r => r.json())
+            .then(data => {
+              const serverProfile = data && data.profile ? data.profile : null;
+              const parts = userMatch.name.split(' ');
+              const first = parts[0] || 'User';
+              const last = parts.slice(1).join(' ') || 'SWEETOS';
+              
+              const defaultProfile = {
+                firstName: serverProfile && serverProfile.firstName ? serverProfile.firstName : first,
+                lastName: serverProfile && serverProfile.lastName ? serverProfile.lastName : last,
+                email: email,
+                phone: serverProfile && serverProfile.phone ? serverProfile.phone : (userMatch.phone || "+225 600 000 000"),
+                bio: serverProfile && serverProfile.bio ? serverProfile.bio : "SWEETOS member. Workspace curations.",
+                address: serverProfile && serverProfile.address ? serverProfile.address : (userMatch.address || "Ivory Coast"),
+                theme: serverProfile && serverProfile.theme ? serverProfile.theme : "Ice Blue",
+                twoFactor: false,
+                marketingEmails: true,
+                smsUpdates: false,
+                addresses: serverProfile && serverProfile.addresses ? serverProfile.addresses : [userMatch.address || "Ivory Coast"],
+                orders: serverProfile && serverProfile.orders ? serverProfile.orders : []
+              };
+              localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
+              localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
+              window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+            }).catch(() => {
+              const parts = userMatch.name.split(' ');
+              const first = parts[0] || 'User';
+              const last = parts.slice(1).join(' ') || 'SWEETOS';
+              const defaultProfile = {
+                firstName: first,
+                lastName: last,
+                email: email,
+                phone: userMatch.phone || "+225 600 000 000",
+                bio: "SWEETOS member. Workspace curations.",
+                address: userMatch.address || "Ivory Coast",
+                theme: "Ice Blue",
+                twoFactor: false,
+                marketingEmails: true,
+                smsUpdates: false,
+                addresses: [userMatch.address || "Ivory Coast"],
+                orders: []
+              };
+              localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
+              localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
+              window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+            });
         } else {
           localStorage.setItem('SWEETOS_user_profile', saved);
+          window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
         }
-
-        window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
         window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back to SWEETOS, ${userMatch.name}! 🎉` }));
         
         onLoginSuccess();

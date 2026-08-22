@@ -5490,7 +5490,9 @@ class ProductList extends HTMLElement {
           
           // 2. Fetch missing orders that belong to this customer
           serverOrders.forEach(so => {
-            if (so.customerEmail === userEmail && (so.status || '').toLowerCase() !== 'deleted') {
+            const orderEmail = (so.customerEmail || '').toLowerCase();
+            const currentEmail = (userEmail || '').toLowerCase();
+            if (orderEmail === currentEmail && (so.status || '').toLowerCase() !== 'deleted') {
               if (!profile.orders.some(po => po.id === so.id)) {
                 profile.orders.unshift(so);
                 profileChanged = true;
