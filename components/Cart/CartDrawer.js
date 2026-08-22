@@ -461,6 +461,7 @@ class CartDrawer extends HTMLElement {
       this.cart = e.detail || [];
       this.render();
     });
+  }
 }
 
 customElements.define('cart-drawer', CartDrawer);
