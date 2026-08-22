@@ -4843,6 +4843,27 @@ input:checked + .toggle-slider:before {
   display: block;
 }
 
+@media (max-width: 580px) {
+  /* On mobile: show 2 cards per view inside all home carousels */
+  .carousel-scroll-wrapper {
+    gap: 10px !important;
+    scroll-snap-type: x mandatory;
+    padding: 4px 4px 12px 4px !important;
+  }
+  .carousel-scroll-wrapper product-card {
+    flex: 0 0 47% !important;
+    max-width: 47% !important;
+    min-width: 0 !important;
+    scroll-snap-align: start;
+  }
+  .carousel-scroll-wrapper .home-category-card {
+    flex: 0 0 47% !important;
+    max-width: 47% !important;
+    min-width: 0 !important;
+    scroll-snap-align: start;
+  }
+}
+
 /* ================= MOBILE LAYOUT RESPONSIVE FIXES ================= */
 @media (max-width: 768px) {
   /* Profile Page Mobile Layout Fixes */
