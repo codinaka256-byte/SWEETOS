@@ -115,6 +115,8 @@ class NotificationDrawer extends HTMLElement {
         
         if (daysRemaining > 0 && daysRemaining <= 14) {
           const uniqueId = `reminder-mystery-${card.id}-${daysRemaining}`;
+          if (!this.notifications.some(n => n.uniqueKey === uniqueId)) {
+            const reminderTime = Date.now();
             const reminderTitle = `Rappel: Boîte Mystère expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}! 🎁`;
             const reminderDesc = `Votre boîte mystère de la commande #${card.orderId} va bientôt expirer. Grattez-la maintenant pour découvrir votre offre !`;
             this.notifications.unshift({
