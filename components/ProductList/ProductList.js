@@ -2483,7 +2483,7 @@ class ProductList extends HTMLElement {
     if (cartBtn) {
       cartBtn.addEventListener('click', () => {
         window.dispatchEvent(new CustomEvent('cart:add', {
-          detail: { productId: p.id, quantity: 1, color: p.colors ? p.colors[0]?.name : '' }
+          detail: { productId: p.id, quantity: 1, color: p.colors && p.colors[0] ? p.colors[0].name : '' }
         }));
       });
     }
@@ -3182,7 +3182,7 @@ class ProductList extends HTMLElement {
     if (cartBtn) {
       cartBtn.addEventListener('click', () => {
         window.dispatchEvent(new CustomEvent('cart:add', {
-          detail: { productId: p.id, quantity: 1, color: p.colors ? p.colors[0]?.name : '' }
+          detail: { productId: p.id, quantity: 1, color: p.colors && p.colors[0] ? p.colors[0].name : '' }
         }));
       });
     }
