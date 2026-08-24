@@ -992,7 +992,7 @@ class AdminPage extends HTMLElement {
               <label class="terminal-label">ADMIN USERNAME (EMAIL)</label>
               <div class="terminal-input-wrapper">
                 <i class="ph ph-shield terminal-icon-left"></i>
-                <input type="email" id="admin-email" value="sweeto@sweetohub.com" required placeholder="sweeto@sweetohub.com" autocomplete="email" class="terminal-input">
+                <input type="email" id="admin-email" required placeholder="admin@example.com" autocomplete="email" class="terminal-input">
               </div>
             </div>
 
@@ -1001,7 +1001,7 @@ class AdminPage extends HTMLElement {
               <label class="terminal-label">MASTER DECRYPT KEY</label>
               <div class="terminal-input-wrapper">
                 <i class="ph ph-lock-key terminal-icon-left"></i>
-                <input type="password" id="admin-password" value="admin" required placeholder="••••••••" autocomplete="current-password" class="terminal-input">
+                <input type="password" id="admin-password" required placeholder="••••••••••••" autocomplete="current-password" class="terminal-input">
                 <button type="button" id="toggle-admin-pass" class="terminal-pass-toggle">
                   <i class="ph ph-eye text-lg"></i>
                 </button>

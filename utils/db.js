@@ -91,22 +91,25 @@ async function getOrders() {
       console.error('Supabase getOrders error:', error);
       return readLocalFile('orders.js', []);
     }
-    return data.map(item => item.data);
+    const list = (data || []).map(item => item ? (item.data || item) : null).filter(Boolean);
+    return list.length > 0 ? list : readLocalFile('orders.js', []);
   }
   return readLocalFile('orders.js', []);
 }
 
 async function saveOrders(ordersList) {
+  const cleanList = (ordersList || []).filter(Boolean);
   if (supabase) {
-    const rows = ordersList.map(o => ({ id: String(o.id), data: o }));
+    const rows = cleanList.map(o => ({ id: String(o.id), data: o }));
     const { error } = await supabase.from('orders').upsert(rows);
     if (error) {
       console.error('Supabase saveOrders error:', error);
-      return writeLocalFile('orders.js', 'orders', ordersList);
+      return writeLocalFile('orders.js', 'orders', cleanList);
     }
+    writeLocalFile('orders.js', 'orders', cleanList);
     return true;
   }
-  return writeLocalFile('orders.js', 'orders', ordersList);
+  return writeLocalFile('orders.js', 'orders', cleanList);
 }
 
 // 3. COUPONS

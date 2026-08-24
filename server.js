@@ -140,11 +140,13 @@ const requestHandler = (req, res) => {
           return;
         }
 
-        // Get admin credentials from Supabase/local settings
-        const creds = await db.getSetting('admin_credentials', {
-          email: 'sweeto@sweetohub.com',
-          password: 'admin'
-        }, 'admin_credentials.js');
+        // Fetch admin credentials securely from Supabase table 'sweetos_settings'
+        const creds = await db.getSetting('admin_credentials', null);
+        if (!creds || !creds.email || (!creds.password && !creds.passwordHash)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Admin credentials not configured. Please configure them in Supabase sweetos_settings.' }));
+          return;
+        }
 
         const inputEmail = email.trim().toLowerCase();
         const inputPass = password.trim();
@@ -153,9 +155,10 @@ const requestHandler = (req, res) => {
         const crypto = require('crypto');
         const inputHash = crypto.createHash('sha256').update(inputPass).digest('hex');
         
-        const matchesEmail = inputEmail === creds.email.trim().toLowerCase();
+        const targetEmail = creds.email.trim().toLowerCase();
+        const matchesEmail = (inputEmail === targetEmail);
         const matchesPassword = (creds.password && inputPass === creds.password.trim()) ||
-                                (creds.passwordHash && inputHash === creds.passwordHash.trim());
+                                (creds.passwordHash && (inputPass === creds.passwordHash.trim() || inputHash === creds.passwordHash.trim()));
 
         if (matchesEmail && matchesPassword) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -609,6 +612,26 @@ const requestHandler = (req, res) => {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, count: finalList.length }));
 
+          // Propagate updated order statuses into customer cloud profiles in Supabase
+          db.getProfiles().then(async profiles => {
+            if (profiles) {
+              finalList.forEach(updatedOrder => {
+                const cEmail = (updatedOrder.customerEmail || '').trim().toLowerCase();
+                if (cEmail && profiles[cEmail]) {
+                  const prof = profiles[cEmail];
+                  if (Array.isArray(prof.orders)) {
+                    const matchingPOrder = prof.orders.find(po => po && po.id === updatedOrder.id);
+                    if (matchingPOrder && (matchingPOrder.status !== updatedOrder.status || matchingPOrder.trackingNumber !== updatedOrder.trackingNumber)) {
+                      matchingPOrder.status = updatedOrder.status;
+                      matchingPOrder.trackingNumber = updatedOrder.trackingNumber;
+                      db.saveProfile(cEmail, prof);
+                    }
+                  }
+                }
+              });
+            }
+          }).catch(() => {});
+
           // Always trigger email & admin push notification (with deduplication)
           try {
             list.forEach(newOrd => {
@@ -717,20 +740,20 @@ const requestHandler = (req, res) => {
     Promise.all([db.getOrders(), db.getProfiles()]).then(([allOrders, profiles]) => {
       const userOrdersMap = new Map();
       
-      // 1. Check all global orders in database matching this email
-      if (Array.isArray(allOrders)) {
-        allOrders.forEach(o => {
-          if (o && o.id && (o.customerEmail || '').trim().toLowerCase() === email) {
+      // 1. First add orders from user's profile
+      const profile = profiles[email] || {};
+      if (Array.isArray(profile.orders)) {
+        profile.orders.forEach(o => {
+          if (o && o.id) {
             userOrdersMap.set(String(o.id), o);
           }
         });
       }
 
-      // 2. Check user's profile in database
-      const profile = profiles[email] || {};
-      if (Array.isArray(profile.orders)) {
-        profile.orders.forEach(o => {
-          if (o && o.id) {
+      // 2. Overwrite with authoritative latest status from allOrders table
+      if (Array.isArray(allOrders)) {
+        allOrders.forEach(o => {
+          if (o && o.id && (o.customerEmail || '').trim().toLowerCase() === email) {
             userOrdersMap.set(String(o.id), o);
           }
         });
