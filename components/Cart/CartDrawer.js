@@ -54,20 +54,23 @@ class CartDrawer extends HTMLElement {
     localStorage.setItem(key, JSON.stringify(this.cart));
     window.dispatchEvent(new CustomEvent('cart:updated', { detail: this.cart }));
 
-    // Cloud sync: push updated cart to server if logged in
-    const userJson = localStorage.getItem('SWEETOS_logged_in_user');
-    if (userJson) {
-      try {
-        const u = JSON.parse(userJson);
-        if (u && u.email) {
-          fetch('/api/user-sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: u.email, type: 'cart', data: this.cart })
-          }).catch(() => {});
-        }
-      } catch(e) {}
-    }
+    // Cloud sync: debounced push updated cart to server if logged in
+    if (this._cloudSyncTimer) clearTimeout(this._cloudSyncTimer);
+    this._cloudSyncTimer = setTimeout(() => {
+      const userJson = localStorage.getItem('SWEETOS_logged_in_user');
+      if (userJson) {
+        try {
+          const u = JSON.parse(userJson);
+          if (u && u.email) {
+            fetch('/api/user-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: u.email, type: 'cart', data: this.cart })
+            }).catch(() => {});
+          }
+        } catch(e) {}
+      }
+    }, 400);
   }
 
   render() {
@@ -309,12 +312,13 @@ class CartDrawer extends HTMLElement {
 
     // Listen to real-time live cart updates (e.g. added from phone or cleared on checkout)
     window.addEventListener('cart:updated', (e) => {
-      if (Array.isArray(e.detail)) {
-        this.cart = e.detail;
-      } else {
-        this.loadCartFromStorage();
+      const incoming = Array.isArray(e.detail) ? e.detail : null;
+      if (incoming) {
+        if (JSON.stringify(this.cart) !== JSON.stringify(incoming)) {
+          this.cart = incoming;
+          this.render();
+        }
       }
-      this.render();
     });
   }
 
@@ -464,12 +468,6 @@ class CartDrawer extends HTMLElement {
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
       });
-    });
-
-    // Listen to global cart update events (e.g. checkout completion clearing cart)
-    window.addEventListener('cart:updated', (e) => {
-      this.cart = e.detail || [];
-      this.render();
     });
   }
 }

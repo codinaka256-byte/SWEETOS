@@ -225,21 +225,36 @@ cart-drawer.closed, notification-drawer.closed {
   bottom: 30px;
   left: 50%;
   transform: translateX(-50%) translateY(100px);
-  background: var(--text-dark);
+  background: rgba(16, 42, 67, 0.95);
+  backdrop-filter: blur(12px);
   color: white;
-  padding: 12px 24px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 500;
-  z-index: 9999;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+  padding: 10px 20px;
+  border-radius: 50px;
+  font-size: 13.5px;
+  font-weight: 600;
+  z-index: 99999;
+  transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   white-space: nowrap;
   pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  user-select: none;
 }
 
 .toast.show {
   transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .toast {
+    bottom: 85px; /* Above mobile bottom navigation bar */
+    max-width: 90vw;
+    font-size: 12.5px;
+    padding: 9px 18px;
+    box-sizing: border-box;
+  }
 }
 
 /* Custom scrollbars */

@@ -153,8 +153,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toastTimeout) clearTimeout(toastTimeout);
     toastTimeout = setTimeout(() => {
       toastEl.classList.remove('show');
-    }, 2500);
+    }, 1400);
   };
+
+  // Instant tap/click on toast dismisses it immediately
+  if (toastEl) {
+    toastEl.addEventListener('click', () => {
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastEl.classList.remove('show');
+    });
+  }
 
   // Listen to global toast requests
   window.addEventListener('toast:show', (e) => {
