@@ -618,6 +618,29 @@ const requestHandler = (req, res) => {
                 // This is a brand new order! Send confirmation email!
                 sendOrderConfirmationEmail(newOrd, req.headers.host);
                 
+                // Save notification directly into customer's cloud profile
+                const customerEmail = (newOrd.customerEmail || '').trim().toLowerCase();
+                if (customerEmail) {
+                  db.getProfiles().then(async profiles => {
+                    const prof = profiles[customerEmail] || { email: customerEmail };
+                    if (!prof.notifications) prof.notifications = [];
+                    const notifObj = {
+                      id: Date.now(),
+                      timestamp: Date.now(),
+                      type: 'shipping',
+                      icon: '📦',
+                      title: `Commande ${newOrd.id} passée`,
+                      desc: `Merci ${newOrd.customerName || 'Cher client'} ! Votre commande ${newOrd.id} d'un montant de ${parseFloat(newOrd.total).toLocaleString()} CFA a été reçue et est en attente de confirmation.`,
+                      time: 'À l\'instant',
+                      unread: true
+                    };
+                    if (!prof.notifications.some(n => n.title && n.title.includes(newOrd.id))) {
+                      prof.notifications.unshift(notifObj);
+                      await db.saveProfile(customerEmail, prof);
+                    }
+                  }).catch(() => {});
+                }
+
                 // ALSO notify the admin!
                 const adminTitle = `Nouvelle Commande Reçue : #${newOrd.id}`;
                 const adminDesc = `Un client vient de passer une commande.<br><br>
@@ -632,6 +655,27 @@ const requestHandler = (req, res) => {
                 if (!notifiedEvents.has(deliveryKey)) {
                   notifiedEvents.add(deliveryKey);
                   sendOrderDeliveryEmail(newOrd, req.headers.host);
+
+                  // Add delivery notification to user cloud profile
+                  const customerEmail = (newOrd.customerEmail || '').trim().toLowerCase();
+                  if (customerEmail) {
+                    db.getProfiles().then(async profiles => {
+                      const prof = profiles[customerEmail] || { email: customerEmail };
+                      if (!prof.notifications) prof.notifications = [];
+                      const deliveryNotif = {
+                        id: Date.now(),
+                        timestamp: Date.now(),
+                        type: 'shipping',
+                        icon: '✅',
+                        title: `Commande ${newOrd.id} livrée !`,
+                        desc: `Votre commande #${newOrd.id} a été livrée. Merci pour vos achats sur SWEETOS !`,
+                        time: 'À l\'instant',
+                        unread: true
+                      };
+                      prof.notifications.unshift(deliveryNotif);
+                      await db.saveProfile(customerEmail, prof);
+                    }).catch(() => {});
+                  }
                 }
               }
             });

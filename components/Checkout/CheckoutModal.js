@@ -1016,6 +1016,15 @@ class CheckoutModal extends HTMLElement {
           localStorage.setItem(notifKey, JSON.stringify(currentNotifications));
           window.dispatchEvent(new CustomEvent('notifications:updated'));
 
+          // Sync notifications immediately to user cloud profile
+          if (finalEmail) {
+            fetch('/api/user-sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: finalEmail, type: 'notifications', data: currentNotifications })
+            }).catch(() => {});
+          }
+
           window.dispatchEvent(new CustomEvent('toast:order-placed', {
             detail: {
               orderId: orderId,
