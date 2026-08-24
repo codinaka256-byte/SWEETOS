@@ -4,7 +4,7 @@ export function getCartStorageKey() {
     try {
       const user = JSON.parse(userJson);
       if (user && user.email) {
-        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeKey = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         return `SWEETOS_cart_${safeKey}`;
       }
     } catch (e) {}
@@ -18,7 +18,7 @@ export function getProfileStorageKey() {
     try {
       const user = JSON.parse(userJson);
       if (user && user.email) {
-        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeKey = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         return `SWEETOS_user_profile_${safeKey}`;
       }
     } catch (e) {}
@@ -32,7 +32,7 @@ export function getNotificationsStorageKey() {
     try {
       const user = JSON.parse(userJson);
       if (user && user.email) {
-        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeKey = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         return `SWEETOS_notifications_${safeKey}`;
       }
     } catch (e) {}
@@ -46,7 +46,7 @@ export function getWishlistStorageKey() {
     try {
       const user = JSON.parse(userJson);
       if (user && user.email) {
-        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeKey = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         return `SWEETOS_wishlist_${safeKey}`;
       }
     } catch (e) {}
@@ -60,7 +60,7 @@ export function getScratchcardsStorageKey() {
     try {
       const user = JSON.parse(userJson);
       if (user && user.email) {
-        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeKey = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         return `SWEETOS_user_scratchcards_${safeKey}`;
       }
     } catch (e) {}
@@ -74,7 +74,7 @@ export function getProcessedDeliveriesStorageKey() {
     try {
       const user = JSON.parse(userJson);
       if (user && user.email) {
-        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeKey = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         return `SWEETOS_processed_deliveries_${safeKey}`;
       }
     } catch (e) {}
@@ -88,7 +88,7 @@ export function getActivityLogsStorageKey() {
     try {
       const user = JSON.parse(userJson);
       if (user && user.email) {
-        const safeKey = user.email.replace(/[^a-zA-Z0-9]/g, '_');
+        const safeKey = user.email.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
         return `SWEETOS_activity_logs_${safeKey}`;
       }
     } catch (e) {}

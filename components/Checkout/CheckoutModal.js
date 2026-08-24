@@ -547,6 +547,11 @@ class CheckoutModal extends HTMLElement {
     window.addEventListener('checkout:start', () => {
       this.open();
     });
+    window.addEventListener('cart:updated', () => {
+      if (this.isOpen && this.step !== 3) {
+        this.render();
+      }
+    });
   }
 
   attachDynamicListeners() {

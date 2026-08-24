@@ -306,6 +306,16 @@ class CartDrawer extends HTMLElement {
       this.loadCartFromStorage();
       this.render();
     });
+
+    // Listen to real-time live cart updates (e.g. added from phone or cleared on checkout)
+    window.addEventListener('cart:updated', (e) => {
+      if (Array.isArray(e.detail)) {
+        this.cart = e.detail;
+      } else {
+        this.loadCartFromStorage();
+      }
+      this.render();
+    });
   }
 
   attachDynamicListeners() {
