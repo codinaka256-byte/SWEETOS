@@ -692,11 +692,22 @@ const requestHandler = (req, res) => {
     return;
   }
 
-  // 2f. API: GET /api/orders
-  if (req.method === 'GET' && req.url === '/api/orders') {
+  // 2f. API: GET /api/orders (optionally filter by email query param)
+  if (req.method === 'GET' && req.url.startsWith('/api/orders')) {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const emailFilter = urlObj.searchParams.get('email');
+    
     db.getOrders().then(orders => {
+      let result = orders;
+      // If email filter is provided, only return orders for that user
+      if (emailFilter) {
+        const normalizedEmail = emailFilter.toLowerCase();
+        result = orders.filter(o => 
+          o.customerEmail && o.customerEmail.toLowerCase() === normalizedEmail
+        );
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(orders));
+      res.end(JSON.stringify(result));
     }).catch(err => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Failed to read orders' }));

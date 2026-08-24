@@ -21,6 +21,7 @@ import './components/Notifications/NotificationDrawer.js';
 import './components/ProductDetails/ProductDetailsModal.js';
 import './components/Checkout/CheckoutModal.js';
 import './components/MobileNav/MobileNav.js';
+import './components/Account/AccountModal.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Apply dynamic store configurations (theme, brand colors, font family)
@@ -244,7 +245,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     isDragging = true;
     didDrag = false;
-    startY = e.clientY || e.touches?.[0]?.clientY || 0;
+    const touch = e.touches && e.touches[0];
+    startY = e.clientY || (touch ? touch.clientY : 0) || 0;
     
     const rect = floatBtn.getBoundingClientRect();
     initialTop = rect.top + rect.height / 2; // Center Y of button
@@ -261,7 +263,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const onDragMove = (e) => {
     if (!isDragging) return;
     
-    const clientY = e.clientY || e.touches?.[0]?.clientY || 0;
+    const touch = e.touches && e.touches[0];
+    const clientY = e.clientY || (touch ? touch.clientY : 0) || 0;
     const deltaY = clientY - startY;
     
     if (Math.abs(deltaY) > dragThreshold) {
@@ -339,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle sidebar collapse events
   window.addEventListener('sidebar:toggle', (e) => {
-    const isCollapsed = e.detail?.collapsed;
+    const isCollapsed = e.detail && e.detail.collapsed;
     if (isCollapsed) {
       document.body.classList.add('sidebar-collapsed');
     } else {
@@ -349,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Custom event listener for components to trigger cart drawers
   window.addEventListener('cart:toggle', (e) => {
-    const forceOpen = e.detail?.open;
+    const forceOpen = e.detail && e.detail.open;
     if (forceOpen === true) {
       openCart();
       closeSidebarMobile();
@@ -376,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Custom event listener to trigger notification drawers
   window.addEventListener('notifications:toggle', (e) => {
-    const forceOpen = e.detail?.open;
+    const forceOpen = e.detail && e.detail.open;
     if (forceOpen === true) {
       openNotifications();
     } else if (forceOpen === false) {

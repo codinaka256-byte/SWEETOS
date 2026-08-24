@@ -812,7 +812,7 @@ class CheckoutModal extends HTMLElement {
         localStorage.setItem('SWEETOS_all_orders', JSON.stringify(localOrders));
         window.dispatchEvent(new CustomEvent('orders:updated'));
 
-        // Sync directly to user cloud profile
+        // Sync directly to user cloud profile (for cross-device sync via Supabase/local DB)
         if (finalEmail) {
           fetch('/api/user-sync', {
             method: 'POST',
@@ -821,7 +821,7 @@ class CheckoutModal extends HTMLElement {
           }).catch(() => {});
         }
 
-        // Sync to server reliably
+        // Sync ALL orders to server (server merges and stores centrally for cross-device access)
         fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -22,7 +22,7 @@ class AccountModal extends HTMLElement {
     this.setupEventListeners();
   }
 
-  loadUserData() {
+  async loadUserData() {
     const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
     if (loggedIn) {
       try {
@@ -35,6 +35,21 @@ class AccountModal extends HTMLElement {
           profile = localStorage.getItem('SWEETOS_user_profile');
         }
         
+        // First, try to fetch user's orders from server (for cross-device sync)
+        let serverOrders = [];
+        try {
+          const response = await fetch(`/api/orders?email=${encodeURIComponent(email)}`);
+          if (response.ok) {
+            const allOrders = await response.json();
+            // Filter orders for this specific user
+            serverOrders = Array.isArray(allOrders) 
+              ? allOrders.filter(o => o.customerEmail && o.customerEmail.toLowerCase() === email.toLowerCase())
+              : [];
+          }
+        } catch (e) {
+          console.error('Failed to fetch orders from server:', e);
+        }
+        
         if (profile) {
           const parsed = JSON.parse(profile);
           this.user = {
@@ -45,7 +60,35 @@ class AccountModal extends HTMLElement {
             address: parsed.address || "Ivory Coast",
             avatar: (parsed.firstName && parsed.lastName) ? `${parsed.firstName.charAt(0).toUpperCase()}${parsed.lastName.charAt(0).toUpperCase()}` : 'US'
           };
-          this.orders = parsed.orders || [];
+          
+          // Merge local orders with server orders (server is source of truth for cross-device sync)
+          const localOrders = parsed.orders || [];
+          
+          // Combine and deduplicate orders by ID, preferring server data
+          const ordersMap = new Map();
+          [...serverOrders, ...localOrders].forEach(order => {
+            if (order && order.id) {
+              ordersMap.set(order.id, order);
+            }
+          });
+          
+          this.orders = Array.from(ordersMap.values()).sort((a, b) => {
+            // Sort by date (newest first)
+            return new Date(b.date || 0) - new Date(a.date || 0);
+          });
+          
+          return;
+        } else if (serverOrders.length > 0) {
+          // No local profile but have server orders (logged in on new device)
+          this.user = {
+            name: session.name || 'SWEETOS Member',
+            email: email,
+            phone: "+225 600 000 000",
+            memberSince: "October 2025",
+            address: "Ivory Coast",
+            avatar: (session.name && session.name.length > 0) ? session.name.charAt(0).toUpperCase() : 'US'
+          };
+          this.orders = serverOrders;
           return;
         }
       } catch (e) {
@@ -134,15 +177,23 @@ class AccountModal extends HTMLElement {
   }
 
   setupEventListeners() {
-    window.addEventListener('account:toggle', () => {
+    window.addEventListener('account:toggle', async () => {
       this.isOpen = !this.isOpen;
-      this.loadUserData();
+      await this.loadUserData();
       this.render();
       this.updateState();
     });
 
-    window.addEventListener('orders:updated', () => {
-      this.loadUserData();
+    window.addEventListener('orders:updated', async () => {
+      await this.loadUserData();
+      if (this.isOpen) {
+        this.render();
+      }
+    });
+    
+    // Listen for auth changes to reload user data when logging in/out
+    window.addEventListener('auth:changed', async () => {
+      await this.loadUserData();
       if (this.isOpen) {
         this.render();
       }
