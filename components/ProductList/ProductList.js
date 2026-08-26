@@ -264,6 +264,24 @@ class ProductList extends HTMLElement {
     };
     window.addEventListener('storage', this._storageListener);
 
+    // Listen to live Supabase and product updates
+    this._productsUpdatedHandler = (e) => {
+      try {
+        const stored = localStorage.getItem('SWEETOS_products');
+        if (stored) {
+          this.products = JSON.parse(stored);
+        } else if (e.detail && Array.isArray(e.detail)) {
+          this.products = e.detail;
+        }
+        this.renderPageContent();
+      } catch (err) {}
+    };
+
+    window.addEventListener('products:updated', this._productsUpdatedHandler);
+    window.addEventListener('supabase:ready', this._productsUpdatedHandler);
+    window.addEventListener('categories:updated', () => this.renderPageContent());
+    window.addEventListener('brands:updated', () => this.renderPageContent());
+
     // Reactive Profile and Auth listeners for real-time customer level and badge updates
     window.addEventListener('profile:updated', () => {
       if (this.currentPage === 'profile') {
@@ -330,6 +348,10 @@ class ProductList extends HTMLElement {
     }
     if (this._storageListener) {
       window.removeEventListener('storage', this._storageListener);
+    }
+    if (this._productsUpdatedHandler) {
+      window.removeEventListener('products:updated', this._productsUpdatedHandler);
+      window.removeEventListener('supabase:ready', this._productsUpdatedHandler);
     }
   }
 
