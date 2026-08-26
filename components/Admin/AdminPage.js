@@ -738,60 +738,89 @@ class AdminPage extends HTMLElement {
   }
 
   syncProductsToServer() {
+    // 1. Sync to local backend server if active
     fetch('/api/products', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(this.products)
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        console.log('Products synced to server successfully.');
-      } else {
-        console.error('Failed to sync products to server:', data.error);
-      }
-    })
-    .catch(err => console.error('Error syncing products to server:', err));
+    }).catch(() => {});
+
+    // 2. Sync directly to Supabase Database
+    try {
+      import('../../utils/supabase.js').then(({ supabase }) => {
+        if (!supabase) return;
+        const records = this.products.map(p => ({
+          legacy_id: typeof p.id === 'number' ? p.id : null,
+          name: p.name || 'Product',
+          slug: (p.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + (p.id || Date.now()),
+          description: p.description || '',
+          price: parseFloat(p.price) || 0,
+          original_price: p.originalPrice || p.comparePrice ? parseFloat(p.originalPrice || p.comparePrice) : null,
+          category_name: p.category || '',
+          subcategory_name: p.subcategory || '',
+          brand_name: p.brand || '',
+          image: p.image || '',
+          gallery: p.gallery || [],
+          colors: p.colors || [],
+          specs: p.specs || {},
+          stock: p.stock ?? 10,
+          in_stock: p.inStock ?? (p.stock > 0),
+          is_bestseller: p.isBestseller ?? false,
+          is_hot_deal: p.isHotDeal ?? false,
+          is_new: p.isNew ?? true,
+          rating: p.rating || 5.0,
+          reviews_count: p.reviews || 0
+        }));
+
+        supabase.from('products').upsert(records, { onConflict: 'slug' })
+          .then(({ error }) => {
+            if (!error) console.log('[Supabase] Products successfully synced to Supabase cloud!');
+            else console.warn('[Supabase] Products sync notice:', error.message);
+          });
+      });
+    } catch(e) {}
   }
 
   syncCategoriesToServer() {
     fetch('/api/categories', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(this.categories)
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        console.log('Categories synced to server successfully.');
-      } else {
-        console.error('Failed to sync categories to server:', data.error);
-      }
-    })
-    .catch(err => console.error('Error syncing categories to server:', err));
+    }).catch(() => {});
+
+    try {
+      import('../../utils/supabase.js').then(({ supabase }) => {
+        if (!supabase) return;
+        const records = this.categories.map(c => ({
+          name: c.name,
+          slug: (c.slug || c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+          icon: c.icon || '📦',
+          description: c.description || ''
+        }));
+        supabase.from('categories').upsert(records, { onConflict: 'slug' }).catch(() => {});
+      });
+    } catch(e) {}
   }
 
   syncBrandsToServer() {
     fetch('/api/brands', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(this.brands)
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        console.log('Brands synced to server successfully.');
-      } else {
-        console.error('Failed to sync brands to server:', data.error);
-      }
-    })
-    .catch(err => console.error('Error syncing brands to server:', err));
+    }).catch(() => {});
+
+    try {
+      import('../../utils/supabase.js').then(({ supabase }) => {
+        if (!supabase) return;
+        const records = this.brands.map(b => ({
+          name: b.name,
+          slug: (b.slug || b.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+          description: b.description || '',
+          is_official: b.isOfficial ?? true
+        }));
+        supabase.from('brands').upsert(records, { onConflict: 'slug' }).catch(() => {});
+      });
+    } catch(e) {}
   }
 
   syncReviewsToServer() {
