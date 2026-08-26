@@ -92,18 +92,25 @@ class Hero extends HTMLElement {
     this.setupEventListeners();
     this.startAutoSlide();
     
-    this._brandingListener = () => {
+    this._dataListener = () => {
       this.initSlides();
       this.render();
       this.setupEventListeners();
     };
-    window.addEventListener('branding:updated', this._brandingListener);
+
+    window.addEventListener('branding:updated', this._dataListener);
+    window.addEventListener('products:updated', this._dataListener);
+    window.addEventListener('supabase:ready', this._dataListener);
+    window.addEventListener('storage', this._dataListener);
   }
 
   disconnectedCallback() {
     this.stopAutoSlide();
-    if (this._brandingListener) {
-      window.removeEventListener('branding:updated', this._brandingListener);
+    if (this._dataListener) {
+      window.removeEventListener('branding:updated', this._dataListener);
+      window.removeEventListener('products:updated', this._dataListener);
+      window.removeEventListener('supabase:ready', this._dataListener);
+      window.removeEventListener('storage', this._dataListener);
     }
   }
 
