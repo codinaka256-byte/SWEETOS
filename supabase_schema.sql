@@ -1,11 +1,24 @@
 ﻿-- ====================================================================
--- SWEETOS E-COMMERCE - SUPABASE POSTGRESQL DATABASE SCHEMA
+-- SWEETOS E-COMMERCE - SUPABASE POSTGRESQL DATABASE SCHEMA (CLEAN RESET)
 -- ====================================================================
 
 -- 1. Enable UUID Extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. Helper trigger for updated_at
+-- 2. Drop any previous conflicting tables cleanly
+DROP TABLE IF EXISTS public.order_items CASCADE;
+DROP TABLE IF EXISTS public.orders CASCADE;
+DROP TABLE IF EXISTS public.reviews CASCADE;
+DROP TABLE IF EXISTS public.wishlists CASCADE;
+DROP TABLE IF EXISTS public.notifications CASCADE;
+DROP TABLE IF EXISTS public.coupons CASCADE;
+DROP TABLE IF EXISTS public.products CASCADE;
+DROP TABLE IF EXISTS public.categories CASCADE;
+DROP TABLE IF EXISTS public.brands CASCADE;
+DROP TABLE IF EXISTS public.store_settings CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+
+-- 3. Helper trigger function for updated_at
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -17,7 +30,7 @@ $$ LANGUAGE plpgsql;
 -- ====================================================================
 -- TABLE: STORE_SETTINGS
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.store_settings (
+CREATE TABLE public.store_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     store_name TEXT NOT NULL DEFAULT 'SWEETOS',
     currency TEXT NOT NULL DEFAULT 'FCFA',
@@ -33,7 +46,7 @@ CREATE TABLE IF NOT EXISTS public.store_settings (
 -- ====================================================================
 -- TABLE: CATEGORIES
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.categories (
+CREATE TABLE public.categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
@@ -46,13 +59,13 @@ CREATE TABLE IF NOT EXISTS public.categories (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_categories_slug ON public.categories(slug);
-CREATE INDEX IF NOT EXISTS idx_categories_parent ON public.categories(parent_id);
+CREATE INDEX idx_categories_slug ON public.categories(slug);
+CREATE INDEX idx_categories_parent ON public.categories(parent_id);
 
 -- ====================================================================
 -- TABLE: BRANDS
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.brands (
+CREATE TABLE public.brands (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL UNIQUE,
     slug TEXT NOT NULL UNIQUE,
@@ -65,12 +78,12 @@ CREATE TABLE IF NOT EXISTS public.brands (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_brands_slug ON public.brands(slug);
+CREATE INDEX idx_brands_slug ON public.brands(slug);
 
 -- ====================================================================
 -- TABLE: PRODUCTS
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.products (
+CREATE TABLE public.products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     legacy_id BIGINT UNIQUE,
     name TEXT NOT NULL,
@@ -98,11 +111,11 @@ CREATE TABLE IF NOT EXISTS public.products (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category_id);
-CREATE INDEX IF NOT EXISTS idx_products_brand ON public.products(brand_id);
-CREATE INDEX IF NOT EXISTS idx_products_slug ON public.products(slug);
-CREATE INDEX IF NOT EXISTS idx_products_price ON public.products(price);
-CREATE INDEX IF NOT EXISTS idx_products_in_stock ON public.products(in_stock);
+CREATE INDEX idx_products_category ON public.products(category_id);
+CREATE INDEX idx_products_brand ON public.products(brand_id);
+CREATE INDEX idx_products_slug ON public.products(slug);
+CREATE INDEX idx_products_price ON public.products(price);
+CREATE INDEX idx_products_in_stock ON public.products(in_stock);
 
 CREATE TRIGGER set_products_updated_at
 BEFORE UPDATE ON public.products
@@ -112,7 +125,7 @@ EXECUTE FUNCTION update_modified_column();
 -- ====================================================================
 -- TABLE: PROFILES (CUSTOMERS & ADMINS)
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.profiles (
+CREATE TABLE public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name TEXT,
     email TEXT UNIQUE,
@@ -135,7 +148,7 @@ EXECUTE FUNCTION update_modified_column();
 -- ====================================================================
 -- TABLE: ORDERS
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.orders (
+CREATE TABLE public.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_number TEXT NOT NULL UNIQUE,
     user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -155,9 +168,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_orders_user ON public.orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
-CREATE INDEX IF NOT EXISTS idx_orders_number ON public.orders(order_number);
+CREATE INDEX idx_orders_user ON public.orders(user_id);
+CREATE INDEX idx_orders_status ON public.orders(status);
+CREATE INDEX idx_orders_number ON public.orders(order_number);
 
 CREATE TRIGGER set_orders_updated_at
 BEFORE UPDATE ON public.orders
@@ -167,7 +180,7 @@ EXECUTE FUNCTION update_modified_column();
 -- ====================================================================
 -- TABLE: ORDER_ITEMS
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.order_items (
+CREATE TABLE public.order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
     product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
@@ -180,13 +193,13 @@ CREATE TABLE IF NOT EXISTS public.order_items (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_order_items_order ON public.order_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_order_items_product ON public.order_items(product_id);
+CREATE INDEX idx_order_items_order ON public.order_items(order_id);
+CREATE INDEX idx_order_items_product ON public.order_items(product_id);
 
 -- ====================================================================
 -- TABLE: COUPONS
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.coupons (
+CREATE TABLE public.coupons (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     code TEXT NOT NULL UNIQUE,
     discount_type TEXT NOT NULL DEFAULT 'percentage',
@@ -201,10 +214,12 @@ CREATE TABLE IF NOT EXISTS public.coupons (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX idx_coupons_code ON public.coupons(code);
+
 -- ====================================================================
 -- TABLE: REVIEWS
 -- ====================================================================
-CREATE TABLE IF NOT EXISTS public.reviews (
+CREATE TABLE public.reviews (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -215,6 +230,38 @@ CREATE TABLE IF NOT EXISTS public.reviews (
     is_verified BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE INDEX idx_reviews_product ON public.reviews(product_id);
+
+-- ====================================================================
+-- TABLE: WISHLISTS
+-- ====================================================================
+CREATE TABLE public.wishlists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, product_id)
+);
+
+CREATE INDEX idx_wishlists_user ON public.wishlists(user_id);
+
+-- ====================================================================
+-- TABLE: NOTIFICATIONS
+-- ====================================================================
+CREATE TABLE public.notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    type TEXT DEFAULT 'info',
+    link TEXT,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user ON public.notifications(user_id);
+CREATE INDEX idx_notifications_read ON public.notifications(is_read);
 
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -228,6 +275,8 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wishlists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Public Read Settings" ON public.store_settings FOR SELECT USING (true);
 CREATE POLICY "Public Read Categories" ON public.categories FOR SELECT USING (true);
@@ -242,3 +291,28 @@ CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING
 CREATE POLICY "Users can read own orders" ON public.orders FOR SELECT USING (auth.uid() = user_id OR auth.uid() IS NULL);
 CREATE POLICY "Anyone can create orders" ON public.orders FOR INSERT WITH CHECK (true);
 CREATE POLICY "Anyone can create order items" ON public.order_items FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can read own order items" ON public.order_items FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND (orders.user_id = auth.uid() OR auth.uid() IS NULL))
+);
+
+CREATE POLICY "Users manage own wishlist" ON public.wishlists FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users read own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id OR user_id IS NULL);
+CREATE POLICY "Users update own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+
+-- ====================================================================
+-- SEED DATA (INITIAL CATEGORIES & BRANDS)
+-- ====================================================================
+INSERT INTO public.store_settings (store_name, currency, hero_title, hero_subtitle)
+VALUES ('SWEETOS', 'FCFA', 'Find Your Style, Love Your Look ✨', 'Discover the latest trends in minimalist tech layouts, high-end accessories, and premium workspace gear.');
+
+INSERT INTO public.categories (name, slug, icon, description) VALUES
+('Keyboards', 'keyboards', '⌨️', 'Custom mechanical keyboards and keycaps'),
+('Audio', 'audio', '🎧', 'High-fidelity headphones and studio DACs'),
+('Desks', 'desks', '🪵', 'Solid hardwood monitor stands and organizers'),
+('Lighting', 'lighting', '💡', 'Minimalist LED screen bars and ambiance lighting');
+
+INSERT INTO public.brands (name, slug, description, is_official) VALUES
+('SWEETOS', 'sweetos', 'Official Sweetos Luxury Workspace Hardware', true),
+('Aero', 'aero', 'Precision Mechanical Keyboards & Accessories', true),
+('Apex', 'apex', 'Studio Acoustics & Audio Engineering', true),
+('Nebula', 'nebula', 'Artisan Hardwood Ergonomics', true);
