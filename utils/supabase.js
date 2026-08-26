@@ -1,4 +1,4 @@
-﻿// Supabase Client & Backend Synchronization Engine
+// Supabase Client & Backend Synchronization Engine
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import initialProducts from '../data/products.js';
 
@@ -239,17 +239,46 @@ export async function fetchOrdersFromSupabase(userEmail = null) {
 }
 
 // ==========================================
-// 5. GLOBAL INITIALIZATION & REALTIME
+// 5. STORE SETTINGS & BRANDING SYNC
+// ==========================================
+
+export async function fetchSettingsFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('store_settings')
+      .select('*')
+      .limit(1);
+
+    if (!error && data && data.length > 0) {
+      const s = data[0];
+      if (s.store_name) localStorage.setItem('SWEETOS_store_name', s.store_name);
+      if (s.hero_title) localStorage.setItem('SWEETOS_hero_title', s.hero_title);
+      if (s.hero_subtitle) localStorage.setItem('SWEETOS_hero_subtitle', s.hero_subtitle);
+      if (s.store_entrance_image) localStorage.setItem('SWEETOS_store_entrance_image', s.store_entrance_image);
+      if (s.currency) localStorage.setItem('SWEETOS_currency', s.currency);
+
+      window.dispatchEvent(new CustomEvent('branding:updated'));
+      return s;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// ==========================================
+// 6. GLOBAL INITIALIZATION & REALTIME
 // ==========================================
 
 export async function initSupabaseSync() {
-  console.log('[Supabase] Connected to project:', SUPABASE_URL);
+  console.log('[Supabase] Connected to live cloud database:', SUPABASE_URL);
   
   Promise.allSettled([
+    fetchSettingsFromSupabase(),
     fetchProductsFromSupabase(),
     fetchCategoriesFromSupabase(),
     fetchBrandsFromSupabase()
   ]).then(() => {
     window.dispatchEvent(new CustomEvent('supabase:ready'));
+    window.dispatchEvent(new CustomEvent('branding:updated'));
+    window.dispatchEvent(new CustomEvent('products:updated'));
   });
 }
