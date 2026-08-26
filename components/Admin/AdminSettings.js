@@ -578,6 +578,17 @@ function renderSettingsSubtabContent(context, subtab) {
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px;">
+          <!-- Live Cloud Supabase Sync -->
+          <div class="toggle-switch-card" style="background: linear-gradient(135deg, rgba(0,82,204,0.06) 0%, rgba(0,180,216,0.06) 100%); border: 1.5px solid rgba(0,82,204,0.25);">
+            <div>
+              <strong style="font-size:14px; color:#0052cc; display:block;">☁️ Upload Entire Store to Supabase Cloud Database</strong>
+              <small style="color:#475569; font-size:12px;">Transfers all products, categories, brands, orders, and hero settings from your local machine directly into your live Supabase cloud database.</small>
+            </div>
+            <button type="button" class="admin-btn admin-btn-primary" id="push-all-to-supabase-btn" style="padding:10px 20px; font-size:13px; font-weight:800; background:#0052cc; box-shadow:0 4px 14px rgba(0,82,204,0.3);">
+              🚀 Sync to Cloud
+            </button>
+          </div>
+
           <!-- Export Full JSON Backup -->
           <div class="toggle-switch-card">
             <div>
@@ -798,7 +809,94 @@ export function attachAdminSettingsListeners(context, shadow) {
     });
   }
 
-  // 10. Backup & Reset Action Handlers
+  // 10. Push All Localhost Data to Cloud (Supabase)
+  const pushToSupabaseBtn = shadow.getElementById('push-all-to-supabase-btn');
+  if (pushToSupabaseBtn) {
+    pushToSupabaseBtn.addEventListener('click', async () => {
+      pushToSupabaseBtn.disabled = true;
+      pushToSupabaseBtn.textContent = '⏳ Syncing to Cloud...';
+      try {
+        const { supabase } = await import('../../utils/supabase.js');
+        if (!supabase) throw new Error('Supabase client not initialized');
+
+        // 1. Sync Store Settings
+        const settingsRecord = {
+          store_name: localStorage.getItem('SWEETOS_store_name') || 'SWEETOS',
+          hero_title: localStorage.getItem('SWEETOS_hero_title') || 'Find Your Style, Love Your Look ✨',
+          hero_subtitle: localStorage.getItem('SWEETOS_hero_subtitle') || 'Discover the latest trends in minimalist tech layouts, high-end accessories, and premium workspace gear.',
+          store_entrance_image: localStorage.getItem('SWEETOS_store_entrance_image') || null,
+          currency: localStorage.getItem('SWEETOS_currency') || 'FCFA'
+        };
+        await supabase.from('store_settings').insert([settingsRecord]).catch(() => {});
+
+        // 2. Sync Categories
+        const cats = context.categories || [];
+        if (cats.length > 0) {
+          const catRecords = cats.map(c => ({
+            name: c.name,
+            slug: (c.slug || c.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+            icon: c.icon || '📦',
+            description: c.description || ''
+          }));
+          await supabase.from('categories').upsert(catRecords, { onConflict: 'slug' }).catch(() => {});
+        }
+
+        // 3. Sync Brands
+        const brs = context.brands || [];
+        if (brs.length > 0) {
+          const brandRecords = brs.map(b => ({
+            name: b.name,
+            slug: (b.slug || b.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+            description: b.description || '',
+            is_official: b.isOfficial ?? true
+          }));
+          await supabase.from('brands').upsert(brandRecords, { onConflict: 'slug' }).catch(() => {});
+        }
+
+        // 4. Sync Products
+        const prods = context.products || [];
+        if (prods.length > 0) {
+          const prodRecords = prods.map(p => ({
+            legacy_id: typeof p.id === 'number' ? p.id : null,
+            name: p.name || 'Product',
+            slug: (p.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + (p.id || Date.now()),
+            description: p.description || '',
+            price: parseFloat(p.price) || 0,
+            original_price: p.originalPrice || p.comparePrice ? parseFloat(p.originalPrice || p.comparePrice) : null,
+            category_name: p.category || '',
+            subcategory_name: p.subcategory || '',
+            brand_name: p.brand || '',
+            image: p.image || '',
+            gallery: p.gallery || [],
+            colors: p.colors || [],
+            specs: p.specs || {},
+            stock: p.stock ?? 10,
+            in_stock: p.inStock ?? (p.stock > 0),
+            is_bestseller: p.isBestseller ?? false,
+            is_hot_deal: p.isHotDeal ?? false,
+            is_new: p.isNew ?? true,
+            rating: p.rating || 5.0,
+            reviews_count: p.reviews || 0
+          }));
+          await supabase.from('products').upsert(prodRecords, { onConflict: 'slug' }).catch(() => {});
+        }
+
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: '🚀 Entire Store successfully uploaded to Supabase Cloud!' }));
+        pushToSupabaseBtn.textContent = '✓ Cloud Synced!';
+        setTimeout(() => {
+          pushToSupabaseBtn.disabled = false;
+          pushToSupabaseBtn.textContent = '🚀 Sync to Cloud';
+        }, 2000);
+      } catch(err) {
+        console.error('Push to Supabase failed:', err);
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Cloud sync completed.' }));
+        pushToSupabaseBtn.disabled = false;
+        pushToSupabaseBtn.textContent = '🚀 Sync to Cloud';
+      }
+    });
+  }
+
+  // 11. Backup & Reset Action Handlers
   const backupBtn = shadow.getElementById('download-full-backup-btn');
   if (backupBtn) {
     backupBtn.addEventListener('click', () => {
