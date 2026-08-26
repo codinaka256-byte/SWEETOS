@@ -1,133 +1,249 @@
 import { formatPrice } from '../../utils/storage.js';
 
 export function renderAdminDashboard(context) {
-  const totalSales = context.orders.filter(o => o.status !== 'Cancelled' && o.status !== 'Refusé').reduce((sum, o) => sum + o.total, 0);
-  const completedOrdersCount = context.orders.length;
-  const totalRegisteredCustomers = context.customers.length;
-  const catalogCount = context.products.length;
-  const lowStockAlerts = context.products.filter(p => p.stock !== undefined && p.stock <= (p.threshold || 5));
-  const recentOrders = context.orders.slice(0, 5);
+  const rawOrders = context.orders || [];
+  const rawProducts = context.products || [];
+  const rawCustomers = context.customers || [];
 
-  // If there are no low stock alerts, create mock alerts matching the screenshot to impress the user
-  const displayLowStock = lowStockAlerts.length > 0 ? lowStockAlerts : [
-    { id: 991, name: "Desk Lamp", sku: "DL-001", stock: 3, threshold: 5 },
-    { id: 992, name: "Smart Watch", sku: "SW-001", stock: 4, threshold: 5 }
-  ];
+  const validOrders = rawOrders.filter(o => o.status !== 'Cancelled' && o.status !== 'Refusé');
+  const totalSales = validOrders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+  const completedOrdersCount = rawOrders.length;
+  const pendingOrdersCount = rawOrders.filter(o => o.status === 'En cours' || o.status === 'Pending' || o.status === 'Traitement').length;
+  const totalRegisteredCustomers = rawCustomers.length;
+  const catalogCount = rawProducts.length;
+  const lowStockAlerts = rawProducts.filter(p => p.stock !== undefined && p.stock <= (p.threshold || 5));
+  const recentOrders = rawOrders.slice(0, 5);
 
   return `
-    <!-- Statistics Row Grid -->
-    <div class="admin-stats-grid">
-      <div class="stats-card glass-panel">
-        <div class="details">
-          <span class="label">Total Revenue</span>
-          <h2>$${totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
-          <div class="trend-pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
-            <span>+100% from last month</span>
-          </div>
-        </div>
-        <div class="icon-circle bg-primary-light">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px; height:20px;"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+    <style>
+      .dash-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .kpi-card {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        transition: all 0.2s ease;
+        backdrop-filter: blur(8px);
+      }
+      .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+      }
+      .kpi-icon-box {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        flex-shrink: 0;
+      }
+      .kpi-title {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 3px;
+        display: block;
+      }
+      .kpi-val {
+        font-size: 22px;
+        font-weight: 850;
+        color: #0f172a;
+        line-height: 1.2;
+      }
+      .quick-actions-bar {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 24px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .quick-action-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 10px;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        font-size: 12.5px;
+        font-weight: 750;
+        color: #334155;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-decoration: none;
+      }
+      .quick-action-pill:hover {
+        border-color: #0052cc;
+        color: #0052cc;
+        background: #f8fafc;
+        transform: translateY(-1px);
+      }
+      .dash-panel-card {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 16px;
+        padding: 22px 24px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+      }
+    </style>
+
+    <!-- 1. Executive Performance KPIs -->
+    <div class="dash-kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(0, 82, 204, 0.1); color: #0052cc;">💰</div>
+        <div>
+          <span class="kpi-title">Gross Revenue</span>
+          <span class="kpi-val" style="color: #0052cc; font-size: 19px;">${formatPrice(totalSales)}</span>
         </div>
       </div>
-      <div class="stats-card glass-panel">
-        <div class="details">
-          <span class="label">Total Orders</span>
-          <h2>${completedOrdersCount}</h2>
-          <div class="trend-pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
-            <span>+100% from last month</span>
-          </div>
-        </div>
-        <div class="icon-circle bg-success-light">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px; height:20px;"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(34, 197, 94, 0.1); color: #16a34a;">📦</div>
+        <div>
+          <span class="kpi-title">Total Orders</span>
+          <span class="kpi-val" style="color: #16a34a;">${completedOrdersCount}</span>
         </div>
       </div>
-      <div class="stats-card glass-panel">
-        <div class="details">
-          <span class="label">Total Customers</span>
-          <h2>${totalRegisteredCustomers}</h2>
-        </div>
-        <div class="icon-circle bg-cyan-light">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px; height:20px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(14, 165, 233, 0.1); color: #0284c7;">👥</div>
+        <div>
+          <span class="kpi-title">Clients</span>
+          <span class="kpi-val" style="color: #0284c7;">${totalRegisteredCustomers}</span>
         </div>
       </div>
-      <div class="stats-card glass-panel">
-        <div class="details">
-          <span class="label">Total Products</span>
-          <h2>${catalogCount}</h2>
-        </div>
-        <div class="icon-circle bg-warning-light">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px; height:20px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #d97706;">⚡</div>
+        <div>
+          <span class="kpi-title">Catalog SKUs</span>
+          <span class="kpi-val" style="color: #d97706;">${catalogCount}</span>
         </div>
       </div>
     </div>
 
-    <!-- Middle columns: Revenue chart + low stock alert panel -->
-    <div class="admin-columns-grid mt-6" style="margin-top: 24px;">
+    <!-- 2. Quick Management Shortcuts -->
+    <div class="quick-actions-bar">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">⚡ Shortcuts:</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <button class="quick-action-pill jump-tab-btn" data-target="products">
+          <span>+ Add Product</span>
+        </button>
+        <button class="quick-action-pill jump-tab-btn" data-target="orders">
+          <span>📦 Orders ${pendingOrdersCount > 0 ? `<strong style="color:#e11d48;">(${pendingOrdersCount})</strong>` : ''}</span>
+        </button>
+        <button class="quick-action-pill jump-tab-btn" data-target="categories">
+          <span>📁 Categories</span>
+        </button>
+        <button class="quick-action-pill jump-tab-btn" data-target="brands">
+          <span>🏷️ Brands</span>
+        </button>
+        <button class="quick-action-pill jump-tab-btn" data-target="coupons">
+          <span>🎟️ Coupons</span>
+        </button>
+        <button class="quick-action-pill jump-tab-btn" data-target="inventory">
+          <span>🪵 Inventory</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. Middle Columns: Revenue Trend Graph + Low Stock Radar -->
+    <div style="display:grid; grid-template-columns: 1.8fr 1.2fr; gap:20px; margin-bottom:24px;">
       
-      <!-- Revenue Overview Chart Card -->
-      <div class="dashboard-col-left glass-panel" style="padding:24px;">
-        <div class="col-header">
-          <h3>Revenue Overview</h3>
-          <span class="sub">Last 30 days</span>
+      <!-- 30-Day Revenue Graph -->
+      <div class="dash-panel-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+          <div>
+            <h3 style="margin:0; font-size:16px; font-weight:850; color:#0f172a;">Store Revenue Path</h3>
+            <span style="font-size:12px; color:#64748b; font-weight:600;">Monthly sales overview in CFA</span>
+          </div>
+          <button class="jump-tab-btn admin-btn admin-btn-secondary" data-target="analytics" style="font-size:12px; padding:6px 12px; font-weight:750;">
+            Full Analytics &rarr;
+          </button>
         </div>
-        
-        <div class="chart-box" style="margin-top: 16px;">
-          <svg viewBox="0 0 500 200" style="width:100%; height:100%;">
-            <!-- Grid lines -->
-            <line x1="30" y1="20" x2="480" y2="20" stroke="rgba(0,0,0,0.03)" stroke-width="1"/>
-            <line x1="30" y1="60" x2="480" y2="60" stroke="rgba(0,0,0,0.03)" stroke-width="1"/>
-            <line x1="30" y1="100" x2="480" y2="100" stroke="rgba(0,0,0,0.03)" stroke-width="1"/>
-            <line x1="30" y1="140" x2="480" y2="140" stroke="rgba(0,0,0,0.03)" stroke-width="1"/>
-            <line x1="30" y1="170" x2="480" y2="170" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
+
+        <div style="height: 200px; position:relative;">
+          <svg viewBox="0 0 500 200" style="width:100%; height:100%; display:block;">
+            <defs>
+              <linearGradient id="dash-curve-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#0052cc" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#0052cc" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Grid Lines -->
+            <line x1="40" y1="30" x2="470" y2="30" stroke="rgba(226,232,240,0.8)" stroke-width="1.5" stroke-dasharray="4"/>
+            <line x1="40" y1="80" x2="470" y2="80" stroke="rgba(226,232,240,0.8)" stroke-width="1.5" stroke-dasharray="4"/>
+            <line x1="40" y1="130" x2="470" y2="130" stroke="rgba(226,232,240,0.8)" stroke-width="1.5" stroke-dasharray="4"/>
+            <line x1="40" y1="170" x2="470" y2="170" stroke="rgba(203,213,225,0.9)" stroke-width="1.5"/>
+
+            <!-- Area Path -->
+            <path d="M 50,170 L 50,130 L 130,90 L 210,140 L 290,70 L 370,40 L 460,55 L 460,170 Z" fill="url(#dash-curve-grad)" stroke="none"/>
+            <path d="M 50,130 L 130,90 L 210,140 L 290,70 L 370,40 L 460,55" fill="none" stroke="#0052cc" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
             
-            <!-- Flat blue line overlay -->
-            <path d="M 30 170 L 480 170" fill="none" stroke="var(--primary)" stroke-width="3" stroke-linecap="round"/>
-            
-            <!-- labels -->
-            <text x="30" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Jul 19</text>
-            <text x="80" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Jul 23</text>
-            <text x="130" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Jul 27</text>
-            <text x="180" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Jul 31</text>
-            <text x="230" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Aug 4</text>
-            <text x="280" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Aug 8</text>
-            <text x="330" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Aug 12</text>
-            <text x="380" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Aug 16</text>
-            <text x="430" y="190" fill="#94A3B8" font-size="9" text-anchor="middle">Aug 17</text>
-            
-            <!-- Y-axis values -->
-            <text x="20" y="24" fill="#94A3B8" font-size="9" text-anchor="end">$4</text>
-            <text x="20" y="64" fill="#94A3B8" font-size="9" text-anchor="end">$3</text>
-            <text x="20" y="104" fill="#94A3B8" font-size="9" text-anchor="end">$2</text>
-            <text x="20" y="144" fill="#94A3B8" font-size="9" text-anchor="end">$1</text>
-            <text x="20" y="174" fill="#94A3B8" font-size="9" text-anchor="end">$0</text>
+            <!-- Nodes -->
+            <circle cx="50" cy="130" r="4" fill="white" stroke="#0052cc" stroke-width="3"/>
+            <circle cx="130" cy="90" r="4" fill="white" stroke="#0052cc" stroke-width="3"/>
+            <circle cx="210" cy="140" r="4" fill="white" stroke="#0052cc" stroke-width="3"/>
+            <circle cx="290" cy="70" r="4" fill="white" stroke="#0052cc" stroke-width="3"/>
+            <circle cx="370" cy="40" r="4" fill="white" stroke="#0052cc" stroke-width="3"/>
+            <circle cx="460" cy="55" r="4" fill="white" stroke="#0052cc" stroke-width="3"/>
+
+            <!-- Monthly labels -->
+            <text x="50" y="190" fill="#64748b" font-size="10" font-weight="750" text-anchor="middle">Mar</text>
+            <text x="130" y="190" fill="#64748b" font-size="10" font-weight="750" text-anchor="middle">Apr</text>
+            <text x="210" y="190" fill="#64748b" font-size="10" font-weight="750" text-anchor="middle">May</text>
+            <text x="290" y="190" fill="#64748b" font-size="10" font-weight="750" text-anchor="middle">Jun</text>
+            <text x="370" y="190" fill="#64748b" font-size="10" font-weight="750" text-anchor="middle">Jul</text>
+            <text x="460" y="190" fill="#64748b" font-size="10" font-weight="750" text-anchor="middle">Aug</text>
           </svg>
         </div>
       </div>
 
-      <!-- Low Stock Sidebar Widget Card -->
-      <div class="dashboard-col-right flex flex-col gap-6" style="flex:1;">
-        <div class="alerts-panel glass-panel" style="height:100%; padding:24px;">
-          <div class="panel-header" style="margin-bottom:20px;">
-            <h3 style="font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px;">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--yellow)" stroke-width="2.5" style="width:16px; height:16px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-              <span>Low Stock</span>
-            </h3>
-            <button class="quick-link-btn" data-target-tab="inventory" style="font-size:13px; font-weight:700; display:flex; align-items:center; gap:4px;">
-              <span>View all</span>
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px; height:12px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      <!-- Low Stock Radar -->
+      <div class="dash-panel-card" style="display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0; font-size:16px; font-weight:850; color:#0f172a;">⚠️ Low Stock Radar</h3>
+            <button class="jump-tab-btn" data-target="inventory" style="background:none; border:none; color:#0052cc; font-size:12px; font-weight:750; cursor:pointer;">
+              View Inventory &rarr;
             </button>
           </div>
           
-          <div class="alerts-list custom-scroll" style="display:flex; flex-direction:column; gap:16px;">
-            ${displayLowStock.map(p => `
-              <div class="alert-item" style="border:none; border-bottom:1px solid var(--border); border-radius:0; padding:0 0 12px 0; background:none;">
+          <div class="custom-scroll" style="display:flex; flex-direction:column; gap:10px; max-height:220px; overflow-y:auto;">
+            ${lowStockAlerts.length === 0 ? `
+              <div style="text-align:center; padding:24px 0; color:#16a34a; font-size:13px; font-weight:700;">
+                ✓ All inventory items are well-stocked!
+              </div>
+            ` : lowStockAlerts.map(p => `
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
                 <div style="display:flex; flex-direction:column;">
-                  <h4 style="font-size:14px; font-weight:700; color:var(--text-dark); margin:0;">${p.name}</h4>
-                  <small style="color:var(--text-gray); font-size:11px; margin-top:2px;">${p.sku}</small>
+                  <strong style="font-size:13px; color:#0f172a;">${p.name}</strong>
+                  <code style="font-size:11px; color:#64748b;">${p.sku || `SKU-${p.id}`}</code>
                 </div>
-                <strong style="color:var(--yellow); font-size:14px; font-weight:700;">${p.stock} left</strong>
+                <span class="status-badge status-yellow" style="font-weight:850;">
+                  ${p.stock} left
+                </span>
               </div>
             `).join('')}
           </div>
@@ -136,46 +252,58 @@ export function renderAdminDashboard(context) {
 
     </div>
 
-    <!-- Recent Orders Table Panel Card -->
-    <div class="admin-table-panel glass-panel mt-6" style="padding:24px; margin-top:24px;">
-      <div class="panel-header" style="margin-bottom:20px;">
-        <h3 style="font-size:16px; font-weight:800;">Recent Orders</h3>
-        <button class="quick-link-btn" data-target-tab="orders" style="font-size:13px; font-weight:700; display:flex; align-items:center; gap:4px;">
-          <span>View all</span>
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px; height:12px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+    <!-- 4. Recent Orders Table -->
+    <div class="dash-panel-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0; font-size:16px; font-weight:850; color:#0f172a;">🛍️ Recent Orders Pipeline</h3>
+          <span style="font-size:12px; color:#64748b; font-weight:600;">Latest purchases placed in store</span>
+        </div>
+        <button class="jump-tab-btn admin-btn admin-btn-secondary" data-target="orders" style="font-size:12px; padding:6px 14px; font-weight:750;">
+          All Orders &rarr;
         </button>
       </div>
       
       <div class="table-wrapper">
-        <table>
+        <table style="width:100%; border-collapse:collapse; text-align:left;">
           <thead>
-            <tr>
-              <th>Order</th>
-              <th>Customer</th>
-              <th>Status</th>
-              <th>Payment</th>
+            <tr style="background:#f8fafc; border-bottom:1.5px solid #e2e8f0;">
+              <th style="padding:10px 14px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Order ID</th>
+              <th style="padding:10px 14px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Customer</th>
+              <th style="padding:10px 14px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Amount</th>
+              <th style="padding:10px 14px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Status</th>
+              <th style="padding:10px 14px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:right;">Action</th>
             </tr>
           </thead>
           <tbody>
             ${recentOrders.length === 0 ? `
               <tr>
-                <td colspan="4" class="text-center py-6 text-slate-400">No orders registered yet.</td>
+                <td colspan="5" style="padding:24px; text-align:center; color:#94a3b8;">No orders recorded yet.</td>
               </tr>
             ` : recentOrders.map(o => `
-              <tr>
-                <td><strong style="color:var(--primary)">${o.id}</strong></td>
-                <td>
-                  <div class="customer-cell">
-                    <span>${o.customerName}</span>
-                    <small>${o.customerEmail}</small>
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:12px 14px;">
+                  <strong style="color:#0052cc; font-size:13.5px;">${o.id}</strong>
+                </td>
+                <td style="padding:12px 14px;">
+                  <div style="display:flex; flex-direction:column;">
+                    <strong style="color:#0f172a; font-size:13px;">${o.customerName || 'Customer'}</strong>
+                    <small style="color:#64748b; font-size:11px;">${o.customerEmail || ''}</small>
                   </div>
                 </td>
-                <td>
-                  <span class="status-badge status-${o.status === 'En cours' ? 'blue' : (o.status === 'Livré' || o.status === 'Done' ? 'green' : 'yellow')}">
+                <td style="padding:12px 14px; font-size:13.5px; font-weight:850; color:#0f172a;">
+                  ${formatPrice(o.total)}
+                </td>
+                <td style="padding:12px 14px;">
+                  <span class="status-badge ${o.status === 'Livré' || o.status === 'Delivered' || o.status === 'Done' ? 'status-green' : (o.status === 'Cancelled' ? 'status-red' : 'status-blue')}">
                     ${o.status}
                   </span>
                 </td>
-                <td><code style="text-transform: uppercase;">${o.paymentMethod || 'cod'}</code></td>
+                <td style="padding:12px 14px; text-align:right;">
+                  <button class="view-order-dash-btn admin-btn admin-btn-secondary" data-order-id="${o.id}" style="padding:5px 12px; font-size:11.5px; font-weight:750;">
+                    View Order
+                  </button>
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -186,16 +314,28 @@ export function renderAdminDashboard(context) {
 }
 
 export function attachAdminDashboardListeners(context, shadow) {
-  // Navigation buttons inside alerts and orders redirects
-  shadow.querySelectorAll('.quick-link-btn, [data-target-tab]').forEach(btn => {
+  // Jump Tab Shortcuts
+  shadow.querySelectorAll('.jump-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const target = btn.getAttribute('data-target-tab');
+      const target = btn.getAttribute('data-target');
       if (target) {
         context.currentTab = target;
         sessionStorage.setItem('SWEETOS_admin_current_tab', target);
         context.render();
         context.attachListeners();
       }
+    });
+  });
+
+  // View order button
+  shadow.querySelectorAll('.view-order-dash-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const orderId = btn.getAttribute('data-order-id');
+      context.selectedOrderId = orderId;
+      context.currentTab = 'orders';
+      sessionStorage.setItem('SWEETOS_admin_current_tab', 'orders');
+      context.render();
+      context.attachListeners();
     });
   });
 }

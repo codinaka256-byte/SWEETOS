@@ -7,6 +7,8 @@ if (window.location.pathname !== '/' && window.location.pathname !== '/index.htm
 }
 
 import { getCartStorageKey } from './utils/storage.js';
+import { initSupabaseSync } from './utils/supabase.js';
+import './utils/modal.js';
 import products from './data/products.js';
 
 // Import all Web Components to auto-register them
@@ -21,8 +23,12 @@ import './components/Notifications/NotificationDrawer.js';
 import './components/ProductDetails/ProductDetailsModal.js';
 import './components/Checkout/CheckoutModal.js';
 import './components/MobileNav/MobileNav.js';
+import './components/WhatsApp/WhatsAppButton.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Initialize Supabase Live Backend Sync
+  initSupabaseSync();
+
   // Apply dynamic store configurations (theme, brand colors, font family)
   const applyBrandingSettings = () => {
     const primaryColor = localStorage.getItem('SWEETOS_brand_color_primary') || '#0052cc';
@@ -360,6 +366,15 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('checkout:start', () => {
     closeCart();
     closeNotifications();
+
+    // Check if user is logged in
+    const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
+    if (!loggedInUserStr) {
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: '🔒 Veuillez vous connecter pour finaliser votre commande / Please log in to complete your order!' }));
+      window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'auth' } }));
+      return;
+    }
+
     const checkoutModal = document.getElementById('global-checkout-modal');
     if (checkoutModal) {
       checkoutModal.open();

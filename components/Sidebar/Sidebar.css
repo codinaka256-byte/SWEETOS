@@ -89,14 +89,75 @@
   color: var(--primary);
 }
 
-.sidebar-item .hot-badge {
-  background: var(--red);
-  color: white;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 6px;
+.sidebar-item .hot-badge,
+.sidebar-badge {
   margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.2px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.sidebar-badge.orders-badge {
+  background: #eff6ff;
+  color: #0052cc;
+  border: 1px solid #bfdbfe;
+}
+
+.sidebar-badge.orders-badge.in-transit {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  animation: pulse-green 2s infinite;
+}
+
+.sidebar-badge.wishlist-badge {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+.sidebar-badge.coupon-badge {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.sidebar-badge.hot-badge,
+.sidebar-item .hot-badge {
+  background: linear-gradient(135deg, #ff4d4f, #f5222d);
+  color: white;
+  box-shadow: 0 2px 6px rgba(245, 34, 45, 0.3);
+}
+
+.sidebar-badge.new-badge {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.sidebar-badge.top-badge {
+  background: #fefce8;
+  color: #b45309;
+  border: 1px solid #fef08a;
+}
+
+@keyframes pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(5, 150, 105, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);
+  }
 }
 
 .sidebar-divider {
@@ -194,30 +255,58 @@
 /* ================= COLLAPSIBLE TOGGLER & COLLAPSED OVERRIDES ================= */
 .sidebar-collapse-toggle {
   position: absolute;
-  top: 14px;
-  right: 12px;
-  width: 26px;
-  height: 26px;
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 8px;
+  top: 12px;
+  left: 10px;
+  right: 10px;
+  height: 36px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1.5px solid rgba(0, 82, 204, 0.14);
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  padding: 0 12px;
   z-index: 100;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  color: var(--text-dark);
-  font-size: 16px;
-  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 82, 204, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--text-dark, #0A2540);
   user-select: none;
+  outline: none;
+}
+
+.sidebar-collapse-toggle .toggle-text {
+  color: var(--text-gray, #64748b);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+}
+
+.sidebar-collapse-toggle .toggle-icon {
+  width: 14px;
+  height: 14px;
+  stroke: var(--primary, #0052cc);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.2s ease;
+  display: block;
+  flex-shrink: 0;
 }
 
 .sidebar-collapse-toggle:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: white;
+  border-color: var(--primary, #0052cc);
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 82, 204, 0.16);
+  transform: translateY(-1px);
+}
+
+.sidebar-collapse-toggle:hover .toggle-text {
+  color: var(--primary, #0052cc);
+}
+
+.sidebar-collapse-toggle:active {
+  transform: translateY(0);
 }
 
 /* Collapsed State Overrides */
@@ -227,7 +316,27 @@
 }
 
 .sidebar-wrapper.collapsed .sidebar-collapse-toggle {
-  right: calc(50% - 13px);
+  left: 10px;
+  right: 10px;
+  justify-content: center;
+  padding: 0;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: rgba(0, 82, 204, 0.28);
+  box-shadow: 0 2px 10px rgba(0, 82, 204, 0.16);
+}
+
+.sidebar-wrapper.collapsed .sidebar-collapse-toggle .toggle-text {
+  display: none;
+}
+
+.sidebar-wrapper.collapsed .sidebar-collapse-toggle .toggle-icon {
+  transform: rotate(180deg);
+}
+
+.sidebar-wrapper.collapsed .sidebar-collapse-toggle:hover {
+  background: #ffffff;
+  transform: scale(1.06);
+  box-shadow: 0 4px 16px rgba(0, 82, 204, 0.25);
 }
 
 .sidebar-wrapper.collapsed .sidebar-item {

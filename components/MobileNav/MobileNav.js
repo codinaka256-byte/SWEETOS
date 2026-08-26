@@ -8,6 +8,7 @@ class MobileNav extends HTMLElement {
     this.render();
     this.setupEventListeners();
     this.syncActiveTab(sessionStorage.getItem('SWEETOS_current_page') || 'home');
+    this.syncBadges();
   }
 
   render() {
@@ -56,10 +57,11 @@ class MobileNav extends HTMLElement {
         <!-- Tab 4: FAVORIS (Wishlist) -->
         <a href="#" class="nav-item" data-tab-page="wishlist">
           <div class="active-indicator"></div>
-          <div class="icon-box">
+          <div class="icon-box" style="position: relative;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
+            <span id="mobile-wishlist-badge" class="badge" style="background: #e11d48; display: none;">0</span>
           </div>
           <span class="label">FAVORIS</span>
         </a>
@@ -110,11 +112,12 @@ class MobileNav extends HTMLElement {
     // Listen to page changes from other sources to sync active class
     window.addEventListener('navigation:changed', (e) => {
       this.syncActiveTab(e.detail.page);
+      this.syncBadges();
     });
 
     // Sync cart badge quantity
     window.addEventListener('cart:updated', (e) => {
-      const cart = e.detail;
+      const cart = e.detail || [];
       const count = cart.reduce((acc, item) => acc + item.quantity, 0);
       const badge = shadow.getElementById('mobile-cart-badge');
       if (badge) {
@@ -122,6 +125,41 @@ class MobileNav extends HTMLElement {
         badge.style.display = count > 0 ? 'flex' : 'none';
       }
     });
+
+    // Sync wishlist badge
+    window.addEventListener('wishlist:updated', (e) => {
+      const wishlist = e.detail || [];
+      const badge = shadow.getElementById('mobile-wishlist-badge');
+      if (badge) {
+        badge.textContent = wishlist.length;
+        badge.style.display = wishlist.length > 0 ? 'flex' : 'none';
+      }
+    });
+  }
+
+  syncBadges() {
+    const shadow = this.shadowRoot;
+
+    // Cart badge
+    try {
+      const cart = JSON.parse(localStorage.getItem('SWEETOS_cart') || '[]');
+      const count = cart.reduce((acc, item) => acc + item.quantity, 0);
+      const cartBadge = shadow.getElementById('mobile-cart-badge');
+      if (cartBadge) {
+        cartBadge.textContent = count;
+        cartBadge.style.display = count > 0 ? 'flex' : 'none';
+      }
+    } catch(e) {}
+
+    // Wishlist badge
+    try {
+      const wishlist = JSON.parse(localStorage.getItem('SWEETOS_wishlist') || '[]');
+      const wishBadge = shadow.getElementById('mobile-wishlist-badge');
+      if (wishBadge) {
+        wishBadge.textContent = wishlist.length;
+        wishBadge.style.display = wishlist.length > 0 ? 'flex' : 'none';
+      }
+    } catch(e) {}
   }
 
   syncActiveTab(pageName) {

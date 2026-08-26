@@ -1,3 +1,5 @@
+import { formatPrice } from '../../utils/storage.js';
+
 class ProductDetailsModal extends HTMLElement {
   constructor() {
     super();
@@ -14,6 +16,11 @@ class ProductDetailsModal extends HTMLElement {
   render() {
     if (!this.product) return;
     const p = this.product;
+
+    const origPrice = p.comparePrice || p.originalPrice || p.original_price || 0;
+    const hasDiscount = Boolean(origPrice > p.price);
+    const originalPriceVal = hasDiscount ? origPrice : 0;
+    const discountVal = hasDiscount ? Math.round(((originalPriceVal - p.price) / originalPriceVal) * 100) : 0;
 
     // 1. Ensure stylesheet link is injected exactly once to prevent layout style drops on re-renders
     if (!this.shadowRoot.querySelector('link[href*="ProductDetailsModal.css"]')) {
@@ -57,7 +64,13 @@ class ProductDetailsModal extends HTMLElement {
               </div>
               
               <h2 class="details-title">${p.name}</h2>
-              <div class="price-badge">$${p.price.toFixed(2)}</div>
+              <div class="price-row" style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+                <span class="price-badge" style="margin: 0; font-size: 20px; font-weight: 900; color: var(--primary);">${formatPrice(p.price)}</span>
+                ${hasDiscount ? `
+                  <span class="original-price" style="text-decoration: line-through; color: #94a3b8; font-size: 14px; font-weight: 600;">${formatPrice(originalPriceVal)}</span>
+                  <span style="font-size: 11px; font-weight: 850; background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 2px 7px; border-radius: 6px;">-${discountVal}% OFF</span>
+                ` : ''}
+              </div>
               
               <div class="tabs-nav">
                 <button class="tab-btn ${this.activeTab === 'description' ? 'active' : ''}" id="tab-desc">Overview</button>
@@ -81,13 +94,22 @@ class ProductDetailsModal extends HTMLElement {
                 `}
               </div>
               
-              <div class="actions-row">
-                <button class="add-to-cart-btn btn-primary" id="add-btn">
+              <div class="actions-row" style="display: flex; gap: 12px; align-items: center; width: 100%;">
+                <button class="add-to-cart-btn btn-primary" id="add-btn" style="flex: 1;">
                   Add to Shopping Cart
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 18px; height: 18px; flex-shrink: 0; display: inline-block; margin-left: 4px; vertical-align: middle;">
                     <circle cx="9" cy="21" r="1"></circle>
                     <circle cx="20" cy="21" r="1"></circle>
                     <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                  </svg>
+                </button>
+                <button class="share-details-btn" id="details-share-btn" style="background: rgba(0, 82, 204, 0.05); color: #0052cc; border: 1.5px solid rgba(0, 82, 204, 0.15); width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" title="Share Product">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px; flex-shrink: 0;">
+                    <circle cx="18" cy="5" r="3"></circle>
+                    <circle cx="6" cy="12" r="3"></circle>
+                    <circle cx="18" cy="19" r="3"></circle>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                   </svg>
                 </button>
               </div>
@@ -128,6 +150,63 @@ class ProductDetailsModal extends HTMLElement {
         window.dispatchEvent(new CustomEvent('cart:add', { detail: this.product }));
         this.isOpen = false;
         this.updateState();
+      });
+    }
+
+    // Product details share btn
+    const shareBtn = shadow.getElementById('details-share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', async () => {
+        const p = this.product;
+        if (!p) return;
+        const shareTitle = `SWEETOS | ${p.name}`;
+        const shareText = `Découvrez ${p.name} sur SWEETOS !\n${p.shortDesc || ''}\n\nPrix: $${p.price.toFixed(2)}`;
+        const shareUrl = window.location.origin;
+
+        const copyToClipboardFallback = () => {
+          navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`)
+            .then(() => {
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: '📋 Lien du produit copié dans le presse-papiers ! / Copied to clipboard! 🌟' }));
+            })
+            .catch(() => {
+              const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + '\n\n' + shareUrl)}`;
+              window.open(whatsappUrl, '_blank');
+            });
+        };
+
+        if (navigator.share) {
+          try {
+            // Fetch product image to share as file blob
+            const response = await fetch(p.image);
+            const blob = await response.blob();
+            const extension = p.image.split('.').pop().split('?')[0] || 'jpg';
+            const file = new File([blob], `product-${p.id}.${extension}`, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: shareTitle,
+                text: shareText,
+                url: shareUrl,
+                files: [file]
+              });
+            } else {
+              await navigator.share({
+                title: shareTitle,
+                text: shareText,
+                url: shareUrl
+              });
+            }
+          } catch (err) {
+            console.log('Error sharing image file, falling back to text:', err);
+            navigator.share({
+              title: shareTitle,
+              text: shareText,
+              url: shareUrl
+            }).catch(() => copyToClipboardFallback());
+          }
+        } else {
+          copyToClipboardFallback();
+        }
       });
     }
 

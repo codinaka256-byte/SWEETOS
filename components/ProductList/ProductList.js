@@ -1,9 +1,11 @@
 import products from '../../data/products.js';
 import { showEditAddressModal } from '../Modals/EditAddressModal.js';
 import { showCancelOrderModal } from '../Modals/CancelOrderModal.js';
-import { showDeleteOrderModal } from '../Modals/DeleteOrderModal.js';
 import { getAuthPageHTML, attachAuthListeners } from '../Auth/AuthPage.js';
-import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, formatPrice } from '../../utils/storage.js';
+import { getCartStorageKey, getProfileStorageKey, getNotificationsStorageKey, formatPrice, formatTimeAgo, syncDeliveredNotifications } from '../../utils/storage.js';
+import { CUSTOMER_LEVELS, VERIFIED_BADGES, renderVerificationBadge, renderLevelPill, getCustomerLevel, getCustomerBadge, getBadgeRewardCoupon, getCustomerAvatarStyle, renderLevelChevronV, scratchBadgeReward, isBadgeRewardScratched } from '../../utils/badges.js';
+import { getTodaysDealsConfig, isTodaysDealsActive, getTimeRemaining, awardMysteryBoxForDeliveredOrder, getTodaysDealsTheme, DEAL_BANNER_THEMES } from '../../utils/todaysDeals.js';
+import { getMoreToLoveConfig } from '../../utils/moreToLove.js';
 import '../Admin/AdminPage.js';
 
 class ProductList extends HTMLElement {
@@ -13,40 +15,77 @@ class ProductList extends HTMLElement {
     
     // Initialize products database from localStorage to enable Admin Panel synchronization
     const storedProds = localStorage.getItem('SWEETOS_products');
-    if (storedProds) {
+    if (storedProds !== null) {
       try {
         this.products = JSON.parse(storedProds);
-        // Sync any new products from the source data/products.js that are missing from localStorage
-        let hasNew = false;
-        products.forEach(p => {
-          if (!this.products.some(existing => existing.id === p.id)) {
-            this.products.push(p);
-            hasNew = true;
-          }
-        });
-        const hasMigrated = this.initializeHomepageSectionsForProducts(this.products);
-        if (hasNew || hasMigrated) {
-          localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
-        }
       } catch (e) {
-        this.products = products;
-        this.initializeHomepageSectionsForProducts(this.products);
-        localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
+        this.products = [];
       }
     } else {
       this.products = products;
       this.initializeHomepageSectionsForProducts(this.products);
       localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
     }
+
+    // Auto-sanitize all product categories and names
+    if (Array.isArray(this.products)) {
+      let prodsModified = false;
+      this.products.forEach(p => {
+        if (!p.category || p.category === 'undefined' || p.category === 'null') {
+          p.category = 'General';
+          prodsModified = true;
+        }
+        if (!p.name || p.name === 'undefined') {
+          p.name = 'Product #' + (p.id || 1);
+          prodsModified = true;
+        }
+      });
+      if (prodsModified) {
+        localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
+      }
+    }
+
+    // Auto-sanitize categories and homepage sections
+    try {
+      const rawCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
+      const cleanCats = rawCats.filter(c => c && c.name && c.name !== 'undefined' && c.name !== 'null');
+      if (cleanCats.length !== rawCats.length) {
+        localStorage.setItem('SWEETOS_categories', JSON.stringify(cleanCats));
+      }
+    } catch(e) {}
+
+    try {
+      const rawSecs = JSON.parse(localStorage.getItem('SWEETOS_homepage_sections') || '[]');
+      const cleanSecs = rawSecs.filter(s => s && s.name && s.name !== 'undefined' && s.name !== 'null');
+      if (cleanSecs.length !== rawSecs.length) {
+        localStorage.setItem('SWEETOS_homepage_sections', JSON.stringify(cleanSecs));
+      }
+    } catch(e) {}
     
-    // Page state
+    // Page state with undefined guards
     this.currentPage = sessionStorage.getItem('SWEETOS_current_page') || 'home';
-    this.currentCategory = sessionStorage.getItem('SWEETOS_current_category') || 'All';
+    let catVal = sessionStorage.getItem('SWEETOS_current_category');
+    this.currentCategory = (catVal && catVal !== 'undefined' && catVal !== 'null') ? catVal : 'All';
     this.currentQuery = sessionStorage.getItem('SWEETOS_current_query') || '';
-    this.currentBrand = sessionStorage.getItem('SWEETOS_current_brand') || '';
-    this.currentBrandFilter = sessionStorage.getItem('SWEETOS_current_brand_filter') || 'All';
+    let brandVal = sessionStorage.getItem('SWEETOS_current_brand');
+    this.currentBrand = (brandVal && brandVal !== 'undefined' && brandVal !== 'null') ? brandVal : '';
+    let brandFilterVal = sessionStorage.getItem('SWEETOS_current_brand_filter');
+    this.currentBrandFilter = (brandFilterVal && brandFilterVal !== 'undefined' && brandFilterVal !== 'null') ? brandFilterVal : 'All';
     const savedProdId = sessionStorage.getItem('SWEETOS_current_product_id');
-    this.currentProductId = savedProdId ? parseInt(savedProdId) : null;
+    this.currentProductId = (savedProdId && savedProdId !== 'undefined' && savedProdId !== 'null') ? parseInt(savedProdId) : null;
+    
+    // Catalog filter & sort states
+    this.catalogSort = 'featured';
+    this.catalogBrandFilter = 'All';
+    this.catalogInStockOnly = false;
+    this.catalogLocalQuery = '';
+    this.activeFeaturedIndex = 0;
+
+    // Brand filter & sort states
+    this.brandSort = 'featured';
+    this.brandCategoryFilter = 'All';
+    this.brandInStockOnly = false;
+    this.brandLocalQuery = '';
     
     // PDP states
     this.pdpQuantity = 1;
@@ -152,24 +191,24 @@ class ProductList extends HTMLElement {
       fetch('/api/coupons').then(res => res.json()).catch(() => null)
     ]).then(([products, categories, brands, reviews, coupons]) => {
       let needsRender = false;
-      if (products && products.length > 0) {
+      if (Array.isArray(products)) {
         this.products = products;
         localStorage.setItem('SWEETOS_products', JSON.stringify(products));
         needsRender = true;
       }
-      if (categories && categories.length > 0) {
+      if (Array.isArray(categories)) {
         localStorage.setItem('SWEETOS_categories', JSON.stringify(categories));
         needsRender = true;
       }
-      if (brands && brands.length > 0) {
+      if (Array.isArray(brands)) {
         localStorage.setItem('SWEETOS_brands', JSON.stringify(brands));
         needsRender = true;
       }
-      if (reviews && reviews.length > 0) {
+      if (Array.isArray(reviews)) {
         localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
         needsRender = true;
       }
-      if (coupons && coupons.length > 0) {
+      if (Array.isArray(coupons)) {
         localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
         needsRender = true;
       }
@@ -217,14 +256,77 @@ class ProductList extends HTMLElement {
         } catch (err) {}
       } else if (e.key === 'SWEETOS_categories' || e.key === 'SWEETOS_brands') {
         this.renderPageContent();
+      } else if (e.key === 'SWEETOS_customers' || (e.key && e.key.startsWith('SWEETOS_user_profile'))) {
+        if (this.currentPage === 'profile') {
+          this.injectProfileTabContent();
+        }
       }
     };
     window.addEventListener('storage', this._storageListener);
+
+    // Reactive Profile and Auth listeners for real-time customer level and badge updates
+    window.addEventListener('profile:updated', () => {
+      if (this.currentPage === 'profile') {
+        this.injectProfileTabContent();
+      }
+    });
+
+    window.addEventListener('auth:changed', () => {
+      if (this.currentPage === 'profile') {
+        this.injectProfileTabContent();
+      }
+    });
+
+    window.addEventListener('todays_deals:updated', () => {
+      if (this.currentPage === 'home' || (this.currentPage === 'catalog' && this.currentCategory === 'All')) {
+        this.renderPageContent();
+      }
+    });
+
+    window.addEventListener('more_to_love:updated', () => {
+      if (this.currentPage === 'home' || (this.currentPage === 'catalog' && this.currentCategory === 'All')) {
+        this.renderPageContent();
+      }
+    });
+
+    // Start Live Deals Countdown Ticker
+    if (this._dealsTicker) clearInterval(this._dealsTicker);
+    this._dealsTicker = setInterval(() => {
+      const dealsCfg = getTodaysDealsConfig();
+      if (!isTodaysDealsActive(dealsCfg)) {
+        const activeSections = this.shadowRoot.querySelectorAll('.todays-deals-storefront-section');
+        activeSections.forEach(el => el.remove());
+        return;
+      }
+      const t = getTimeRemaining(dealsCfg.endsAt);
+      if (t.isExpired) {
+        this.renderPageContent();
+        return;
+      }
+      const daysText = t.days < 10 ? '0' + t.days : String(t.days);
+      const hrsText = t.hours < 10 ? '0' + t.hours : String(t.hours);
+      const minsText = t.minutes < 10 ? '0' + t.minutes : String(t.minutes);
+      const secsText = t.seconds < 10 ? '0' + t.seconds : String(t.seconds);
+
+      this.shadowRoot.querySelectorAll('.deal-countdown-days, #deals-time-days').forEach(el => el.textContent = daysText);
+      this.shadowRoot.querySelectorAll('.deal-countdown-hours, #deals-time-hours, #store-deal-hours').forEach(el => el.textContent = hrsText);
+      this.shadowRoot.querySelectorAll('.deal-countdown-mins, #deals-time-minutes, #store-deal-mins').forEach(el => el.textContent = minsText);
+      this.shadowRoot.querySelectorAll('.deal-countdown-secs, #deals-time-seconds, #store-deal-secs').forEach(el => el.textContent = secsText);
+    }, 1000);
   }
 
   disconnectedCallback() {
     if (this.timerInterval) {
       clearInterval(this.timerInterval);
+    }
+    if (this._dealsTicker) {
+      clearInterval(this._dealsTicker);
+    }
+    if (this._dealsSliderInterval) {
+      clearInterval(this._dealsSliderInterval);
+    }
+    if (this._hotDealsAutoSlideInterval) {
+      clearInterval(this._hotDealsAutoSlideInterval);
     }
     if (this._storageListener) {
       window.removeEventListener('storage', this._storageListener);
@@ -278,45 +380,171 @@ class ProductList extends HTMLElement {
 
   // --- Functional User Profile Utility Methods ---
   loadUserProfile() {
+    const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
+    let loggedUser = null;
+    if (loggedInUserStr) {
+      try {
+        loggedUser = JSON.parse(loggedInUserStr);
+      } catch(e) {}
+    }
+
     const profileKey = getProfileStorageKey();
-    const saved = localStorage.getItem(profileKey);
+    const saved = localStorage.getItem(profileKey) || localStorage.getItem('SWEETOS_user_profile');
+    let profile = null;
     if (saved) {
       try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // Fallback below
-      }
+        profile = JSON.parse(saved);
+      } catch (e) {}
     }
-    const defaultProfile = {
-      firstName: "Alina",
-      lastName: "Putri",
-      email: "alina.putri@designstudio.com",
-      phone: "+1 (555) 019-2834",
-      bio: "Workspace Designer & Minimalism Enthusiast. Building clean setups since 2024.",
-      address: "123 Blue Way, Sky City, NY 10001",
-      theme: "Ice Blue",
-      twoFactor: false,
-      marketingEmails: true,
-      smsUpdates: false,
-      addresses: [
-        { id: 1, label: "Home (Default)", street: "123 Blue Way", city: "Sky City", state: "NY", zip: "10001" },
-        { id: 2, label: "Office", street: "500 High Street, Floor 12", city: "Manhattan", state: "NY", zip: "10018" }
-      ],
-      orders: [
-        { id: "AET-582910", date: "Aug 10, 2026", status: "Delivered", total: 228.00, items: "Aero-75 Mech Keyboard" },
-        { id: "AET-394012", date: "Jul 24, 2026", status: "Processing", total: 39.00, items: "Aero-Mat Desk Pad" },
-        { id: "AET-918237", date: "Aug 12, 2026", status: "Shipped", total: 119.00, items: "Nebula Soundwave Pillar" }
-      ]
-    };
-    localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
-    return defaultProfile;
+
+    if (!profile) {
+      profile = {
+        firstName: loggedUser?.fullname ? loggedUser.fullname.split(' ')[0] : "Client",
+        lastName: loggedUser?.fullname ? loggedUser.fullname.split(' ').slice(1).join(' ') : "SWEETOS",
+        email: loggedUser?.email || "customer@sweetos.com",
+        phone: "+225 07 00 00 00 00",
+        bio: "Passionné d'accessoires tech et de setups minimalistes.",
+        theme: "Ice Blue",
+        avatar: "",
+        level: "bronze",
+        badgeType: "blue_verified",
+        twoFactor: false,
+        marketingEmails: true,
+        smsUpdates: false,
+        addresses: [],
+        orders: []
+      };
+    }
+
+    const currentEmail = (loggedUser?.email || profile.email || '').toLowerCase();
+    let hasAdminBadgeOverride = false;
+    let hasAdminLevelOverride = false;
+
+    // Check if admin customer record has level, badge or avatar override
+    try {
+      const customersList = JSON.parse(localStorage.getItem('SWEETOS_customers') || '[]');
+      if (currentEmail) {
+        const custRecord = customersList.find(c => c.email && c.email.toLowerCase() === currentEmail);
+        if (custRecord) {
+          if (custRecord.level) {
+            profile.level = custRecord.level;
+            hasAdminLevelOverride = true;
+          }
+          if (custRecord.badgeType) {
+            profile.badgeType = custRecord.badgeType;
+            hasAdminBadgeOverride = true;
+          }
+          if (custRecord.avatar) profile.avatar = custRecord.avatar;
+          if (custRecord.phone && !profile.phone) profile.phone = custRecord.phone;
+        }
+      }
+    } catch(e) {}
+
+    // Pull real orders from SWEETOS_all_orders to calculate live gross spend & orders count
+    try {
+      const allOrders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
+      const userOrders = allOrders.filter(o => o.customerEmail && o.customerEmail.toLowerCase() === currentEmail && (o.status || '').toLowerCase() !== 'deleted');
+      if (userOrders.length > 0) {
+        profile.orders = userOrders;
+      }
+      
+      const totalSpent = (profile.orders || []).filter(o => (o.status || '').toLowerCase() !== 'cancelled').reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+      
+      // Auto-compute level from spend if not manually overridden by admin
+      if (!hasAdminLevelOverride) {
+        const lvl = getCustomerLevel(totalSpent);
+        profile.level = lvl.id;
+      }
+
+      // Badges are independent and only applied if assigned
+      if (!hasAdminBadgeOverride) {
+        profile.badgeType = profile.badgeType || 'none';
+      }
+    } catch(e) {}
+
+    return profile;
   }
 
   saveUserProfile(profile) {
+    const profileKey = getProfileStorageKey();
+    localStorage.setItem(profileKey, JSON.stringify(profile));
     localStorage.setItem('SWEETOS_user_profile', JSON.stringify(profile));
+
+    // Synchronize with SWEETOS_customers if exists
+    try {
+      let customers = JSON.parse(localStorage.getItem('SWEETOS_customers') || '[]');
+      const idx = customers.findIndex(c => c.email && c.email.toLowerCase() === (profile.email || '').toLowerCase());
+      if (idx > -1) {
+        customers[idx].name = `${profile.firstName || ''} ${profile.lastName || ''}`.trim();
+        customers[idx].phone = profile.phone;
+        if (profile.avatar !== undefined) customers[idx].avatar = profile.avatar;
+        if (profile.level) customers[idx].level = profile.level;
+        if (profile.badgeType) customers[idx].badgeType = profile.badgeType;
+        localStorage.setItem('SWEETOS_customers', JSON.stringify(customers));
+      }
+    } catch(e) {}
   }
 
-  // --- Wishlist utilities finish ---
+  // --- Category & Subcategory Hierarchy Methods ---
+  getCategoryAndSubcategoryNames(targetCatName) {
+    if (!targetCatName || targetCatName === 'All') return null; // null means matches all
+    
+    let categories = [];
+    try {
+      categories = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
+    } catch(e) {}
+    
+    const targetLower = String(targetCatName).trim().toLowerCase();
+    
+    // Find category record by name, slug, or id
+    const rootCat = categories.find(c => 
+      c && (
+        String(c.name || '').trim().toLowerCase() === targetLower ||
+        String(c.slug || '').trim().toLowerCase() === targetLower ||
+        String(c.id) === String(targetCatName)
+      )
+    );
+
+    const matchingNames = new Set([targetLower]);
+    if (rootCat) {
+      if (rootCat.name) matchingNames.add(String(rootCat.name).trim().toLowerCase());
+      if (rootCat.slug) matchingNames.add(String(rootCat.slug).trim().toLowerCase());
+      
+      // Recursively collect all descendant subcategories
+      const collectChildren = (parentId, parentName) => {
+        categories.forEach(c => {
+          if (!c || !c.name) return;
+          const pVal = c.parent;
+          const isChild = pVal !== null && pVal !== undefined && pVal !== '' && pVal !== 0 && (
+            String(pVal) === String(parentId) ||
+            String(pVal).trim().toLowerCase() === String(parentName || '').trim().toLowerCase()
+          );
+          if (isChild) {
+            const childNameLower = String(c.name).trim().toLowerCase();
+            if (!matchingNames.has(childNameLower)) {
+              matchingNames.add(childNameLower);
+              if (c.slug) matchingNames.add(String(c.slug).trim().toLowerCase());
+              collectChildren(c.id, c.name);
+            }
+          }
+        });
+      };
+      collectChildren(rootCat.id, rootCat.name);
+    }
+    
+    return matchingNames;
+  }
+
+  isProductInCategory(product, targetCatName) {
+    if (!targetCatName || targetCatName === 'All') return true;
+    if (!product || !product.category) return false;
+    
+    const allowedNames = this.getCategoryAndSubcategoryNames(targetCatName);
+    if (!allowedNames) return true;
+    
+    const prodCatLower = String(product.category).trim().toLowerCase();
+    return allowedNames.has(prodCatLower);
+  }
 
   render() {
     this.shadowRoot.innerHTML = `
@@ -346,61 +574,184 @@ class ProductList extends HTMLElement {
     `;
   }
 
-  loadProductReviews(productId, targetRating, defaultCount) {
-    const allSaved = localStorage.getItem('SWEETOS_reviews_all');
-    let allReviews = [];
-    if (allSaved) {
-      try {
-        allReviews = JSON.parse(allSaved);
-      } catch (e) {}
+  formatSectionTitleHtml(title) {
+    if (!title) return '';
+    const low = title.toLowerCase().trim();
+    if (low === 'more to love' || low === 'more to love.' || low.includes('more to love')) {
+      return `<span class="more-to-love-title" style="font-family: 'Fraunces', Georgia, serif; font-weight: 700; color: var(--text-dark, #0A2540); letter-spacing: -0.015em;">More to <em style="font-style: italic; color: #1F6FEB; font-family: 'Fraunces', Georgia, serif;">love.</em></span>`;
     }
-    // Filter reviews belonging to this product and that are approved
-    return allReviews.filter(r => r.productId === productId && (r.status || 'approved') === 'approved');
+    return title;
+  }
+
+  getPdpHexColor(name) {
+    if (!name) return '#1F6FEB';
+    const m = {
+      'sandstone': '#C9A87C', 'sand': '#C9A87C',
+      'midnight': '#1C1B1A', 'noir': '#1C1B1A', 'black': '#1C1B1A',
+      'moss': '#7A8471', 'vert': '#7A8471', 'green': '#7A8471',
+      'blue': '#1F6FEB', 'bleu': '#1F6FEB',
+      'red': '#ff3b30', 'rouge': '#ff3b30',
+      'yellow': '#ffcc00', 'jaune': '#ffcc00',
+      'white': '#ffffff', 'blanc': '#ffffff',
+      'grey': '#8e8e93', 'gris': '#8e8e93',
+      'gold': '#C5A059', 'opal white': '#f0f4f8',
+      'cobalt blue': '#0052cc', 'felt brown': '#92400e',
+      'light gold': '#fef3c7', 'studio black': '#102a43',
+      'ice blue': '#00b4d8', 'sunset bronze': '#ff9a3c',
+      'pure white': '#ffffff', 'aurora rgb': '#ff2e93',
+      'warm amber': '#ff9a3c', 'ice white': '#f0f4f8',
+      'space grey': '#486581', 'natural oak': '#d9b48f',
+      'white felt': '#ffffff'
+    };
+    const low = name.toLowerCase().trim();
+    for (const [k, v] of Object.entries(m)) {
+      if (low.includes(k)) return v;
+    }
+    let hash = 0;
+    for (let i = 0; i < low.length; i++) {
+      hash = low.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
+  }
+
+  getPdpStarsSvg(value, size = 15, fillPrimary = '#1F6FEB', fillEmpty = '#D9E3F2') {
+    const rounded = Math.round(Number(value) || 0);
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+      const fill = i <= rounded ? fillPrimary : fillEmpty;
+      html += `<svg viewBox="0 0 24 24" style="width:${size}px;height:${size}px;fill:${fill};display:inline-block;vertical-align:middle;"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z"/></svg>`;
+    }
+    return html;
+  }
+
+  getPdpFeatureDetails(prod) {
+    const cat = (prod.category || '').toLowerCase();
+    if (cat.includes('audio') || cat.includes('headphone') || cat.includes('sound')) {
+      return {
+        feat1: {
+          eyebrow: "Materials & Comfort",
+          title: "Premium Build, <em>Zero fatigue.</em>",
+          desc: "Ergonomically tuned shape designed for prolonged daily usage. Memory cushions seal in the acoustics without applying excess pressure to your head.",
+          bullets: ["Replaceable high-comfort padding", "Brushed metal hinges for extended durability", "Lightweight framework"]
+        },
+        feat2: {
+          eyebrow: "Acoustic Engineering",
+          title: "Sound that reads <em>the room.</em>",
+          desc: "High-definition custom speakers tuned for rich bass response, transparent mids, and crystal-clear vocals. Immerse yourself in studio-quality music anywhere.",
+          bullets: ["Adaptive frequency response", "Deep passive isolation seal", "Enhanced call clarity hardware"]
+        }
+      };
+    } else if (cat.includes('keyboard') || cat.includes('clavier')) {
+      return {
+        feat1: {
+          eyebrow: "ACOUSTIC & FEEL",
+          title: "Gasket Mounted, <em>Silky Typing.</em>",
+          desc: "Multi-layered sound dampening foam with factory pre-lubed switches creates a deep, satisfying acoustic profile for every keystroke.",
+          bullets: ["Hot-swappable PCB sockets", "Double-shot PBT keycaps", "Custom stabilizer tuning"]
+        },
+        feat2: {
+          eyebrow: "WIRELESS FREEDOM",
+          title: "Tri-Mode Ultra Low <em>Latency.</em>",
+          desc: "Switch instantly between Bluetooth 5.2, 2.4GHz wireless, and wired USB-C mode across multiple devices without missing a beat.",
+          bullets: ["Up to 200 hours battery life", "Fast USB-C charging", "Cross-platform Mac & Windows toggle"]
+        }
+      };
+    } else if (cat.includes('lighting') || cat.includes('light') || cat.includes('lamp')) {
+      return {
+        feat1: {
+          eyebrow: "OPTICAL ARCHITECTURE",
+          title: "Zero Glare, <em>Pure Focus.</em>",
+          desc: "Asymmetrical optical design directs smooth ambient lighting precisely across your workspace without reflecting into your monitor or eyes.",
+          bullets: ["Auto-dimming ambient sensor", "Dynamic color temperature control", "Touch capacitive adjustment dial"]
+        },
+        feat2: {
+          eyebrow: "BUILD & FINISH",
+          title: "Aircraft-grade <em>Aluminum.</em>",
+          desc: "Machined from premium solid alloy with weighted counterbalanced clamp fitting ultra-thin to curved panoramic displays.",
+          bullets: ["Universal weighted clamp system", "Matte anodized scratch-free coating", "Clean single-cable power feed"]
+        }
+      };
+    }
+    return {
+      feat1: {
+        eyebrow: "DESIGN PHILOSOPHY",
+        title: "Crafted for <em>Everyday Excellence.</em>",
+        desc: "Carefully engineered using robust, premium materials. Form and function aligned to deliver the most reliable user experience under heavy daily operation.",
+        bullets: ["Durable lightweight chassis", "Scratch-resistant sleek surfaces", "Strict quality control tested"]
+      },
+      feat2: {
+        eyebrow: "INTELLIGENT TECHNOLOGY",
+        title: "Powering your <em>lifestyle.</em>",
+        desc: "Packs next-generation internal hardware to maximize efficiency and speed. Designed to connect instantly and keep operating without interruptions.",
+        bullets: ["High efficiency power management", "Seamless multi-device connectivity", "Official manufacturer certification"]
+      }
+    };
+  }
+
+  loadProductReviews(productId, targetRating, defaultCount) {
+    let allReviews = [];
+    try {
+      const stored = localStorage.getItem('SWEETOS_reviews') || localStorage.getItem('SWEETOS_reviews_all');
+      if (stored) {
+        allReviews = JSON.parse(stored);
+      }
+    } catch (e) {}
+
+    // Filter reviews belonging to this product and that are approved, excluding mock reviews
+    return allReviews.filter(r => {
+      const isMock = String(r.id || '').startsWith('rev_1') || String(r.id || '') === 'rev_2' || String(r.id || '') === 'rev_3' || String(r.id || '') === 'rev_4' || String(r.id || '') === 'rev_5';
+      if (isMock) return false;
+      const matchProd = r.productId === productId || r.productId === String(productId) || r.productId === Number(productId);
+      return matchProd && (r.status || 'approved') === 'approved';
+    });
   }
 
   saveProductReviews(productId, newReviewsForProduct) {
-    const allSaved = localStorage.getItem('SWEETOS_reviews_all');
     let allReviews = [];
-    if (allSaved) {
-      try {
-        allReviews = JSON.parse(allSaved);
-      } catch (e) {}
-    }
+    try {
+      const stored = localStorage.getItem('SWEETOS_reviews') || localStorage.getItem('SWEETOS_reviews_all');
+      if (stored) {
+        allReviews = JSON.parse(stored);
+      }
+    } catch (e) {}
 
-    // Keep reviews for other products
-    allReviews = allReviews.filter(r => r.productId !== productId);
+    // Remove old mock entries and keep reviews for other products
+    allReviews = allReviews.filter(r => {
+      const isMock = String(r.id || '').startsWith('rev_1') || String(r.id || '') === 'rev_2' || String(r.id || '') === 'rev_3' || String(r.id || '') === 'rev_4' || String(r.id || '') === 'rev_5';
+      if (isMock) return false;
+      return r.productId !== productId && r.productId !== String(productId) && r.productId !== Number(productId);
+    });
 
-    // Map storefront new reviews to include standard metadata and go to 'pending' moderation
+    // Map storefront new reviews to include standard metadata
     const mapped = newReviewsForProduct.map((r, index) => {
       return {
-        id: r.id || Date.now() + index,
+        id: r.id || 'rev_' + Date.now() + '_' + index,
         productId: productId,
-        user: r.user,
-        rating: r.rating,
-        comment: r.comment,
-        date: r.date || new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }),
-        status: r.status || 'pending'
+        user: r.user || 'Client Vérifié',
+        email: r.email || '',
+        rating: Number(r.rating) || 5,
+        comment: r.comment || '',
+        date: r.date || new Date().toISOString().split('T')[0],
+        status: r.status || 'approved',
+        verified: r.verified !== undefined ? r.verified : true,
+        storeReply: r.storeReply || ''
       };
     });
 
     allReviews = [...mapped, ...allReviews];
+    localStorage.setItem('SWEETOS_reviews', JSON.stringify(allReviews));
     localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(allReviews));
+    window.dispatchEvent(new CustomEvent('reviews:updated', { detail: allReviews }));
 
-    // Sync to server disk
+    // Sync to server disk if backend API is active
     fetch('/api/reviews', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(allReviews)
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        console.log('Product reviews updated on server successfully.');
-      }
-    })
-    .catch(err => console.error('Error posting updated reviews list:', err));
+    }).catch(() => {});
   }
 
   renderPageContent() {
@@ -521,31 +872,143 @@ class ProductList extends HTMLElement {
       activeSortedSections.forEach(s => {
         if (s.type === 'categories') {
           homepageSectionsHTML += `
-            <!-- Shop by Category Section -->
-            <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="catalog">View All →</button>
+            <!-- Shop by Category Section (Charming Luxury Cards) -->
+            <div class="home-section home-category-showcase-section animate-in" style="margin-bottom: 44px;">
+              <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
+                <div>
+                  <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 850; color: #2563eb; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; background: rgba(37, 99, 235, 0.08); padding: 4px 12px; border-radius: 20px;">
+                    <span>✨ DÉCOUVREZ PAR UNIVERS</span>
+                    <span>•</span>
+                    <span style="color: #64748b;">COLLECTIONS PREMIUM</span>
+                  </div>
+                  <h3 class="section-title" style="font-size: 24px; font-weight: 900; color: var(--text-dark); margin: 0; letter-spacing: -0.5px;">${s.name || "Explorer par Catégorie"}</h3>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <button class="view-all-btn" data-target-page="catalog" style="font-size: 13.5px; font-weight: 800; color: #2563eb; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; transition: all 0.2s;">
+                    <span>Tout voir</span>
+                    <span style="font-size: 15px;">→</span>
+                  </button>
+                  <div class="category-carousel-arrows" style="display: flex; gap: 6px;">
+                    <button class="carousel-control-btn prev-btn" data-target-carousel="home-category-row" title="Précédent" style="border: 1px solid var(--border); border-radius: 10px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">←</button>
+                    <button class="carousel-control-btn next-btn" data-target-carousel="home-category-row" title="Suivant" style="border: 1px solid var(--border); border-radius: 10px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">→</button>
+                  </div>
+                </div>
               </div>
-              <div class="home-category-grid">
+
+              <div class="home-category-row custom-scroll" id="home-category-row">
                 ${(() => {
                   const storedCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
-                  return storedCats.map(c => {
-                    const descMap = {
-                      "Keyboards": "Mechanical layouts & switches",
-                      "Audio": "Hi-fi monitors & studio cans",
-                      "Lighting": "Ambient screenbars & lightbars",
-                      "Desks": "Oak desk risers & shelving"
-                    };
+                  const themeMap = {
+                    "Keyboards": {
+                      bg: "linear-gradient(145deg, #0b1528 0%, #1e3a8a 100%)",
+                      accent: "#38bdf8",
+                      accentLight: "rgba(56, 189, 248, 0.16)",
+                      glow: "rgba(56, 189, 248, 0.35)",
+                      tag: "Pro Typing & Custom",
+                      desc: "Switches mécaniques, touches PBT et claviers sans fil"
+                    },
+                    "Audio": {
+                      bg: "linear-gradient(145deg, #19092c 0%, #581c87 100%)",
+                      accent: "#c084fc",
+                      accentLight: "rgba(192, 132, 252, 0.16)",
+                      glow: "rgba(192, 132, 252, 0.35)",
+                      tag: "Son Haute Fidélité",
+                      desc: "Casques de studio, écouteurs sans fil & amplificateurs DAC"
+                    },
+                    "Lighting": {
+                      bg: "linear-gradient(145deg, #2a0f05 0%, #9a3412 100%)",
+                      accent: "#fb923c",
+                      accentLight: "rgba(251, 146, 60, 0.16)",
+                      glow: "rgba(251, 146, 60, 0.35)",
+                      tag: "Ambiance Studio RGB",
+                      desc: "Lampes d'écran anti-reflets et barres lumineuses immersives"
+                    },
+                    "Desks": {
+                      bg: "linear-gradient(145deg, #03251c 0%, #065f46 100%)",
+                      accent: "#34d399",
+                      accentLight: "rgba(52, 211, 153, 0.16)",
+                      glow: "rgba(52, 211, 153, 0.35)",
+                      tag: "Organisation & Bois Noble",
+                      desc: "Supports d'écrans en chêne, tapis feutrine et passe-câbles"
+                    }
+                  };
+
+                  const defaultThemes = [
+                    {
+                      bg: "linear-gradient(145deg, #0f172a 0%, #0284c7 100%)",
+                      accent: "#38bdf8",
+                      accentLight: "rgba(56, 189, 248, 0.16)",
+                      glow: "rgba(56, 189, 248, 0.35)",
+                      tag: "Tech & Productivité",
+                      desc: "Accessoires optimisés pour vos sessions de travail"
+                    },
+                    {
+                      bg: "linear-gradient(145deg, #2e081e 0%, #be185d 100%)",
+                      accent: "#f472b6",
+                      accentLight: "rgba(244, 114, 182, 0.16)",
+                      glow: "rgba(244, 114, 182, 0.35)",
+                      tag: "Édition Limitée",
+                      desc: "Designs épurés et finitions haut de gamme"
+                    }
+                  ];
+
+                  return storedCats.slice(0, 8).map((c, idx) => {
+                    const theme = themeMap[c.name] || defaultThemes[idx % defaultThemes.length];
+                    
+                    // Match category products including all subcategories
+                    const catProducts = (this.products || []).filter(p => this.isProductInCategory(p, c.name || c.id));
+                    const count = catProducts.length;
+
+                    // Get image of the first product added to this category
+                    let firstProductImg = null;
+                    if (catProducts.length > 0) {
+                      const firstP = catProducts[0];
+                      firstProductImg = firstP.image || (Array.isArray(firstP.images) && firstP.images.length > 0 ? firstP.images[0] : null);
+                    }
+
+                    // Priority: explicit category image -> first product's image in category -> empty
+                    const catCoverImage = c.image || firstProductImg || '';
+
                     return `
                       <div class="home-category-card" data-category="${c.name}">
-                        <div class="category-marquee-container" id="marquee-${(c.slug || c.name.toLowerCase())}"></div>
-                        <div class="cat-glow-circle card-glow-${(c.slug || c.name.toLowerCase())}"></div>
-                        <div class="home-category-card-content">
-                          <span class="cat-icon">${c.icon || '📁'}</span>
-                          <h4>${c.name}</h4>
-                          <p>${c.description || descMap[c.name] || 'Premium workspace hardware'}</p>
-                          <span class="cat-explore-link">Explore →</span>
+                        <!-- Category Image Full-Cover Background -->
+                        ${catCoverImage ? `
+                          <img src="${catCoverImage}" alt="${c.name}" loading="lazy" class="cat-cover-img">
+                        ` : `
+                          <div class="cat-cover-fallback" style="background: ${theme.bg}; width: 100%; height: 100%; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 52px; z-index: 0;">
+                            ${c.icon || '📁'}
+                          </div>
+                        `}
+
+                        <!-- High-Contrast Atmospheric Gradient Overlay -->
+                        <div class="cat-cover-overlay"></div>
+                        <div class="cat-card-glow" style="background: ${theme.glow};"></div>
+                        <div class="cat-card-shine"></div>
+
+                        <!-- Top Meta Header -->
+                        <div class="cat-card-header">
+                          <span class="cat-card-badge" style="color: white; border-color: rgba(255,255,255,0.25); background: rgba(15, 23, 42, 0.65);">
+                            <span class="cat-badge-icon">${c.icon || '✨'}</span>
+                            <span>${count > 0 ? `${count} Articles` : 'Explorer'}</span>
+                          </span>
+                          <span class="cat-card-tag">${theme.tag}</span>
+                        </div>
+
+                        <!-- Bottom Content & Animated CTA -->
+                        <div class="cat-card-footer">
+                          <div class="cat-card-titles">
+                            <h4>${c.name}</h4>
+                            <p>${c.description || theme.desc}</p>
+                          </div>
+                          <div class="cat-card-action">
+                            <span class="action-label" style="color: ${theme.accent};">Explorer</span>
+                            <div class="action-arrow" style="background: ${theme.accent};">
+                              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#0f172a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                              </svg>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     `;
@@ -554,56 +1017,193 @@ class ProductList extends HTMLElement {
               </div>
             </div>
           `;
+
+          // TODAY'S DEALS: Render Dynamic Banner + 12-Product Grid right under Shop by Category if active
+          const homeDealsConfig = getTodaysDealsConfig();
+          if (isTodaysDealsActive(homeDealsConfig)) {
+            const timeInfo = getTimeRemaining(homeDealsConfig.endsAt);
+            const pool = homeDealsConfig.couponPool || { totalCoupons: 5, remainingCoupons: 5 };
+            const theme = getTodaysDealsTheme(homeDealsConfig);
+            const dealProductIds = new Set(homeDealsConfig.productIds || []);
+            let dealProducts = this.products.filter(p => dealProductIds.has(p.id));
+            if (dealProducts.length === 0) dealProducts = this.products.slice(0, 8);
+
+            homepageSectionsHTML += `
+              <!-- Today's Deals Section (Dynamic Hero Banner + 2x6 Product Grid) -->
+              <div class="home-section todays-deals-storefront-section animate-in" style="margin-bottom: 48px;">
+                <!-- Modern Dynamic Deals Hero Banner -->
+                <div class="todays-deals-hero-banner" style="background: ${theme.bg};">
+                  
+                  <!-- Dynamic Background Product Slides -->
+                  <div class="deals-bg-slider" id="deals-bg-slider">
+                    ${dealProducts.map((p, idx) => `
+                      <img src="${p.image}" class="deals-bg-slide ${idx === 0 ? 'active' : ''}" alt="${p.name}" loading="lazy">
+                    `).join('')}
+                  </div>
+
+                  <!-- Gradient & Atmospheric Theme Overlay -->
+                  <div class="deals-gradient-overlay" style="background: ${theme.overlayGradient};"></div>
+                  <div class="deals-theme-ambient-glow" style="background: ${theme.accentColor};"></div>
+
+                  <!-- Content Wrapper -->
+                  <div class="deals-banner-content">
+                    
+                    <!-- Top Section: Text, Countdown & Action Buttons -->
+                    <div class="deals-banner-top">
+                      
+                      <!-- Limited Time Badge -->
+                      <div class="deals-badge" style="background: ${theme.badgeBg}; border-color: ${theme.badgeBorder}; color: ${theme.badgeText};">
+                        <span>${theme.badgeIcon}</span>
+                        <span>${theme.tag}</span>
+                        <span style="opacity: 0.5;">•</span>
+                        <span style="color: ${theme.accentColor}; font-weight: 900;">TODAY'S SPECIAL</span>
+                      </div>
+
+                      <!-- Main Headline -->
+                      <h2 class="deals-headline">
+                        ${homeDealsConfig.title || "Offres Flash du Jour"}
+                      </h2>
+
+                      <!-- Subheadline -->
+                      <p class="deals-subheadline">
+                        ${homeDealsConfig.subtitle || "Sélection exclusive limitée avec compte à rebours — Jusqu'à 50% de réduction !"}
+                      </p>
+
+                      <!-- First-Come Limited Coupon Bounty Badge -->
+                      <div class="deals-bounty-badge">
+                        <span style="font-size: 16px;">🎁</span>
+                        <span><strong>${pool.totalCoupons} Coupons 5% OFF</strong> offerts aux <strong>${pool.totalCoupons} premiers acheteurs</strong> !</span>
+                        <span class="bounty-rem-pill" style="background: ${theme.accentColor};">${pool.remainingCoupons} RESTANTS</span>
+                      </div>
+
+                      <!-- Countdown Timer Glass Panels -->
+                      <div class="deals-countdown-row">
+                        <div class="glass-timer-panel">
+                          <div class="timer-num deal-countdown-days" id="deals-time-days">${timeInfo.days < 10 ? '0' + timeInfo.days : timeInfo.days}</div>
+                          <div class="timer-label">Jours</div>
+                        </div>
+                        <div class="glass-timer-panel">
+                          <div class="timer-num deal-countdown-hours" id="deals-time-hours">${timeInfo.hours < 10 ? '0' + timeInfo.hours : timeInfo.hours}</div>
+                          <div class="timer-label">Heures</div>
+                        </div>
+                        <div class="glass-timer-panel">
+                          <div class="timer-num deal-countdown-mins" id="deals-time-minutes">${timeInfo.minutes < 10 ? '0' + timeInfo.minutes : timeInfo.minutes}</div>
+                          <div class="timer-label">Mins</div>
+                        </div>
+                        <div class="glass-timer-panel timer-panel-secs">
+                          <div class="timer-num secs-num deal-countdown-secs" style="color: ${theme.timerAccent};" id="deals-time-seconds">${timeInfo.seconds < 10 ? '0' + timeInfo.seconds : timeInfo.seconds}</div>
+                          <div class="timer-label">Secs</div>
+                        </div>
+                      </div>
+
+                      <!-- Action Buttons -->
+                      <div class="deals-actions-row">
+                        <button class="deals-shop-now-btn" id="btn-scroll-deals-grid" style="background: ${theme.btnBg}; box-shadow: ${theme.btnShadow};">
+                          <span>Découvrir les Offres</span>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                          </svg>
+                        </button>
+                        
+                        <button class="deals-view-all-btn" id="btn-deals-goto-catalog">
+                          Voir Tout le Catalogue
+                        </button>
+                      </div>
+
+                    </div>
+
+                    <!-- Bottom Section: Sliding Products Marquee Rail -->
+                    <div class="deals-marquee-container">
+                      <div class="deals-marquee-content" id="deals-marquee-track">
+                        ${[...dealProducts, ...dealProducts, ...dealProducts].map(p => `
+                          <div class="deals-marquee-card" data-product-id="${p.id}">
+                            <div class="marquee-card-thumb">
+                              <img src="${p.image}" alt="${p.name}">
+                            </div>
+                            <div class="marquee-card-info">
+                              <span class="marquee-prod-name">${p.name}</span>
+                              <span class="marquee-prod-price" style="color: ${theme.accentColor};">${formatPrice(p.price)}</span>
+                            </div>
+                          </div>
+                        `).join('')}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                <!-- 2 Lines x 6 Products Grid = 12 Items Total -->
+                <div class="product-grid todays-deals-grid-2x6" id="grid-todays-deals"></div>
+              </div>
+            `;
+          }
         } else if (s.type === 'deals') {
           homepageSectionsHTML += `
-            <!-- Hot Deals Section -->
+            <!-- Hot Deals Section (Slidable 1-Line Row) -->
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="deals">View All →</button>
+              <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                <h3 class="section-title" style="margin: 0;">${this.formatSectionTitleHtml(s.name)}</h3>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <button class="view-all-btn" data-target-page="deals">View All →</button>
+                  <button class="carousel-control-btn prev-btn" data-target-carousel="grid-hot-deals" title="Précédent" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" data-target-carousel="grid-hot-deals" title="Suivant" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-hot-deals"></div>
+              <div class="carousel-scroll-wrapper slidable-product-row" id="grid-hot-deals"></div>
             </div>
           `;
         } else if (s.type === 'new-arrivals') {
           homepageSectionsHTML += `
-            <!-- New Arrivals Section -->
+            <!-- New Arrivals Section (Slidable 1-Line Row) -->
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="new-arrivals">View All →</button>
+              <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                <h3 class="section-title" style="margin: 0;">${this.formatSectionTitleHtml(s.name)}</h3>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <button class="view-all-btn" data-target-page="new-arrivals">View All →</button>
+                  <button class="carousel-control-btn prev-btn" data-target-carousel="grid-new-arrivals" title="Précédent" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" data-target-carousel="grid-new-arrivals" title="Suivant" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-new-arrivals"></div>
+              <div class="carousel-scroll-wrapper slidable-product-row" id="grid-new-arrivals"></div>
             </div>
           `;
         } else if (s.type === 'best-sellers') {
           homepageSectionsHTML += `
-            <!-- Best Sellers Section -->
+            <!-- Best Sellers Section (Slidable 1-Line Row) -->
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header">
-                <h3 class="section-title">${s.name}</h3>
-                <button class="view-all-btn" data-target-page="best-sellers">View All →</button>
+              <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                <h3 class="section-title" style="margin: 0;">${this.formatSectionTitleHtml(s.name)}</h3>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <button class="view-all-btn" data-target-page="best-sellers">View All →</button>
+                  <button class="carousel-control-btn prev-btn" data-target-carousel="grid-best-sellers" title="Précédent" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" data-target-carousel="grid-best-sellers" title="Suivant" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-best-sellers"></div>
+              <div class="carousel-scroll-wrapper slidable-product-row" id="grid-best-sellers"></div>
             </div>
           `;
         } else if (s.type === 'grid') {
           homepageSectionsHTML += `
             <div class="home-section" style="margin-bottom: 40px;">
-              <div class="section-header" style="margin-bottom: 24px;">
-                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin: 0; display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: -0.5px;">
-                  <span>${s.name}</span>
+              <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                <h3 class="section-title" style="font-size: 20px; font-weight: 850; color: var(--text-dark); margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <span>${this.formatSectionTitleHtml(s.name)}</span>
                   ${s.category ? `<span style="font-size: 11px; font-weight: 700; color: var(--primary); background: var(--primary-light); padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; margin-left: 4px;">${s.category}</span>` : ''}
                 </h3>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <button class="carousel-control-btn prev-btn" data-target-carousel="grid-dynamic-${s.id}" title="Précédent" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
+                  <button class="carousel-control-btn next-btn" data-target-carousel="grid-dynamic-${s.id}" title="Suivant" style="border: 1px solid var(--border); border-radius: 8px; width: 34px; height: 34px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
+                </div>
               </div>
-              <div class="home-grid-4" id="grid-dynamic-${s.id}"></div>
+              <div class="carousel-scroll-wrapper slidable-product-row" id="grid-dynamic-${s.id}"></div>
             </div>
           `;
         } else if (s.type === 'carousel') {
           homepageSectionsHTML += `
             <div class="home-section" style="margin-bottom: 40px;">
               <div class="section-header" style="margin-bottom: 24px;">
-                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin:0;">${s.name}</h3>
+                <h3 class="section-title" style="font-size: 22px; font-weight: 850; color: var(--text-dark); margin:0;">${this.formatSectionTitleHtml(s.name)}</h3>
                 <div style="display: flex; gap: 8px;">
                   <button class="carousel-control-btn prev-btn" id="btn-prev-${s.id}" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">←</button>
                   <button class="carousel-control-btn next-btn" id="btn-next-${s.id}" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
@@ -662,64 +1262,115 @@ class ProductList extends HTMLElement {
       this.attachHomeCarouselListeners(activeSortedSections);
 
     } else if (this.currentPage === 'catalog') {
-      const breadcrumb = this.currentBrand 
-        ? `Home / Brands / ${this.currentBrand}` 
-        : `Home / Categories / ${this.currentCategory}`;
+      const isSearchActive = Boolean(this.currentQuery && this.currentQuery.trim() !== '');
+
+      // Hierarchical dynamic breadcrumbs
+      const allCatsList = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
+      const activeCatObj = allCatsList.find(c => c && (
+        String(c.name || '').trim().toLowerCase() === String(this.currentCategory).trim().toLowerCase() ||
+        String(c.id) === String(this.currentCategory)
+      ));
+      
+      let parentCatObj = null;
+      if (activeCatObj && activeCatObj.parent) {
+        parentCatObj = allCatsList.find(c => c && (
+          String(c.id) === String(activeCatObj.parent) ||
+          String(c.name || '').trim().toLowerCase() === String(activeCatObj.parent).trim().toLowerCase()
+        ));
+      }
+
+      let breadcrumbsHTML = `<span class="breadcrumb-link" id="crumb-home" style="cursor: pointer; transition: color 0.2s ease;">Accueil</span> <span>/</span> <span class="breadcrumb-link" id="crumb-catalog-all" style="cursor: pointer; transition: color 0.2s ease;">Catalogue</span>`;
+      
+      if (isSearchActive) {
+        breadcrumbsHTML += ` <span>/</span> <span>Recherche</span> <span>/</span> <span style="color: var(--primary); font-weight: 750;">"${this.currentQuery}"</span>`;
+      } else if (this.currentBrand) {
+        breadcrumbsHTML += ` <span>/</span> <span>Marques</span> <span>/</span> <span style="color: var(--primary); font-weight: 750;">${this.currentBrand}</span>`;
+      } else if (this.currentCategory !== 'All') {
+        if (parentCatObj) {
+          breadcrumbsHTML += ` <span>/</span> <span class="breadcrumb-link crumb-parent-cat" data-parent="${parentCatObj.name}" style="cursor: pointer; transition: color 0.2s ease;">${parentCatObj.name}</span>`;
+        }
+        breadcrumbsHTML += ` <span>/</span> <span style="color: var(--primary); font-weight: 800;">${this.currentCategory}</span>`;
+      }
+
+      // Brand list for filter dropdown
+      const brandOptions = Array.from(new Set(this.products.map(p => p.brand).filter(Boolean))).sort();
 
       contentArea.innerHTML = `
         <!-- Breadcrumbs Navigation -->
-        <nav style="display: flex; gap: 6px; font-size: 12px; color: var(--text-gray); font-weight: 600; margin-bottom: 20px;">
-          <span>Home</span>
-          <span>/</span>
-          <span style="color: var(--text-dark);">${this.currentBrand ? 'Brands' : 'Categories'}</span>
-          <span>/</span>
-          <span style="color: var(--primary); font-weight: 750;">${this.currentBrand || this.currentCategory}</span>
+        <nav style="display: flex; gap: 8px; font-size: 13px; color: var(--text-gray); font-weight: 600; margin-bottom: 22px; align-items: center; flex-wrap: wrap;">
+          ${breadcrumbsHTML}
         </nav>
 
-        <!-- Interactive Category Carousel Hero Banner -->
-        <div class="category-carousel-banner animate-in" id="category-carousel-banner">
-          <!-- Dynamically populated in injectCatalogCarousel() -->
+        ${isSearchActive ? `
+          <!-- Active Global Search Banner -->
+          <div class="search-active-banner glass-panel animate-in" style="background: white; border: 1.5px solid var(--border); border-radius: 20px; padding: 18px 24px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.03);">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 24px;">🔍</span>
+              <div>
+                <h4 style="margin: 0; font-size: 17px; font-weight: 850; color: #0f172a;">
+                  Résultats pour "<span style="color: var(--primary);">${this.currentQuery}</span>"
+                </h4>
+                <span style="font-size: 13px; color: #64748b;" id="catalog-count-badge">Recherche globale</span>
+              </div>
+            </div>
+            <button id="catalog-clear-search-btn" class="btn-secondary" style="height: 38px; padding: 0 18px; font-size: 13px; font-weight: 750; border-radius: 12px; background: #f1f5f9; border: 1px solid var(--border); cursor: pointer; color: #0f172a; transition: all 0.2s;">
+              ✕ Effacer la recherche / Voir tout
+            </button>
+          </div>
+        ` : `
+          <!-- Luxury Dynamic Category Hero Banner -->
+          <div class="category-hero-banner-luxury animate-in" id="category-hero-banner-container">
+            <!-- Dynamically injected via renderCategoryHeroBanner() -->
+          </div>
+        `}
+
+        <!-- Dynamic Hierarchical Subcategory Navigation System -->
+        <div id="category-smart-pills-row" class="category-pills-row" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; overflow-x: auto; padding-bottom: 6px;">
+          <!-- Dynamically populated in injectCatalogPills() -->
         </div>
 
-        <!-- Category Title and Item Count -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin: 36px 0 20px 0; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
-          <h3 style="font-size: 26px; font-weight: 900; color: var(--text-dark); margin: 0; text-transform: uppercase; letter-spacing: -0.5px;" id="catalog-title-header">
-            Category: All
-          </h3>
-          <span style="font-size: 12.5px; font-weight: 700; color: var(--primary); background: rgba(0, 82, 204, 0.08); padding: 6px 14px; border-radius: 20px;" id="catalog-count-badge">
-            0 Items Found
-          </span>
+        <!-- Modern Category Controls & Filters Toolbar -->
+        <div class="category-toolbar-container animate-in" id="category-toolbar">
+          <div class="category-toolbar-left">
+            <div class="category-search-box">
+              <span style="font-size: 14px; margin-right: 6px; opacity: 0.6;">🔍</span>
+              <input type="text" id="cat-local-search" placeholder="Filtrer dans cette catégorie..." value="${this.catalogLocalQuery || ''}">
+            </div>
+
+            <select id="cat-brand-select" class="category-toolbar-select">
+              <option value="All" ${this.catalogBrandFilter === 'All' ? 'selected' : ''}>Toutes les marques</option>
+              ${brandOptions.map(b => `<option value="${b}" ${this.catalogBrandFilter === b ? 'selected' : ''}>${b}</option>`).join('')}
+            </select>
+
+            <select id="cat-sort-select" class="category-toolbar-select">
+              <option value="featured" ${this.catalogSort === 'featured' ? 'selected' : ''}>✨ Tri : En vedette</option>
+              <option value="price_low" ${this.catalogSort === 'price_low' ? 'selected' : ''}>💰 Prix : Moins cher</option>
+              <option value="price_high" ${this.catalogSort === 'price_high' ? 'selected' : ''}>💎 Prix : Plus cher</option>
+              <option value="rating" ${this.catalogSort === 'rating' ? 'selected' : ''}>⭐ Mieux notés</option>
+              <option value="newest" ${this.catalogSort === 'newest' ? 'selected' : ''}>🔥 Nouveautés</option>
+            </select>
+
+            <button id="cat-stock-toggle" class="category-stock-toggle-btn ${this.catalogInStockOnly ? 'active' : ''}">
+              <span>📦</span> En stock uniquement
+            </button>
+          </div>
+
+          <div class="category-toolbar-right">
+            <span class="category-count-pill" id="cat-count-pill">0 articles</span>
+          </div>
         </div>
 
-        <!-- Horizontal Subcategory Pills Grid -->
-        <div class="category-pills-row" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 36px;">
-          <button class="category-pill-btn ${this.currentCategory === 'All' ? 'active' : ''}" data-category="All">
-            <span class="pill-icon">💙</span> Tout
-          </button>
-          ${(() => {
-            const categories = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
-            return categories.map(c => `
-              <button class="category-pill-btn ${this.currentCategory === c.name ? 'active' : ''}" data-category="${c.name}">
-                <span class="pill-icon">${c.icon || '📁'}</span> ${c.name}
-              </button>
-            `).join('');
-          })()}
-        </div>
-
+        <!-- Product Grid & Sections -->
         <div id="catalog-grouped-sections"></div>
-        <div class="no-results" id="no-results" style="display: none;">
-          <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            <line x1="8" y1="11" x2="14" y2="11"></line>
-          </svg>
-          <h3>No products match your search</h3>
-          <p>Try checking your spelling or adjusting your filters.</p>
-          <button class="btn-primary" id="reset-filter-btn">Reset Search</button>
-        </div>
+        <div class="no-results" id="no-results" style="display: none;"></div>
       `;
-      this.injectCatalogCarousel();
+
+      if (!isSearchActive) {
+        this.renderCategoryHeroBanner();
+      }
+      this.injectCatalogPills();
       this.injectCatalogProducts();
+      this.attachCatalogHeaderListeners();
 
     } else if (this.currentPage === 'deals') {
       contentArea.innerHTML = `
@@ -795,50 +1446,77 @@ class ProductList extends HTMLElement {
       this.injectCategorizedProducts('best');
 
     } else if (this.currentPage === 'brands') {
+      const storedBrands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
+      const isAll = !this.currentBrandFilter || this.currentBrandFilter === 'All';
+      const activeBrandObj = storedBrands.find(b => b && b.name && b.name.toLowerCase() === (this.currentBrandFilter || '').toLowerCase());
+
       contentArea.innerHTML = `
-        <!-- Breadcrumbs Navigation -->
-        <nav style="display: flex; gap: 6px; font-size: 12px; color: var(--text-gray); font-weight: 600; margin-bottom: 20px;">
-          <span>Home</span>
-          <span>/</span>
-          <span style="color: var(--text-dark);">Creator Houses</span>
-          <span>/</span>
-          <span style="color: var(--primary); font-weight: 750;">${this.currentBrandFilter}</span>
+        <!-- Hierarchical Breadcrumbs Navigation -->
+        <nav style="display: flex; gap: 6px; font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 22px; align-items: center; flex-wrap: wrap;">
+          <span style="cursor: pointer; color: #475569; transition: color 0.2s;" id="crumb-home">Accueil</span>
+          <span style="opacity: 0.4;">/</span>
+          <span style="cursor: pointer; color: ${isAll ? 'var(--primary)' : '#475569'}; font-weight: ${isAll ? '750' : '600'};" id="crumb-brand-all">Nos Marques</span>
+          ${!isAll ? `
+            <span style="opacity: 0.4;">/</span>
+            <span style="color: var(--primary); font-weight: 750;">${activeBrandObj?.name || this.currentBrandFilter}</span>
+          ` : ''}
         </nav>
 
-        <!-- Interactive Brand Carousel Hero Banner -->
-        <div class="category-carousel-banner animate-in" id="brand-carousel-banner">
-          <!-- Dynamically populated in injectBrandCarousel() -->
+        <!-- Dynamic Luxury Brand Hero Banner Container -->
+        <div class="brand-hero-banner-luxury animate-in" id="brand-hero-banner-container">
+          <!-- Populated in renderBrandHeroBanner() -->
         </div>
 
-        <!-- Brand Title and Item Count -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin: 36px 0 20px 0; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--border); padding-bottom: 16px;">
-          <h3 style="font-size: 26px; font-weight: 900; color: var(--text-dark); margin: 0; text-transform: uppercase; letter-spacing: -0.5px;" id="brand-title-header">
-            Brand: All
-          </h3>
-          <span style="font-size: 12.5px; font-weight: 700; color: var(--primary); background: rgba(0, 82, 204, 0.08); padding: 6px 14px; border-radius: 20px;" id="brand-count-badge">
-            0 Items Found
-          </span>
+        <!-- Smart Brand Navigation Pills Row -->
+        <div class="category-pills-row brand-pills-row" id="brand-smart-pills-row" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px;">
+          <!-- Populated in injectBrandPills() -->
         </div>
 
-        <!-- Horizontal Brand Pills Row -->
-        <div class="category-pills-row" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 36px;">
-          <button class="brand-pill-btn ${this.currentBrandFilter === 'All' ? 'active' : ''}" data-brand="All">
-            <span class="pill-icon">💙</span> Tout
-          </button>
-          ${(() => {
-            const brands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
-            return brands.map(b => `
-              <button class="brand-pill-btn ${this.currentBrandFilter === b.name ? 'active' : ''}" data-brand="${b.name}">
-                <span class="pill-icon">${b.logo || '🏷️'}</span> ${b.name}
-              </button>
-            `).join('');
-          })()}
+        <!-- Modern Brand Controls & Filtering Toolbar -->
+        <div class="brand-toolbar-container animate-in" id="brand-toolbar">
+          <div class="brand-toolbar-left">
+            <div class="brand-search-box">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#64748b" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" id="brand-local-search" placeholder="Rechercher dans cette marque..." value="${this.brandLocalQuery || ''}">
+            </div>
+            
+            <select class="brand-toolbar-select" id="brand-cat-select" aria-label="Filtrer par catégorie">
+              <option value="All" ${this.brandCategoryFilter === 'All' ? 'selected' : ''}>Toutes les catégories</option>
+              ${(() => {
+                const cats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
+                return cats.map(c => `
+                  <option value="${c.name || c}" ${this.brandCategoryFilter === (c.name || c) ? 'selected' : ''}>${c.name || c}</option>
+                `).join('');
+              })()}
+            </select>
+          </div>
+
+          <div class="brand-toolbar-right">
+            <button class="brand-stock-toggle-btn ${this.brandInStockOnly ? 'active' : ''}" id="brand-stock-toggle" title="Afficher uniquement les articles en stock">
+              <span>📦</span>
+              <span>En stock uniquement</span>
+            </button>
+
+            <select class="brand-toolbar-select" id="brand-sort-select" aria-label="Trier les articles">
+              <option value="featured" ${this.brandSort === 'featured' ? 'selected' : ''}>🌟 Recommandés</option>
+              <option value="price_low" ${this.brandSort === 'price_low' ? 'selected' : ''}>💵 Prix: Croissant</option>
+              <option value="price_high" ${this.brandSort === 'price_high' ? 'selected' : ''}>💎 Prix: Décroissant</option>
+              <option value="rating" ${this.brandSort === 'rating' ? 'selected' : ''}>⭐ Mieux Notés</option>
+              <option value="newest" ${this.brandSort === 'newest' ? 'selected' : ''}>🚀 Nouveautés</option>
+            </select>
+
+            <span class="brand-count-pill" id="brand-count-pill">0 articles</span>
+          </div>
         </div>
 
+        <!-- Brand Grouped / Grid Container -->
         <div id="brands-grouped-container"></div>
       `;
-      this.injectBrandCarousel();
+
+      this.renderBrandHeroBanner();
+      this.injectBrandPills();
       this.injectBrandsGrouped();
+      this.attachBrandHeaderListeners();
 
     } else if (this.currentPage === 'collections') {
       contentArea.innerHTML = `
@@ -862,48 +1540,92 @@ class ProductList extends HTMLElement {
 
     } else if (this.currentPage === 'wishlist') {
       const wishlist = this.loadWishlistFromStorage();
+      const totalWishlistValue = wishlist.reduce((sum, p) => sum + (p.price || 0), 0);
 
       contentArea.innerHTML = `
-        <div class="wishlist-container animate-in">
-          <div class="page-hero-banner page-wishlist animate-in">
-            <div class="page-hero-glow"></div>
-            <div class="page-hero-content">
-              <span class="page-hero-badge">💖 DREAM BLUEPRINTS</span>
-              <h2>Your Curated Wishlist</h2>
-              <p>High-end layouts and accessories saved for your dream workspace blueprint.</p>
+        <div class="wishlist-container animate-in" style="max-width: 1280px; margin: 0 auto; padding: 0 16px 40px 16px;">
+          <!-- Top Hero Banner -->
+          <div class="page-hero-banner page-wishlist animate-in" style="margin-bottom: 24px; background: linear-gradient(135deg, #0b1a30 0%, #172554 100%); border-radius: 24px; padding: 32px 36px; position: relative; overflow: hidden; box-shadow: 0 12px 32px rgba(11,26,48,0.2);">
+            <div class="page-hero-glow" style="position: absolute; top: -50%; right: -20%; width: 300px; height: 300px; background: rgba(225, 29, 72, 0.25); filter: blur(60px); border-radius: 50%;"></div>
+            <div class="page-hero-content-wrapper" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; position: relative; z-index: 1;">
+              <div class="page-hero-content">
+                <span class="page-hero-badge" style="background: rgba(225, 29, 72, 0.15); color: #f43f5e; border: 1px solid rgba(225, 29, 72, 0.3); padding: 4px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; margin-bottom: 8px;">
+                  💖 ARTICLES FAVORIS
+                </span>
+                <h2 style="font-size: 28px; font-weight: 900; color: white; margin: 0 0 6px 0; letter-spacing: -0.5px;">
+                  Votre Liste de Souhaits (${wishlist.length})
+                </h2>
+                <p style="font-size: 14px; color: rgba(255,255,255,0.75); margin: 0; max-width: 500px;">
+                  Conservez vos équipements favoris et commandez-les en un clic. Valeur totale: <strong style="color: white;">${formatPrice(totalWishlistValue)}</strong>
+                </p>
+              </div>
+              
+              ${wishlist.length > 0 ? `
+                <div class="wishlist-hero-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <button class="btn-primary" id="wishlist-move-all-btn" style="height: 42px; padding: 0 20px; font-size: 13.5px; font-weight: 800; border-radius: 12px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0,82,204,0.3);">
+                    <span>🛒</span> Tout ajouter au panier
+                  </button>
+                  <button class="btn-secondary" id="wishlist-share-wa-btn" style="height: 42px; padding: 0 18px; font-size: 13.5px; font-weight: 800; border-radius: 12px; background: #25d366; color: white; border: none; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <span>📲</span> Partager (WhatsApp)
+                  </button>
+                  <button class="btn-secondary" id="wishlist-clear-btn" style="height: 42px; padding: 0 16px; font-size: 13px; font-weight: 750; border-radius: 12px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); border: 1.5px solid rgba(255,255,255,0.2); cursor: pointer;">
+                    🗑️ Vider
+                  </button>
+                </div>
+              ` : ''}
             </div>
           </div>
 
           ${wishlist.length === 0 ? `
-            <div class="wishlist-empty-card glass-panel" style="margin-top: 24px;">
-              <div class="wishlist-floating-heart">💖</div>
-              <h4>Your workspace collections await.</h4>
-              <p>Save your favorite mechanical keyboards, active audio arrays, and ambient lights to curate your layout blueprint.</p>
-              <button class="btn-primary wishlist-browse-btn" id="wishlist-explore-btn">Browse Catalog</button>
+            <div class="wishlist-empty-card glass-panel" style="margin-top: 24px; padding: 60px 24px; text-align: center; border-radius: 24px; border: 1.5px solid var(--border); background: white;">
+              <div class="wishlist-floating-heart" style="font-size: 54px; margin-bottom: 16px; animation: pulse 2s infinite;">💖</div>
+              <h4 style="font-size: 20px; font-weight: 850; color: #0f172a; margin: 0 0 8px 0;">Votre liste de favoris est vide</h4>
+              <p style="font-size: 14px; color: #64748b; max-width: 460px; margin: 0 auto 24px auto; line-height: 1.6;">
+                Enregistrez vos articles préférés en cliquant sur le cœur afin de les retrouver facilement et passer commande plus tard !
+              </p>
+              <button class="btn-primary wishlist-browse-btn" id="wishlist-explore-btn" style="padding: 12px 28px; font-size: 14px; font-weight: 800; border-radius: 12px;">
+                Explorer le Catalogue 🛍️
+              </button>
             </div>
           ` : `
-            <div class="home-grid-4" style="margin-top: 24px;">
-              ${wishlist.map(p => `
-                <div class="wishlist-item-card glass-panel" data-id="${p.id}">
-                  <button class="wishlist-item-remove-btn" data-id="${p.id}" title="Remove from Wishlist">×</button>
-                  
-                  <div class="wishlist-item-image">
-                    <img src="${p.image}" alt="${p.name}">
-                  </div>
-                  
-                  <div class="wishlist-item-details">
-                    <span class="wishlist-item-cat">${p.category === 'Keyboards' ? '⌨️' : p.category === 'Audio' ? '🎧' : p.category === 'Lighting' ? '🌌' : '🪵'} ${p.category}</span>
-                    <h4 class="wishlist-item-title">${p.name}</h4>
-                    <div class="wishlist-item-price">${formatPrice(p.price)}</div>
-                  </div>
+            <div class="home-grid-4" style="margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px;">
+              ${wishlist.map(p => {
+                const inStock = p.stock === undefined || p.stock > 0;
+                return `
+                  <div class="wishlist-item-card glass-panel animate-in" data-id="${p.id}" style="background: white; border: 1.5px solid var(--border); border-radius: 20px; padding: 16px; position: relative; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s ease;">
+                    <button class="wishlist-item-remove-btn" data-id="${p.id}" title="Retirer des favoris" style="position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; background: #f8fafc; border: 1px solid var(--border); font-size: 18px; color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; z-index: 2;">×</button>
+                    
+                    <div>
+                      <div class="wishlist-item-image" style="width: 100%; height: 180px; display: flex; align-items: center; justify-content: center; background: #f8fafc; border-radius: 14px; overflow: hidden; margin-bottom: 14px; cursor: pointer;">
+                        <img src="${p.image}" alt="${p.name}" loading="lazy" style="max-width: 90%; max-height: 90%; object-fit: contain; transition: transform 0.3s ease;">
+                      </div>
+                      
+                      <div class="wishlist-item-details">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                          <span class="wishlist-item-cat" style="font-size: 11px; font-weight: 750; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px;">
+                            ${p.category || 'Équipement'}
+                          </span>
+                          <span style="font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: ${inStock ? '#ecfdf5' : '#fef2f2'}; color: ${inStock ? '#059669' : '#dc2626'};">
+                            ${inStock ? '✓ En stock' : '✕ Rupture'}
+                          </span>
+                        </div>
+                        <h4 class="wishlist-item-title" style="font-size: 14.5px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; line-height: 1.4; cursor: pointer;">
+                          ${p.name}
+                        </h4>
+                        <div class="wishlist-item-price" style="font-size: 17px; font-weight: 900; color: #0052cc; margin-bottom: 14px;">
+                          ${formatPrice(p.price)}
+                        </div>
+                      </div>
+                    </div>
 
-                  <div class="wishlist-item-actions">
-                    <button class="wishlist-add-to-cart-btn btn-primary" data-id="${p.id}">
-                      Add to Cart
-                    </button>
+                    <div class="wishlist-item-actions">
+                      <button class="wishlist-add-to-cart-btn btn-primary" data-id="${p.id}" style="width: 100%; height: 40px; border-radius: 10px; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                        <span>🛒</span> Ajouter au Panier
+                      </button>
+                    </div>
                   </div>
-                </div>
-              `).join('')}
+                `;
+              }).join('')}
             </div>
           `}
         </div>
@@ -956,9 +1678,21 @@ class ProductList extends HTMLElement {
         const stored = localStorage.getItem('SWEETOS_user_scratchcards');
         let rawList = stored ? JSON.parse(stored) : [];
         const now = Date.now();
-        // Exclude scratchcards that are unscratched and past their 14-day expiry date
+
+        const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
+        let userEmail = '';
+        if (loggedInUserStr) {
+          try {
+            userEmail = JSON.parse(loggedInUserStr).email?.toLowerCase().trim() || '';
+          } catch(e) {}
+        }
+
+        // Filter cards for current user or guest, and exclude expired unscratched cards
         scratchcardsList = rawList.filter(card => {
           if (!card.scratched && card.expiresAt && now > card.expiresAt) {
+            return false;
+          }
+          if (userEmail && card.email && card.email.toLowerCase().trim() !== userEmail) {
             return false;
           }
           return true;
@@ -1044,7 +1778,7 @@ class ProductList extends HTMLElement {
             <div class="glass-panel text-center animate-in" style="padding: 50px; border-radius: 16px; border: 1.5px solid var(--border); background: rgba(255, 255, 255, 0.4); text-align: center; width: 100%;">
               <span style="font-size: 36px; display: block; margin-bottom: 12px;">🎁</span>
               <h4 style="font-size: 16px; font-weight: 800; color: var(--text-dark); margin: 0 0 6px 0;">Aucune Boîte Mystère / No Mystery Boxes</h4>
-              <p style="font-size: 13.5px; color: var(--text-gray); margin: 0;">Faites des achats sur notre boutique pour débloquer des boîtes mystères !</p>
+              <p style="font-size: 13.5px; color: var(--text-gray); margin: 0;">Passez commande sur notre boutique pour recevoir automatiquement votre boîte mystère !</p>
             </div>
           `;
         } else {
@@ -1063,10 +1797,10 @@ class ProductList extends HTMLElement {
                 } else {
                   if (card.couponWon === 'lost') {
                     return `
-                      <div style="width: 280px; height: 180px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; text-align: center; background: rgba(255,255,255,0.5); border: 1.5px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
-                        <span style="font-size: 32px; display: block; margin-bottom: 8px;">😢</span>
-                        <h4 style="font-size: 15px; font-weight: 850; color: var(--text-dark); margin: 0 0 4px 0;">Bonne chance la prochaine fois !</h4>
-                        <p style="font-size: 12.5px; color: var(--text-gray); margin: 0;">Oops! Good luck next time!</p>
+                      <div style="width: 280px; height: 180px; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; text-align: center; background: rgba(255,255,255,0.7); border: 1.5px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.02);">
+                        <span style="font-size: 32px; display: block; margin-bottom: 6px;">🍀</span>
+                        <h4 style="font-size: 14px; font-weight: 850; color: var(--text-dark); margin: 0 0 4px 0;">Oups ! Bonne chance pour la prochaine fois !</h4>
+                        <p style="font-size: 11.5px; color: var(--text-gray); margin: 0; line-height: 1.4;">${card.emptyMessage || 'Pour débloquer un coupon, achetez pour au moins le montant requis dans les Offres du Jour ou atteignez 50 000 FCFA !'}</p>
                       </div>
                     `;
                   } else {
@@ -1105,22 +1839,35 @@ class ProductList extends HTMLElement {
               </h3>
               <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;" class="animate-in">
                 ${wonCoupons.map(c => {
+                  const isBadge = c.badgeCoupon || (c.code && c.code.startsWith('BADGE5'));
+                  const remaining = c.remainingUses !== undefined ? c.remainingUses : 5;
+                  const total = c.totalUses || 5;
                   const discountText = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
                   return `
-                    <div class="unlocked-coupon-card" data-coupon-code="${c.code}" style="position: relative; background: rgba(255, 255, 255, 0.4); border: 2px dashed var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: all 0.2s ease; min-height: 180px; cursor: pointer;">
+                    <div class="unlocked-coupon-card" data-coupon-code="${c.code}" style="position: relative; background: ${isBadge ? 'rgba(0, 102, 255, 0.04)' : 'rgba(255, 255, 255, 0.4)'}; border: 2px dashed ${isBadge ? '#0066ff' : 'var(--border)'}; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; justify-content: space-between; gap: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); transition: all 0.2s ease; min-height: 190px; cursor: pointer;">
                       <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
-                        <span style="font-size: 24px;">🎟️</span>
-                        <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 8px; text-transform: uppercase;">Actif</span>
+                        <span style="font-size: 24px;">${isBadge ? '🎖️' : '🎟️'}</span>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                          ${isBadge ? `
+                            <span style="font-size: 11px; font-weight: 850; color: white; background: #0066ff; padding: 4px 10px; border-radius: 8px;">
+                              🔄 ${remaining}/${total} RESTANTES
+                            </span>
+                          ` : `
+                            <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: var(--primary-light); padding: 4px 10px; border-radius: 8px; text-transform: uppercase;">
+                              Usage Unique
+                            </span>
+                          `}
+                        </div>
                       </div>
                       
                       <div>
                         <h4 style="font-size: 18px; font-weight: 850; color: var(--text-dark); margin: 0 0 6px 0;">${discountText}</h4>
-                        <code style="font-size: 14px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; background: white; padding: 4px 10px; border-radius: 6px; border: 1.5px solid var(--border); display: inline-block;">${c.code}</code>
+                        <code style="font-size: 14px; font-weight: 800; color: ${isBadge ? '#0066ff' : 'var(--primary)'}; letter-spacing: 0.5px; background: white; padding: 4px 10px; border-radius: 6px; border: 1.5px solid ${isBadge ? '#0066ff' : 'var(--border)'}; display: inline-block;">${c.code}</code>
                       </div>
 
                       <div style="border-top: 1px solid var(--border); padding-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text-gray); font-weight: 600;">
-                        <span>Exp: ${c.expiry}</span>
-                        <span style="color: var(--primary); font-weight: 800; display: flex; align-items: center; gap: 4px;">Détails →</span>
+                        <span>${isBadge ? 'Sans expiration' : `Exp: ${c.expiry || '7 jours'}`}</span>
+                        <span style="color: ${isBadge ? '#0066ff' : 'var(--primary)'}; font-weight: 800; display: flex; align-items: center; gap: 4px;">Détails →</span>
                       </div>
                     </div>
                   `;
@@ -1348,460 +2095,710 @@ class ProductList extends HTMLElement {
     } else if (this.currentPage === 'product-details') {
       const p = this.products.find(item => item.id === this.currentProductId) || this.products[0];
       
-      const originalPrice = p.price / 0.8;
-      const savingsVal = originalPrice - p.price;
-      const discountPercentage = 20;
-
       const colorsMap = {
         Keyboards: [
-          { name: 'Opal White', code: '#f0f4f8' },
-          { name: 'Cobalt Blue', code: '#0052cc' },
-          { name: 'Felt Brown', code: '#92400e' },
-          { name: 'Light Gold', code: '#fef3c7' }
+          { name: 'Opal White', priceAdjust: 0 },
+          { name: 'Cobalt Blue', priceAdjust: 10 },
+          { name: 'Felt Brown', priceAdjust: 15 },
+          { name: 'Light Gold', priceAdjust: 20 }
         ],
         Audio: [
-          { name: 'Studio Black', code: '#102a43' },
-          { name: 'Ice Blue', code: '#00b4d8' },
-          { name: 'Sunset Bronze', code: '#ff9a3c' },
-          { name: 'Pure White', code: '#ffffff' }
+          { name: 'Studio Black', priceAdjust: 0 },
+          { name: 'Ice Blue', priceAdjust: 10 },
+          { name: 'Sunset Bronze', priceAdjust: 15 },
+          { name: 'Pure White', priceAdjust: 20 }
         ],
         Lighting: [
-          { name: 'Aurora RGB', code: '#ff2e93' },
-          { name: 'Warm Amber', code: '#ff9a3c' },
-          { name: 'Ice White', code: '#f0f4f8' }
+          { name: 'Aurora RGB', priceAdjust: 0 },
+          { name: 'Warm Amber', priceAdjust: 10 },
+          { name: 'Ice White', priceAdjust: 15 }
         ],
         Desks: [
-          { name: 'Space Grey', code: '#486581' },
-          { name: 'Natural Oak', code: '#d9b48f' },
-          { name: 'White Felt', code: '#ffffff' }
+          { name: 'Space Grey', priceAdjust: 0 },
+          { name: 'Natural Oak', priceAdjust: 25 },
+          { name: 'White Felt', priceAdjust: 15 }
         ]
       };
 
-      const categoryColors = colorsMap[p.category] || colorsMap['Keyboards'];
-      if (!this.selectedColor) {
-        this.selectedColor = categoryColors[0].name;
-      }
+      const productColors = (p.colors && p.colors.length > 0) 
+        ? p.colors 
+        : (colorsMap[p.category] || colorsMap['Keyboards']);
 
+      if (this.selectedVariantIndex === undefined || this.selectedVariantIndex >= productColors.length) {
+        this.selectedVariantIndex = 0;
+      }
+      this.selectedColor = productColors[this.selectedVariantIndex]?.name || productColors[0].name;
+
+      const currentVariant = productColors[this.selectedVariantIndex] || productColors[0];
+      const finalUnitPrice = p.price + (currentVariant.priceAdjust || 0);
+      const oldPrice = p.comparePrice || p.original_price || p.originalPrice || 0;
+      const savingsVal = (oldPrice > finalUnitPrice) ? (oldPrice - finalUnitPrice) : 0;
+      const discountPercentage = oldPrice > 0 ? Math.round((savingsVal / oldPrice) * 100) : 0;
+      const totalPrice = finalUnitPrice * (this.pdpQuantity || 1);
+
+      // Gallery Images
+      let allImages = [];
+      if (p.images && p.images.length > 0) {
+        allImages = p.images;
+      } else if (p.image) {
+        allImages = [p.image, p.image, p.image, p.image];
+      }
+      if (allImages.length < 4) {
+        while (allImages.length < 4) allImages.push(allImages[0]);
+      }
+      if (this.activeThumbnailIdx === undefined || this.activeThumbnailIdx >= allImages.length) {
+        this.activeThumbnailIdx = 0;
+      }
+      const currentMainImage = allImages[this.activeThumbnailIdx];
+
+      // Real-time reviews
       const reviews = this.loadProductReviews(p.id, p.rating, p.reviews);
-      
       const totalReviewsCount = reviews.length;
-      const averageRating = totalReviewsCount > 0 ? (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviewsCount).toFixed(1) : "0.0";
+      const averageRating = totalReviewsCount > 0 
+        ? (reviews.reduce((sum, r) => sum + Number(r.rating || 5), 0) / totalReviewsCount).toFixed(1) 
+        : (p.rating ? p.rating.toFixed(1) : "4.8");
       
       const starCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
       reviews.forEach(r => {
-        if (starCounts[r.rating] !== undefined) {
-          starCounts[r.rating]++;
-        }
+        const score = Math.round(Number(r.rating) || 5);
+        if (starCounts[score] !== undefined) starCounts[score]++;
       });
       
       const starPercentages = {};
-      Object.keys(starCounts).forEach(star => {
+      [5, 4, 3, 2, 1].forEach(star => {
         starPercentages[star] = totalReviewsCount > 0 
           ? Math.round((starCounts[star] / totalReviewsCount) * 100) 
-          : 0;
+          : (star === 5 ? 85 : star === 4 ? 12 : 3);
       });
 
+      const activeFilter = this.activeReviewFilter || 'all';
       const filteredReviews = reviews.filter(r => {
-        if (this.activeReviewFilter === 'All') return true;
-        return r.rating.toString() === this.activeReviewFilter;
+        if (activeFilter === 'all') return true;
+        return String(Math.round(Number(r.rating) || 5)) === activeFilter;
       });
-
-      const reviewsToShow = filteredReviews.slice(0, this.visibleReviewsCount);
-      const hasMoreReviews = filteredReviews.length > this.visibleReviewsCount;
 
       const wishlist = this.loadWishlistFromStorage();
       const isWishlisted = wishlist.some(item => item.id === p.id);
-      const stockVal = p.stock !== undefined ? p.stock : 34;
-      const thresholdVal = p.threshold || 5;
+      const stockVal = p.stock !== undefined ? p.stock : 18;
       const isOutOfStock = stockVal === 0;
-      const isLowStock = stockVal <= thresholdVal && stockVal > 0;
-      
-      let stockLineHtml = '';
-      if (isOutOfStock) {
-        stockLineHtml = `<span class="pdp-stock-status-line" style="color: #ff5630; font-weight: 750; margin-top: 12px; display: block;">✕ Rupture de Stock / Out of Stock</span>`;
-      } else if (isLowStock) {
-        stockLineHtml = `<span class="pdp-stock-status-line" style="color: #ffab00; font-weight: 750; margin-top: 12px; display: block;">⚠️ Stock Faible / Low Stock (Only ${stockVal} left!)</span>`;
-      } else {
-        stockLineHtml = `<span class="pdp-stock-status-line" style="color: #36b37e; font-weight: 750; margin-top: 12px; display: block;">✓ En Stock / In Stock (${stockVal} available)</span>`;
+
+      // Feature cards
+      const featData = this.getPdpFeatureDetails(p);
+
+      // Related products & More to love
+      const relatedList = this.products.filter(item => item.id !== p.id && item.category === p.category).slice(0, 4);
+      if (relatedList.length < 4) {
+        const fb = this.products.filter(item => item.id !== p.id && !relatedList.some(r => r.id === item.id)).slice(0, 4 - relatedList.length);
+        relatedList.push(...fb);
       }
+      const moreList = this.products.filter(item => item.id !== p.id && !relatedList.some(r => r.id === item.id)).slice(0, 4);
 
       contentArea.innerHTML = `
-        <div class="pdp-container">
-          <!-- Back button & Breadcrumbs Row -->
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 16px; flex-wrap: wrap;">
-            <button class="pdp-back-btn" id="pdp-back-btn">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; transform: scaleX(-1);"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-              Retour / Back
-            </button>
-            
-            <div class="pdp-breadcrumb" style="margin-bottom: 0;">
-              <span class="pdp-crumb-item" id="crumb-home">Home</span>
-              <span class="pdp-crumb-sep">›</span>
-              <span class="pdp-crumb-item" id="crumb-catalog">Catalog</span>
-              <span class="pdp-crumb-sep">›</span>
-              <span class="pdp-crumb-item" id="crumb-cat-name">${p.category}</span>
-              <span class="pdp-crumb-sep">›</span>
-              <span class="pdp-crumb-current">${p.name}</span>
+        <style>
+          @import url("https://cdn.jsdelivr.net/fontsource/fonts/fraunces@latest/latin-600-normal.css");
+          @import url("https://cdn.jsdelivr.net/fontsource/fonts/fraunces@latest/latin-700-normal.css");
+          @import url("https://cdn.jsdelivr.net/fontsource/fonts/fraunces@latest/latin-600-italic.css");
+          @import url("https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/latin-400-normal.css");
+          @import url("https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/latin-500-normal.css");
+          @import url("https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/latin-700-normal.css");
+
+          .pdp-premium-container {
+            --paper: #F6F9FE;
+            --card: #FFFFFF;
+            --stage: #E8F0FB;
+            --ink: #0A2540;
+            --ink-soft: #5A6B84;
+            --line: #D9E3F2;
+            --accent: #1F6FEB;
+            --accent-dark: #1554C0;
+            --gold: #1F6FEB;
+            --moss: #2F80ED;
+            --r: 16px;
+            --shadow: 0 18px 44px -18px rgba(10,37,64,.25);
+            --disp: "Fraunces", serif;
+            --body: "Space Grotesk", sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: var(--body);
+            font-size: 16px;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            position: relative;
+            width: 100%;
+            padding-bottom: 60px;
+          }
+
+          .pdp-premium-container .noise {
+            position: absolute; inset: 0; z-index: 10; pointer-events: none; opacity: .04; mix-blend-mode: multiply;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+          }
+          .pdp-premium-container .wrap { max-width: 1280px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 20; }
+
+          /* Breadcrumbs */
+          .crumb { display: flex; gap: 8px; align-items: center; font-size: 12px; letter-spacing: .08em; color: var(--ink-soft); padding: 26px 0 4px; text-transform: uppercase; }
+          .crumb b { color: var(--ink); }
+          .crumb i { font-style: normal; color: var(--line); }
+          .crumb button { background: none; border: none; padding: 0; cursor: pointer; color: inherit; font: inherit; text-transform: uppercase; letter-spacing: .08em; }
+          .crumb button:hover { text-decoration: underline; color: var(--accent); }
+
+          /* PDP Grid */
+          .pdp { display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(0, .96fr); gap: 52px; padding: 18px 0 70px; align-items: start; }
+          .gallery { position: sticky; top: 20px; }
+
+          .stage {
+            position: relative; aspect-ratio: 1/1; background: var(--stage); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow);
+          }
+          .stage .breathe { position: absolute; inset: 0; animation: breathe 9s ease-in-out infinite alternate; }
+          @keyframes breathe { from { transform: scale(1); } to { transform: scale(1.045); } }
+          .stage img { width: 100%; height: 100%; object-fit: cover; transition: opacity .28s ease, transform .5s cubic-bezier(.2,.7,.2,1); transform-origin: center; }
+          .stage.zoomed img { transform: scale(1.8); }
+          .stage.switching img { opacity: 0; }
+
+          .badges { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 2; }
+          .badge { font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; padding: 7px 12px; border-radius: 999px; }
+          .badge.sale { background: var(--accent); color: #fff; }
+          .badge.new { background: var(--ink); color: #fff; }
+
+          .zoom-hint { position: absolute; right: 14px; bottom: 12px; z-index: 2; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); background: rgba(255,255,255,.85); padding: 6px 10px; border-radius: 999px; backdrop-filter: blur(4px); }
+
+          .thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; }
+          .thumb { aspect-ratio: 1/1; border-radius: 12px; overflow: hidden; border: 2px solid transparent; background: var(--stage); padding: 0; cursor: pointer; transition: border-color .25s, transform .25s; }
+          .thumb img { width: 100%; height: 100%; object-fit: cover; }
+          .thumb:hover { transform: translateY(-3px); }
+          .thumb.active { border-color: var(--accent); }
+
+          /* Buy Box */
+          .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .24em; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+          .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--accent); }
+
+          h1.pname { font-family: var(--disp); font-weight: 700; font-size: clamp(2.2rem, 4.2vw, 3.4rem); line-height: 1.05; margin: 12px 0 10px; letter-spacing: -.01em; color: var(--ink); }
+
+          .rate-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); margin-bottom: 8px; }
+          .rate-row .stars { display: inline-flex; gap: 2px; }
+          .rate-row a { font-weight: 500; text-decoration: underline; text-underline-offset: 3px; color: var(--ink-soft); cursor: pointer; }
+          .rate-row a:hover { color: var(--accent); }
+
+          .price-row { display: flex; align-items: baseline; gap: 14px; margin: 16px 0 6px; flex-wrap: wrap; }
+          .price { font-family: var(--disp); font-weight: 700; font-size: 2.1rem; color: var(--ink); }
+          .compare { color: var(--ink-soft); text-decoration: line-through; font-size: 1.05rem; }
+          .save { background: rgba(31,111,235,.12); color: var(--accent-dark); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 6px 10px; border-radius: 999px; }
+
+          .pdesc { color: var(--ink-soft); margin: 10px 0 22px; max-width: 52ch; font-size: 15px; }
+
+          .opt-label { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 10px; }
+          .opt-label span { color: var(--ink-soft); font-weight: 500; text-transform: none; letter-spacing: .02em; }
+          .swatches { display: flex; gap: 12px; margin-bottom: 26px; flex-wrap: wrap; }
+          .swatch { width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(10,37,64,.18); position: relative; transition: transform .25s; cursor: pointer; }
+          .swatch:hover { transform: scale(1.1); }
+          .swatch.active::after { content: ""; position: absolute; inset: -6px; border: 2px solid var(--accent); border-radius: 50%; }
+
+          .buy-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; margin-bottom: 12px; }
+          .qty { display: flex; align-items: center; border: 1.5px solid var(--ink); border-radius: 999px; overflow: hidden; background: var(--card); }
+          .qty button { width: 42px; height: 100%; min-height: 52px; font-size: 18px; font-weight: 500; transition: background .2s; cursor: pointer; background: none; border: none; }
+          .qty button:hover { background: rgba(31,111,235,.1); }
+          .qty output { width: 34px; text-align: center; font-weight: 700; }
+
+          .btn-add { flex: 1; min-width: 200px; background: var(--accent); color: #fff; border: none; border-radius: 999px; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; padding: 17px 26px; display: flex; align-items: center; justify-content: center; gap: 10px; transition: background .25s, transform .15s; cursor: pointer; }
+          .btn-add:hover { background: var(--accent-dark); }
+          .btn-add:active { transform: scale(.97); }
+          .btn-add.done { background: var(--ink); }
+
+          .btn-wish, .btn-share, .btn-col { width: 54px; height: 54px; border: 1.5px solid var(--ink); border-radius: 50%; display: grid; place-items: center; transition: background .25s, border-color .25s; flex-shrink: 0; cursor: pointer; background: none; }
+          .btn-wish svg, .btn-share svg, .btn-col svg { width: 20px; height: 20px; fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+          .btn-wish:hover, .btn-share:hover, .btn-col:hover { background: rgba(31,111,235,.08); }
+          .btn-wish.on, .btn-col.on { background: rgba(31,111,235,.1); border-color: var(--accent); }
+          .btn-wish.on svg, .btn-col.on svg { fill: var(--accent); stroke: var(--accent); animation: pop .4s; }
+          @keyframes pop { 50% { transform: scale(1.45); } }
+
+          .col-dropdown-wrap { position: relative; }
+          .col-dropdown-menu-pdp {
+            position: absolute;
+            bottom: calc(100% + 12px);
+            right: 0;
+            width: 250px;
+            background: var(--card, #fff);
+            border: 1.5px solid var(--line, #e2e8f0);
+            border-radius: 16px;
+            box-shadow: 0 12px 32px rgba(10,37,64,0.12);
+            display: none;
+            flex-direction: column;
+            z-index: 1000;
+            overflow: hidden;
+            text-align: left;
+            animation: fadeIn .2s ease;
+          }
+          .col-dropdown-menu-pdp.open { display: flex; }
+          .col-dropdown-item { transition: background .15s; }
+          .col-dropdown-item:hover { background: rgba(31,111,235,0.06); }
+
+          .btn-now { width: 100%; border: 1.5px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 15px; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; transition: background .25s, color .25s; cursor: pointer; background: none; }
+          .btn-now:hover { background: var(--accent); color: #fff; }
+
+          .trust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 26px 0 8px; }
+          .trust div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px; text-align: center; font-size: 11.5px; font-weight: 500; color: var(--ink-soft); }
+          .trust svg { width: 22px; height: 22px; stroke: var(--accent); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; margin: 0 auto 8px; display: block; }
+
+          /* Accordion */
+          .acc { margin-top: 26px; border-top: 1px solid var(--line); }
+          .acc-item { border-bottom: 1px solid var(--line); }
+          .acc-head { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 18px 2px; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; cursor: pointer; background: none; border: none; color: var(--ink); }
+          .acc-head .pl { font-size: 20px; font-weight: 400; transition: transform .35s; }
+          .acc-item.open .pl { transform: rotate(45deg); color: var(--accent); }
+          .acc-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .45s cubic-bezier(.2,.7,.2,1); }
+          .acc-item.open .acc-panel { grid-template-rows: 1fr; }
+          .acc-panel > div { min-height: 0; overflow: hidden; }
+          .acc-body { padding: 0 2px 22px; color: var(--ink-soft); font-size: 14.5px; }
+          .spec { display: grid; grid-template-columns: 1fr 1.3fr; row-gap: 10px; font-size: 14px; }
+          .spec dt { font-weight: 700; color: var(--ink); } .spec dd { color: var(--ink-soft); }
+          .boxlist { list-style: none; margin-top: 8px; padding: 0; }
+          .boxlist li { padding: 6px 0 6px 26px; position: relative; }
+          .boxlist li::before { content: "✓"; position: absolute; left: 2px; color: var(--accent); font-weight: 700; }
+
+          /* Feature Sections */
+          .features { padding: 40px 0 20px; }
+          .feat { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin-bottom: 44px; }
+          .feat:nth-child(even) .feat-img { order: 2; }
+          .feat-img { border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); max-height: 300px; display: flex; align-items: center; justify-content: center; background: var(--stage); }
+          .feat-img img { width: 100%; height: 100%; object-fit: cover; max-height: 300px; transition: transform 1.2s cubic-bezier(.2,.7,.2,1); }
+          .feat-img:hover img { transform: scale(1.06); }
+          h2.big { font-family: var(--disp); font-weight: 700; font-size: clamp(1.6rem, 2.6vw, 2.2rem); line-height: 1.1; margin: 8px 0 10px; letter-spacing: -.01em; color: var(--ink); }
+          h2.big em { font-style: italic; color: var(--accent); }
+          .feat p { color: var(--ink-soft); max-width: 48ch; font-size: 14.5px; }
+          .feat ul { list-style: none; margin-top: 12px; display: grid; gap: 8px; font-size: 13.5px; font-weight: 500; padding: 0; }
+          .feat ul li { padding-left: 26px; position: relative; color: var(--ink); }
+          .feat ul li::before { content: "→"; position: absolute; left: 0; color: var(--accent); }
+
+          /* Reviews */
+          .reviews { padding: 20px 0 110px; }
+          .rev-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 34px; }
+          .rev-grid { display: grid; grid-template-columns: 340px 1fr; gap: 36px; align-items: start; }
+          .rev-sum { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 28px; position: sticky; top: 24px; }
+          .rev-score { display: flex; align-items: baseline; gap: 12px; }
+          .rev-score b { font-family: var(--disp); font-size: 3.4rem; font-weight: 700; line-height: 1; color: var(--ink); }
+          .rev-score span { color: var(--ink-soft); font-size: 13px; }
+          .bars { margin-top: 18px; display: grid; gap: 8px; }
+          .bar-row { display: grid; grid-template-columns: 34px 1fr 40px; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-soft); }
+          .bar { height: 7px; background: var(--line); border-radius: 99px; overflow: hidden; }
+          .bar-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 1.1s cubic-bezier(.2,.7,.2,1); }
+
+          .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+          .pill { border: 1.5px solid var(--line); border-radius: 999px; padding: 8px 16px; font-size: 12px; font-weight: 700; letter-spacing: .08em; transition: all .25s; cursor: pointer; background: none; color: var(--ink); }
+          .pill:hover { border-color: var(--accent); }
+          .pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+          .rev-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+          .rev-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 22px; transition: transform .3s, box-shadow .3s; }
+          .rev-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+          .rev-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+          .ava { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0; }
+          .rev-who b { display: block; font-size: 14px; color: var(--ink); }
+          .rev-who span { font-size: 11.5px; color: var(--ink-soft); }
+          .verif { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--moss); display: flex; gap: 4px; align-items: center; }
+          .rev-card h4 { font-size: 15px; margin: 6px 0 6px; color: var(--ink); font-weight: 750; }
+          .rev-card p { font-size: 13.5px; color: var(--ink-soft); margin: 0; }
+
+          /* Modals */
+          .modal { position: fixed; inset: 0; z-index: 10050; display: grid; place-items: center; padding: 20px; pointer-events: none; }
+          .modal-back { position: absolute; inset: 0; background: rgba(10,37,64,.5); opacity: 0; transition: opacity .35s; cursor: pointer; }
+          .modal-card { position: relative; background: var(--paper); border-radius: 20px; max-width: 540px; width: 100%; padding: 32px; box-shadow: var(--shadow); transform: translateY(28px) scale(.97); opacity: 0; transition: transform .45s cubic-bezier(.2,.75,.2,1), opacity .45s; max-height: 92vh; overflow-y: auto; }
+          .modal.on { pointer-events: auto; }
+          .modal.on .modal-back { opacity: 1; }
+          .modal.on .modal-card { transform: none; opacity: 1; }
+          .modal-x { position: absolute; top: 16px; right: 16px; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; transition: background .2s; cursor: pointer; background: none; border: none; }
+          .modal-x:hover { background: rgba(31,111,235,.1); }
+          .modal-title { font-family: var(--disp); font-weight: 700; font-size: 2rem; margin: 10px 0 20px; color: var(--ink); }
+          .modal-card form label { display: grid; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 14px; }
+          .modal-card input, .modal-card textarea { width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--card); font-family: var(--body); font-size: 14px; font-weight: 400; color: var(--ink); outline: none; transition: border-color .25s; resize: vertical; }
+          .modal-card input:focus, .modal-card textarea:focus { border-color: var(--accent); }
+          .f-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          .f-rate { margin-bottom: 16px; }
+          .f-label { font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; display: block; margin-bottom: 8px; }
+          .star-pick { display: inline-flex; gap: 4px; }
+          .star-pick button { padding: 2px; transition: transform .15s; cursor: pointer; background: none; border: none; }
+          .star-pick button:hover { transform: scale(1.2); }
+          .star-pick button svg { width: 26px; height: 26px; fill: var(--line); transition: fill .15s; }
+          .star-pick button.lit svg { fill: var(--accent); }
+          .f-hint { font-size: 12px; color: var(--ink-soft); margin-left: 10px; }
+          .modal-submit { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 999px; padding: 16px; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; transition: background .25s; margin-top: 6px; cursor: pointer; }
+          .modal-submit:hover { background: var(--accent-dark); }
+
+          /* Share Modal */
+          .share-modal .modal-card { max-width: 450px; }
+          .share-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+          .share-option { display: flex; align-items: center; gap: 10px; padding: 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); cursor: pointer; transition: all .25s; font-weight: 600; font-size: 13.5px; }
+          .share-option:hover { border-color: var(--accent); background: rgba(31,111,235,.05); }
+          .share-option svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+          .share-option.whatsapp { color: #25D366; border-color: #25D366; }
+          .share-option.facebook { color: #1877f2; }
+          .share-option.twitter { color: #1DA1F2; }
+          .share-option.linkedin { color: #0A66C2; }
+          .share-option.native { color: var(--ink); }
+
+          /* Related Products */
+          .related { padding: 0 0 80px; }
+          .rel-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 30px; }
+          .rel-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; transition: transform .3s, box-shadow .3s; position: relative; }
+          .rel-card:hover { transform: translateY(-6px); box-shadow: var(--shadow); }
+          .rel-img { aspect-ratio: 1/1; background: var(--stage); overflow: hidden; }
+          .rel-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .8s cubic-bezier(.2,.7,.2,1); cursor: pointer; }
+          .rel-card:hover .rel-img img { transform: scale(1.07); }
+          .rel-body { padding: 16px 18px 18px; }
+          .rel-body b { font-size: 15px; display: block; color: var(--ink); }
+          .rel-body span { font-size: 13px; color: var(--ink-soft); }
+          .rel-add { position: absolute; right: 14px; bottom: 14px; width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 20px; display: grid; place-items: center; transition: background .25s, transform .25s; opacity: 0; transform: translateY(8px); cursor: pointer; border: none; }
+          .rel-card:hover .rel-add { opacity: 1; transform: translateY(0); }
+          .rel-add:hover { background: var(--accent-dark); }
+          @media(hover: none) { .rel-add { opacity: 1; transform: none; } }
+
+          /* Sticky Bottom Bar */
+          .stickybar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10020; background: var(--card); border-top: 1px solid var(--line); box-shadow: 0 -12px 34px rgba(10,37,64,.12); transform: translateY(110%); transition: transform .45s cubic-bezier(.2,.7,.2,1); }
+          .stickybar.show { transform: translateY(0); }
+          .sb-in { display: flex; align-items: center; gap: 16px; padding: 12px 0; }
+          .sb-in img { width: 52px; height: 52px; object-fit: cover; border-radius: 10px; background: var(--stage); }
+          .sb-in .sb-name { font-weight: 700; font-size: 14px; color: var(--ink); }
+          .sb-in .sb-name span { display: block; font-weight: 400; color: var(--ink-soft); font-size: 12px; }
+          .sb-in .price { font-size: 1.3rem; margin-left: auto; }
+          .sb-in .btn-add { flex: 0; min-width: 0; padding: 14px 26px; }
+
+          /* Responsive */
+          @media(max-width: 1020px) {
+            .pdp { grid-template-columns: 1fr; gap: 34px; }
+            .gallery { position: static; }
+            .rev-grid { grid-template-columns: 1fr; }
+            .rev-sum { position: static; }
+            .rel-grid { grid-template-columns: repeat(2, 1fr); }
+            .feat { grid-template-columns: 1fr; gap: 26px; }
+            .feat:nth-child(even) .feat-img { order: 0; }
+          }
+          @media(max-width: 720px) {
+            .rev-cards { grid-template-columns: 1fr; }
+            .rel-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+            .trust { grid-template-columns: 1fr; }
+            .sb-in .price { display: none; }
+            .f-row { grid-template-columns: 1fr; }
+          }
+        </style>
+
+        <div class="pdp-premium-container" id="pdpApp">
+          <div class="noise" aria-hidden="true"></div>
+
+          <div class="wrap">
+            <!-- Breadcrumbs -->
+            <div class="crumb">
+              <button id="pdpCrumbHome">Home</button>
+              <i>/</i>
+              <button id="pdpCrumbCategory">${p.category || 'Catalog'}</button>
+              <i>/</i>
+              <b>${p.name}</b>
             </div>
-          </div>
 
-          <div class="pdp-grid">
-            <!-- Left media showcase with Hover to Zoom -->
-            <div class="pdp-media-column">
-              <div class="pdp-media-panel glass-panel">
-                <span class="pdp-discount-badge">-${discountPercentage}%</span>
-                <button class="pdp-wishlist-heart-btn ${isWishlisted ? 'wishlisted' : ''}" id="pdp-wish-btn" title="${isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}">
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="${isWishlisted ? 'var(--red)' : 'none'}" stroke="${isWishlisted ? 'var(--red)' : 'currentColor'}" stroke-width="2">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                  </svg>
-                </button>
-                <img src="${p.image}" alt="${p.name}" class="pdp-main-image">
-                <span class="pdp-zoom-badge">Hover to Zoom</span>
-              </div>
-
-              <!-- Thumbnails row -->
-              <div class="pdp-thumbnails-row">
-                <div class="pdp-thumb-card active" data-index="0">
-                  <img src="${p.image}" alt="Thumb 1">
+            <!-- Main Product Section -->
+            <section class="pdp">
+              <!-- Gallery -->
+              <div class="gallery">
+                <div class="stage" id="pdpStage">
+                  <div class="breathe">
+                    <img id="pdpMainImage" src="${currentMainImage}" alt="${p.name}">
+                  </div>
+                  <div class="badges">
+                    ${savingsVal > 0 ? `<span class="badge sale">Save ${discountPercentage}%</span>` : ''}
+                    <span class="badge new">Best Seller</span>
+                  </div>
+                  <span class="zoom-hint">Hover to zoom</span>
                 </div>
-                <div class="pdp-thumb-card" data-index="1">
-                  <img src="${p.image}" alt="Thumb 2">
-                </div>
-                <div class="pdp-thumb-card" data-index="2">
-                  <img src="${p.image}" alt="Thumb 3">
-                </div>
-                <div class="pdp-thumb-card" data-index="3">
-                  <img src="${p.image}" alt="Thumb 4">
-                </div>
-              </div>
-            </div>
-
-            <!-- Right details column -->
-            <div class="pdp-info-column">
-              <span class="pdp-label-brand">${p.category === 'Keyboards' ? '⌨️' : p.category === 'Audio' ? '🎧' : p.category === 'Lighting' ? '🌌' : '🪵'} NOVASHOP ACCESSORIES — ${p.category.toUpperCase()}</span>
-              <h1 class="pdp-title">${p.name}</h1>
-              <p class="pdp-subtitle">${p.shortDesc}</p>
-
-              <!-- Ratings Row -->
-              <div class="pdp-meta-ratings">
-                <div class="pdp-stars">★ ★ ★ ★ ★</div>
-                <span class="pdp-rating-num">${averageRating} / 5.0</span>
-                <a href="#" class="pdp-reviews-link" id="reviews-jump-btn">${totalReviewsCount} reviews</a>
-              </div>
-
-              <!-- Price Box card container -->
-              <div class="pdp-price-container">
-                <span class="pdp-price-current">${formatPrice(p.price)}</span>
-                <span class="pdp-price-original">${formatPrice(originalPrice)}</span>
-                <span class="pdp-price-savings">Save ${discountPercentage}% (${formatPrice(savingsVal)})</span>
-              </div>
-
-              <!-- Color selectors -->
-              <div class="pdp-colors-section">
-                <div class="pdp-selector-label">COLOR — <span class="selected-color-text" id="color-label">${this.selectedColor.toUpperCase()}</span></div>
-                <div class="pdp-color-dots">
-                  ${categoryColors.map(color => `
-                    <div class="pdp-color-dot ${this.selectedColor === color.name ? 'active' : ''}" 
-                         style="background: ${color.code};" 
-                         data-color-name="${color.name}" 
-                         title="${color.name}">
-                      ${this.selectedColor === color.name ? `
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="white" stroke-width="3">
-                          <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                      ` : ''}
-                    </div>
+                <div class="thumbs" id="pdpThumbsContainer">
+                  ${allImages.map((src, idx) => `
+                    <button class="thumb ${idx === this.activeThumbnailIdx ? 'active' : ''}" data-index="${idx}">
+                      <img src="${src}" alt="Thumb ${idx + 1}">
+                    </button>
                   `).join('')}
                 </div>
               </div>
 
-              <!-- Buttons Grid Row -->
-              <div class="pdp-actions-container-row">
-                <!-- Quantity Selector Pill -->
-                <div class="pdp-quantity-pill-box">
-                  <button class="qty-adjust-btn" id="pdp-qty-dec">−</button>
-                  <span class="qty-adjust-val" id="pdp-qty-val">${this.pdpQuantity}</span>
-                  <button class="qty-adjust-btn" id="pdp-qty-inc">+</button>
+              <!-- Buy Box -->
+              <div class="buybox" id="pdpBuybox">
+                <div class="eyebrow">${p.brand || 'SWEETO'} · ${p.category}</div>
+                <h1 class="pname">${p.name}</h1>
+                <div class="rate-row">
+                  <span class="stars">${this.getPdpStarsSvg(averageRating, 15)}</span>
+                  <b>${averageRating}</b>
+                  <a href="#pdpReviewsSection" id="pdpReviewJumpLink">${totalReviewsCount} reviews</a>
                 </div>
-
-                <!-- Add to Cart Pill Button -->
-                <button class="pdp-action-add-to-cart-pill" id="pdp-add-cart-btn" ${isOutOfStock ? 'disabled style="opacity: 0.55; cursor: not-allowed; pointer-events: none;"' : ''}>
-                  ${isOutOfStock ? 'OUT OF STOCK' : 'ADD TO CART →'}
-                </button>
-
-                <!-- Circle Wishlist Button -->
-                <button class="pdp-action-circle-btn ${isWishlisted ? 'wishlisted' : ''}" id="pdp-wish-side-btn" title="${isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="${isWishlisted ? 'var(--red)' : 'none'}" stroke="${isWishlisted ? 'var(--red)' : 'currentColor'}" stroke-width="2">
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                  </svg>
-                </button>
-
-                <!-- Add to Collection Button -->
-                <button class="pdp-action-circle-btn" id="pdp-add-col-btn" title="Add to Collection">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="12" y1="8" x2="12" y2="16"></line>
-                    <line x1="8" y1="12" x2="16" y2="12"></line>
-                  </svg>
-                </button>
-
-                <!-- Floating Dropdown Overlay -->
-                <div class="col-dropdown-menu" id="pdp-col-dropdown">
-                  <div class="col-dropdown-header">Add to Collection</div>
-                  <div class="col-dropdown-list" id="pdp-col-dropdown-list"></div>
-                  <div class="col-dropdown-divider"></div>
-                  <button class="col-dropdown-create-btn" id="pdp-col-create-btn">ï¼‹ Create New Collection</button>
+                <div class="price-row">
+                  <span class="price" id="pdpFinalPriceDisplay">${formatPrice(totalPrice)}</span>
+                  ${savingsVal > 0 ? `
+                    <span class="compare" id="pdpComparePriceDisplay">${formatPrice(oldPrice * (this.pdpQuantity || 1))}</span>
+                    <span class="save">You save ${formatPrice(savingsVal * (this.pdpQuantity || 1))}</span>
+                  ` : ''}
                 </div>
- 
-                <!-- Circle Share Button -->
-                <button class="pdp-action-circle-btn" id="pdp-share-btn" title="Share Product">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="18" cy="5" r="3"></circle>
-                    <circle cx="6" cy="12" r="3"></circle>
-                    <circle cx="18" cy="19" r="3"></circle>
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-                  </svg>
-                </button>
-              </div>
+                <p class="pdesc">${p.shortDesc || p.description}</p>
 
-              <!-- Full Width Buy It Now Button -->
-              <button class="pdp-action-buy-it-now-pill" id="pdp-buy-now-btn" ${isOutOfStock ? 'disabled style="opacity: 0.55; cursor: not-allowed; pointer-events: none;"' : ''}>
-                ${isOutOfStock ? 'OUT OF STOCK' : 'BUY IT NOW'}
-              </button>
-
-              ${stockLineHtml}
-
-              <!-- Trust Benefits row -->
-              <div class="pdp-trust-benefits">
-                <div class="pdp-benefit-item benefit-shipping">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                    <circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle>
-                  </svg>
-                  Free Shipping
-                </div>
-                <div class="pdp-benefit-item benefit-returns">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-                  </svg>
-                  30-Day Returns
-                </div>
-                <div class="pdp-benefit-item benefit-security">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                  </svg>
-                  Secure Payment
-                </div>
-              </div>
-
-              <!-- Expandable Vertical Accordions -->
-              <div class="pdp-accordion-group">
-                <!-- Item 1: Description -->
-                <div class="pdp-accordion-item ${this.openAccordions.description ? 'expanded' : ''}">
-                  <div class="pdp-accordion-header" data-section="description">
-                    <span>DESCRIPTION</span>
-                    <span class="accordion-icon">${this.openAccordions.description ? '×' : '+'}</span>
-                  </div>
-                  <div class="pdp-accordion-content">
-                    <p>${p.description}</p>
+                <!-- Color Variants -->
+                <div id="pdpVariantsSection" style="margin-bottom: 20px;">
+                  <div class="opt-label">Colour — <span id="pdpSelectedVariantLabel">${this.selectedColor}</span></div>
+                  <div class="swatches">
+                    ${productColors.map((c, idx) => `
+                      <button class="swatch ${idx === this.selectedVariantIndex ? 'active' : ''}" 
+                              data-idx="${idx}" 
+                              style="background: ${c.hex || this.getPdpHexColor(c.name)};" 
+                              title="${c.name}${c.priceAdjust ? ` (+${c.priceAdjust.toLocaleString('fr-FR')} FCFA)` : ''}" 
+                              aria-label="${c.name}"></button>
+                    `).join('')}
                   </div>
                 </div>
 
-                <!-- Item 2: Specifications -->
-                <div class="pdp-accordion-item ${this.openAccordions.specs ? 'expanded' : ''}">
-                  <div class="pdp-accordion-header" data-section="specs">
-                    <span>SPECIFICATIONS</span>
-                    <span class="accordion-icon">${this.openAccordions.specs ? '×' : '+'}</span>
+                <!-- Actions -->
+                <div class="buy-row">
+                  <div class="qty">
+                    <button id="pdpQtyDec">−</button>
+                    <output id="pdpQtyOutput">${this.pdpQuantity || 1}</output>
+                    <button id="pdpQtyInc">+</button>
                   </div>
-                  <div class="pdp-accordion-content">
-                    <table class="pdp-accordion-specs-table">
-                      <tbody>
-                        ${Object.entries(p.specs || {}).map(([key, val]) => `
-                          <tr>
-                            <th>${key}</th>
-                            <td>${val}</td>
-                          </tr>
-                        `).join('')}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <!-- Item 3: Shipping & Returns -->
-                <div class="pdp-accordion-item ${this.openAccordions.shipping ? 'expanded' : ''}">
-                  <div class="pdp-accordion-header" data-section="shipping">
-                    <span>SHIPPING & RETURNS</span>
-                    <span class="accordion-icon">${this.openAccordions.shipping ? '×' : '+'}</span>
-                  </div>
-                  <div class="pdp-accordion-content">
-                    <p>Orders placed before 4 pm ship the same day. Express delivery (1-3 business days) is free over $150. Try the premium accessories at home for 30 days — if it isn't the one, returns are free and refunded in full within 48 hours of arrival.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Bottom: Reviews Dashboard Layout -->
-          <div class="pdp-reviews-dashboard-section">
-            <div class="reviews-dashboard-header">
-              <div class="reviews-tag-label-line">
-                <span class="blue-line"></span>
-                <span class="uppercase-tag-label">FROM THE LISTENING ROOM</span>
-              </div>
-              <div class="reviews-count-write-row">
-                <h3 class="reviews-honest-title">${totalReviewsCount} honest reviews.</h3>
-                <button class="write-review-badge-btn" id="pdp-write-review-btn">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;">
-                    <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                  </svg>
-                  Write a review
-                </button>
-              </div>
-            </div>
-
-            <!-- Expandable Submission Form Card -->
-            <div class="review-submission-form-container ${this.showReviewForm ? 'open' : ''}" id="review-form-box">
-              <h4>Write a customer review</h4>
-              
-              <div class="form-stars-row">
-                <label>Rating:</label>
-                <div class="interactive-stars-selector">
-                  ${[1, 2, 3, 4, 5].map(num => `
-                    <span class="interactive-star-icon ${this.formRating >= num ? 'active' : ''}" data-value="${num}">★</span>
-                  `).join('')}
-                </div>
-              </div>
-
-              <div class="form-input-group">
-                <label for="review-author-name">Your Name</label>
-                <input type="text" id="review-author-name" placeholder="Enter your name" autocomplete="name">
-              </div>
-
-              <div class="form-input-group">
-                <label for="review-comment-body">Review Details</label>
-                <textarea id="review-comment-body" placeholder="Share your experience with this product..."></textarea>
-              </div>
-
-              <!-- Live Preview Card Section -->
-              <div class="review-live-preview-box" style="margin: 16px 0; padding: 16px; border: 1.5px dashed var(--border); border-radius: 12px; background: rgba(0,0,0,0.015);">
-                <span class="page-hero-badge" style="font-size: 9px; padding: 3px 8px; margin-bottom: 8px; display: inline-block;">✨ LIVE REVIEW PREVIEW</span>
-                <div class="preview-card" style="opacity: 0.85;">
-                  <div class="preview-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <strong id="preview-user-display" style="font-size: 13px; color: var(--text-dark);">Your Name</strong>
-                    <span id="preview-stars-display" style="color: #ffb800; font-size: 14px;">★ ★ ★ ★ ★</span>
-                  </div>
-                  <p id="preview-body-display" style="font-size: 12px; color: var(--text-gray); line-height: 1.45; margin: 0; font-style: italic;">"Share your experience with this product..."</p>
-                </div>
-              </div>
-
-              <div class="form-actions-row">
-                <button class="form-submit-btn" id="review-submit-btn">Submit Review</button>
-                <button class="form-cancel-btn" id="review-cancel-btn">Cancel</button>
-              </div>
-            </div>
-
-            <!-- Reviews body split -->
-            <div class="reviews-dashboard-body">
-              <!-- Left stats card block -->
-              <div class="reviews-stats-summary-card">
-                <div class="average-rating-number">${averageRating}</div>
-                <div class="rating-stars-full">★ ★ ★ ★ ★</div>
-                <div class="based-on-subtext">Based on ${totalReviewsCount} reviews</div>
-                
-                <div class="rating-progress-list">
-                  <div class="progress-bar-row">
-                    <span class="stars-label">5 ★</span>
-                    <div class="progress-bar-track"><div class="progress-bar-fill" style="width: ${starPercentages[5]}%;"></div></div>
-                    <span class="pct-val">${starPercentages[5]}%</span>
-                  </div>
-                  <div class="progress-bar-row">
-                    <span class="stars-label">4 ★</span>
-                    <div class="progress-bar-track"><div class="progress-bar-fill" style="width: ${starPercentages[4]}%;"></div></div>
-                    <span class="pct-val">${starPercentages[4]}%</span>
-                  </div>
-                  <div class="progress-bar-row">
-                    <span class="stars-label">3 ★</span>
-                    <div class="progress-bar-track"><div class="progress-bar-fill" style="width: ${starPercentages[3]}%;"></div></div>
-                    <span class="pct-val">${starPercentages[3]}%</span>
-                  </div>
-                  <div class="progress-bar-row">
-                    <span class="stars-label">2 ★</span>
-                    <div class="progress-bar-track"><div class="progress-bar-fill" style="width: ${starPercentages[2]}%;"></div></div>
-                    <span class="pct-val">${starPercentages[2]}%</span>
-                  </div>
-                  <div class="progress-bar-row">
-                    <span class="stars-label">1 ★</span>
-                    <div class="progress-bar-track"><div class="progress-bar-fill" style="width: ${starPercentages[1]}%;"></div></div>
-                    <span class="pct-val">${starPercentages[1]}%</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Right comments listing with See More button pagination -->
-              <div class="reviews-list-pills-panel">
-                <div class="reviews-filter-pills-row">
-                  <button class="filter-pill-btn ${this.activeReviewFilter === 'All' ? 'active' : ''}" data-filter="All">All</button>
-                  <button class="filter-pill-btn ${this.activeReviewFilter === '5' ? 'active' : ''}" data-filter="5">5 ★</button>
-                  <button class="filter-pill-btn ${this.activeReviewFilter === '4' ? 'active' : ''}" data-filter="4">4 ★</button>
-                  <button class="filter-pill-btn ${this.activeReviewFilter === '3' ? 'active' : ''}" data-filter="3">3 ★</button>
-                </div>
-
-                <div class="reviews-filtered-content-area">
-                  ${reviewsToShow.length > 0 ? reviewsToShow.map(r => `
-                    <div class="review-item-card animate-in">
-                      <div class="review-comment-user-row">
-                        <strong>${r.user}</strong>
-                        <span class="stars-gold-mini">${"★".repeat(r.rating) + "☆".repeat(5 - r.rating)}</span>
+                  <button class="btn-add" id="pdpAddBtn" ${isOutOfStock ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+                    ${isOutOfStock ? 'Out of Stock' : 'Add to cart →'}
+                  </button>
+                  <button class="btn-wish ${isWishlisted ? 'on' : ''}" id="pdpWishBtn" title="Wishlist">
+                    <svg viewBox="0 0 24 24"><path d="M12 20s-7.5-4.7-9.5-9C1 7.5 3 4.5 6.5 4.5c2.2 0 3.9 1.3 5.5 3.4 1.6-2.1 3.3-3.4 5.5-3.4C21 4.5 23 7.5 21.5 11c-2 4.3-9.5 9-9.5 9z"/></svg>
+                  </button>
+                  <div class="col-dropdown-wrap">
+                    <button class="btn-col" id="pdpAddColBtn" title="Add to Collection">
+                      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                    </button>
+                    <div class="col-dropdown-menu-pdp" id="pdp-col-dropdown">
+                      <div class="col-dropdown-header" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line);">
+                        <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--ink-soft); letter-spacing: 0.05em;">Save to Collection</span>
+                        <button id="pdp-col-modal-quick-btn" style="background: none; border: none; font-size: 16px; font-weight: 800; color: var(--accent); cursor: pointer;" title="Create new collection">+</button>
                       </div>
-                      <p class="review-comment-body">"${r.comment}"</p>
+                      <div class="col-dropdown-list" id="pdp-col-dropdown-list">
+                        <!-- Populated dynamically -->
+                      </div>
                     </div>
-                  `).join('') : `
-                    <div class="reviews-empty-state-dashboard">
-                      No reviews in this category yet. Be the first to share your thoughts!
-                    </div>
-                  `}
+                  </div>
+                  <button class="btn-share" id="pdpShareBtn" title="Share Product">
+                    <svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.6"/><circle cx="17.5" cy="5.5" r="2.6"/><circle cx="17.5" cy="18.5" r="2.6"/><path d="M8.4 10.8l6.8-4M8.4 13.2l6.8 4"/></svg>
+                  </button>
                 </div>
 
-                <!-- See More button panel -->
-                ${hasMoreReviews ? `
-                  <div class="see-more-reviews-row">
-                    <button class="see-more-reviews-btn" id="pdp-see-more-reviews-btn">See More</button>
+                <button class="btn-now" id="pdpBuyNowBtn" ${isOutOfStock ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>Buy it now</button>
+
+                <!-- Trust badges -->
+                <div class="trust">
+                  <div>
+                    <svg viewBox="0 0 24 24"><path d="M1 8h13v9H1zM14 11h5l3 3v3h-8"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg>
+                    Free express shipping over $150
                   </div>
-                ` : ''}
+                  <div>
+                    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+                    30-day no-fuss returns
+                  </div>
+                  <div>
+                    <svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+                    2-year warranty included
+                  </div>
+                </div>
+
+                <!-- Accordion -->
+                <div class="acc" id="pdpAccordion">
+                  <div class="acc-item open">
+                    <button class="acc-head pdp-acc-btn">Description <span class="pl">+</span></button>
+                    <div class="acc-panel"><div><div class="acc-body">
+                      ${p.description || p.shortDesc}
+                      ${(p.whatsInBox && p.whatsInBox.length > 0) ? `
+                        <ul class="boxlist">
+                          ${p.whatsInBox.map(item => `<li>${item}</li>`).join('')}
+                        </ul>
+                      ` : ''}
+                    </div></div></div>
+                  </div>
+                  <div class="acc-item">
+                    <button class="acc-head pdp-acc-btn">Specifications <span class="pl">+</span></button>
+                    <div class="acc-panel"><div><div class="acc-body">
+                      <dl class="spec">
+                        ${Object.entries(p.specs || {}).map(([lbl, val]) => `
+                          <dt>${lbl}</dt><dd>${val}</dd>
+                        `).join('')}
+                      </dl>
+                    </div></div></div>
+                  </div>
+                  <div class="acc-item">
+                    <button class="acc-head pdp-acc-btn">Shipping & returns <span class="pl">+</span></button>
+                    <div class="acc-panel"><div><div class="acc-body">Orders placed before 4 pm ship the same day. Express delivery (1–3 business days) is free over $150. Try the product at home for 30 days — if it isn't the one, returns are free and refunded in full within 48 hours of arrival.</div></div></div>
+                  </div>
+                </div>
               </div>
+            </section>
+
+            <!-- Feature Highlights -->
+            <section class="features wrap">
+              <div class="feat">
+                <div class="feat-img"><img src="${allImages[1] || allImages[0]}" alt="Feature 1"></div>
+                <div>
+                  <div class="eyebrow">${featData.feat1.eyebrow}</div>
+                  <h2 class="big">${featData.feat1.title}</h2>
+                  <p>${featData.feat1.desc}</p>
+                  <ul>${featData.feat1.bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+                </div>
+              </div>
+              <div class="feat">
+                <div class="feat-img"><img src="${allImages[2] || allImages[0]}" alt="Feature 2"></div>
+                <div>
+                  <div class="eyebrow">${featData.feat2.eyebrow}</div>
+                  <h2 class="big">${featData.feat2.title}</h2>
+                  <p>${featData.feat2.desc}</p>
+                  <ul>${featData.feat2.bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+                </div>
+              </div>
+            </section>
+
+            <!-- Reviews -->
+            <section class="reviews wrap" id="pdpReviewsSection">
+              <div class="rev-head">
+                <div>
+                  <div class="eyebrow">From the listening room</div>
+                  <h2 class="big"><span id="pdpReviewCountTitle">${totalReviewsCount}</span> honest <em>ears.</em></h2>
+                </div>
+                <button class="pill" id="pdpOpenReviewModalBtn">✎ Write a review</button>
+              </div>
+              <div class="rev-grid">
+                <aside class="rev-sum">
+                  <div class="rev-score">
+                    <b>${averageRating}</b>
+                    <div>
+                      <span class="stars">${this.getPdpStarsSvg(averageRating, 16)}</span>
+                      <br>
+                      <span>Based on ${totalReviewsCount} reviews</span>
+                    </div>
+                  </div>
+                  <div class="bars">
+                    ${[5, 4, 3, 2, 1].map(stars => `
+                      <div class="bar-row">
+                        <span>${stars} ★</span>
+                        <div class="bar"><div class="bar-fill" style="width: ${starPercentages[stars]}%;"></div></div>
+                        <span>${starPercentages[stars]}%</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </aside>
+                <div>
+                  <div class="filters">
+                    <button class="pill ${activeFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
+                    <button class="pill ${activeFilter === '5' ? 'active' : ''}" data-filter="5">5 ★</button>
+                    <button class="pill ${activeFilter === '4' ? 'active' : ''}" data-filter="4">4 ★</button>
+                    <button class="pill ${activeFilter === '3' ? 'active' : ''}" data-filter="3">3 ★</button>
+                  </div>
+                  <div class="rev-cards" id="pdpReviewCardsContainer">
+                    ${filteredReviews.length > 0 ? filteredReviews.map(r => `
+                      <article class="rev-card">
+                        <div class="rev-top">
+                          <span class="ava" style="background: #1F6FEB;">${(r.user || 'User').substring(0, 2).toUpperCase()}</span>
+                          <div class="rev-who">
+                            <b>${r.user || 'Client Vérifié'}</b>
+                            <span>${r.date || 'Recent'}</span>
+                          </div>
+                          <span class="verif">✓ Verified</span>
+                        </div>
+                        <span class="stars">${this.getPdpStarsSvg(r.rating, 13)}</span>
+                        <h4>${r.title || 'Excellent Quality'}</h4>
+                        <p>${r.comment || ''}</p>
+                      </article>
+                    `).join('') : `
+                      <div style="grid-column: 1/-1; text-align: center; color: var(--ink-soft); padding: 30px; background: var(--card); border-radius: var(--r); border: 1px solid var(--line);">
+                        No reviews in this category yet. Be the first to share your thoughts!
+                      </div>
+                    `}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Related Products (Complete the ritual) -->
+            <section class="related wrap">
+              <div class="eyebrow">Complete the ritual</div>
+              <h2 class="big">Pairs well <em>with.</em></h2>
+              <div class="rel-grid">
+                ${relatedList.map(item => `
+                  <div class="rel-card" data-prod-id="${item.id}">
+                    <div class="rel-img"><img src="${item.image}" alt="${item.name}"></div>
+                    <div class="rel-body">
+                      <b>${item.name}</b>
+                      <span>${formatPrice(item.price)}</span>
+                    </div>
+                    <button class="rel-add" data-prod-id="${item.id}">+</button>
+                  </div>
+                `).join('')}
+              </div>
+            </section>
+          </div>
+
+          <!-- Review Modal -->
+          <div class="modal" id="pdpReviewModal">
+            <div class="modal-back" id="pdpReviewModalBack"></div>
+            <div class="modal-card">
+              <button class="modal-x" id="pdpReviewModalClose">✕</button>
+              <div class="eyebrow">Your ears, your verdict</div>
+              <h3 class="modal-title">Write a review</h3>
+              <form id="pdpReviewForm">
+                <div class="f-row">
+                  <label>Name
+                    <input id="pdpRevNameInput" maxlength="40" placeholder="Maya R." required>
+                  </label>
+                  <label>Email — not published
+                    <input type="email" id="pdpRevEmailInput" placeholder="you@email.com">
+                  </label>
+                </div>
+                <div class="f-rate">
+                  <span class="f-label">Your rating</span>
+                  <div class="star-pick" id="pdpStarPick">
+                    ${[1, 2, 3, 4, 5].map(n => `
+                      <button type="button" class="${n <= 5 ? 'lit' : ''}" data-star="${n}"><svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z"/></svg></button>
+                    `).join('')}
+                  </div>
+                  <span class="f-hint" id="pdpRatingHint">Legendary</span>
+                </div>
+                <label>Title
+                  <input id="pdpRevTitleInput" maxlength="70" placeholder="Sum it up in one line">
+                </label>
+                <label>Review
+                  <textarea id="pdpRevBodyInput" rows="4" maxlength="600" placeholder="What did you hear? Comfort, battery, silence — tell it like it is." required></textarea>
+                </label>
+                <button class="modal-submit" type="submit">Post review →</button>
+              </form>
             </div>
           </div>
 
-          <!-- Related accessories (4-in-a-row) -->
-          <div class="pdp-similar-section">
-            <h3 class="similar-title">Complete Your Setup</h3>
-            <div class="home-grid-4" id="pdp-similar-grid"></div>
+          <!-- Share Modal -->
+          <div class="modal share-modal" id="pdpShareModal">
+            <div class="modal-back" id="pdpShareModalBack"></div>
+            <div class="modal-card">
+              <button class="modal-x" id="pdpShareModalClose">✕</button>
+              <div class="eyebrow">Share this product</div>
+              <h3 class="modal-title">${p.name}</h3>
+              <div class="share-options">
+                <button class="share-option facebook" id="pdpShareFacebook">
+                  <svg viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                  Facebook
+                </button>
+                <button class="share-option twitter" id="pdpShareTwitter">
+                  <svg viewBox="0 0 24 24"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/></svg>
+                  Twitter
+                </button>
+                <button class="share-option linkedin" id="pdpShareLinkedIn">
+                  <svg viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4V9h4v1.5A6 6 0 0 1 16 8z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                  LinkedIn
+                </button>
+                <button class="share-option whatsapp" id="pdpShareWhatsApp">
+                  <svg viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L2 21l2.1-6.4A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1"/></svg>
+                  WhatsApp
+                </button>
+                <button class="share-option native" id="pdpShareNative">
+                  <svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.6"/><circle cx="17.5" cy="5.5" r="2.6"/><circle cx="17.5" cy="18.5" r="2.6"/><path d="M8.4 10.8l6.8-4M8.4 13.2l6.8 4"/></svg>
+                  More...
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       `;
-
-      // Populate related products (4-in-a-row)
-      const similarGrid = this.shadowRoot.getElementById('pdp-similar-grid');
-      if (similarGrid) {
-        similarGrid.innerHTML = '';
-        const related = this.products
-          .filter(item => item.id !== p.id && item.category === p.category)
-          .slice(0, 4);
-          
-        if (related.length < 4) {
-          const fallback = this.products
-            .filter(item => item.id !== p.id && item.category !== p.category)
-            .slice(0, 4 - related.length);
-          related.push(...fallback);
-        }
-
-        related.forEach(item => {
-          const card = document.createElement('product-card');
-          card.product = item;
-          similarGrid.appendChild(card);
-        });
-      }
 
       this.attachPdpListeners(p);
     } else if (this.currentPage === 'auth') {
@@ -1864,6 +2861,25 @@ class ProductList extends HTMLElement {
       if (s.order === undefined) s.order = idx;
     });
 
+    const pools = this.getSectionProductPools();
+
+    // Populate Today's Deals (12 items) if active on Home Page
+    const gridTodaysDeals = this.shadowRoot.getElementById('grid-todays-deals');
+    if (gridTodaysDeals) {
+      gridTodaysDeals.innerHTML = '';
+      const dealsCfg = getTodaysDealsConfig();
+      const dealProducts = (dealsCfg.productIds || [])
+        .map(id => this.products.find(p => p.id === id))
+        .filter(Boolean)
+        .slice(0, 12);
+
+      dealProducts.forEach(p => {
+        const card = document.createElement('product-card');
+        card.product = { ...p, isDeal: true };
+        gridTodaysDeals.appendChild(card);
+      });
+    }
+
     sectionsList.filter(s => s.active).forEach(s => {
       // Check if any product has explicitly been assigned to this section
       const assignedProducts = this.products.filter(p => p.homepageSections && p.homepageSections.includes(s.id));
@@ -1873,7 +2889,7 @@ class ProductList extends HTMLElement {
         const gridHot = this.shadowRoot.getElementById('grid-hot-deals');
         if (gridHot) {
           gridHot.innerHTML = '';
-          const displayProducts = hasAssigned ? assignedProducts : this.products.filter(p => [5, 14, 28, 40].includes(p.id));
+          const displayProducts = (hasAssigned ? assignedProducts : pools.deals).slice(0, 12);
           displayProducts.forEach(p => {
             const card = document.createElement('product-card');
             card.product = p;
@@ -1885,7 +2901,7 @@ class ProductList extends HTMLElement {
         const gridNew = this.shadowRoot.getElementById('grid-new-arrivals');
         if (gridNew) {
           gridNew.innerHTML = '';
-          const displayProducts = hasAssigned ? assignedProducts : this.products.slice(46, 50);
+          const displayProducts = (hasAssigned ? assignedProducts : pools.newArrivals).slice(0, 12);
           displayProducts.forEach(p => {
             const card = document.createElement('product-card');
             card.product = p;
@@ -1896,7 +2912,7 @@ class ProductList extends HTMLElement {
         const gridBest = this.shadowRoot.getElementById('grid-best-sellers');
         if (gridBest) {
           gridBest.innerHTML = '';
-          const displayProducts = hasAssigned ? assignedProducts : this.products.filter(p => [1, 13, 26, 39].includes(p.id));
+          const displayProducts = (hasAssigned ? assignedProducts : pools.bestSellers).slice(0, 12);
           displayProducts.forEach(p => {
             const card = document.createElement('product-card');
             card.product = p;
@@ -1909,14 +2925,14 @@ class ProductList extends HTMLElement {
           gridDynamic.innerHTML = '';
           let displayProducts = [];
           if (hasAssigned) {
-            displayProducts = assignedProducts;
+            displayProducts = assignedProducts.slice(0, 12);
           } else {
             if (s.category === 'All' || !s.category) {
-              displayProducts = this.products.slice(0, 4);
+              displayProducts = this.products.slice(0, 12);
             } else if (s.category === 'Apple') {
-              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 4);
+              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 12);
             } else {
-              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 4);
+              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 12);
             }
           }
           displayProducts.forEach(p => {
@@ -1950,14 +2966,14 @@ class ProductList extends HTMLElement {
       }
     });
 
-    // Initial For You products load
+    // Initial For You products load (1 line of 4 products)
     this.forYouIndex = 0;
     this.forYouLoading = false;
     
     const gridForYou = this.shadowRoot.getElementById('grid-for-you');
     if (gridForYou) {
       gridForYou.innerHTML = '';
-      const batchSize = 8;
+      const batchSize = 4;
       for (let i = 0; i < batchSize; i++) {
         const p = this.products[i % this.products.length];
         const card = document.createElement('product-card');
@@ -1967,25 +2983,7 @@ class ProductList extends HTMLElement {
       this.forYouIndex = batchSize;
     }
 
-    // Inject dynamic category marquee backgrounds
-    const storedCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
-    storedCats.forEach(cat => {
-      const slug = cat.slug || cat.name.toLowerCase();
-      const container = this.shadowRoot.getElementById(`marquee-${slug}`);
-      if (container) {
-        const catProducts = this.products.filter(p => p.category === cat.name);
-        if (catProducts.length > 0) {
-          const images = catProducts.map(p => `<img src="${p.image}" alt="${p.name}">`);
-          const repeated = [...images, ...images, ...images];
-          container.innerHTML = `
-            <div class="category-marquee-track">
-              ${repeated.join('')}
-            </div>
-          `;
-        }
-      }
-    });
-
+    // Attach category card click listeners
     const catCards = this.shadowRoot.querySelectorAll('.home-category-card');
     catCards.forEach(card => {
       card.addEventListener('click', () => {
@@ -2006,10 +3004,115 @@ class ProductList extends HTMLElement {
         }));
       });
     });
+
+    // Initialize slow auto-sliding for Hot Deals
+    this.initHotDealsAutoSlide();
+  }
+
+  initHotDealsAutoSlide() {
+    if (this._hotDealsAutoSlideInterval) {
+      clearInterval(this._hotDealsAutoSlideInterval);
+      this._hotDealsAutoSlideInterval = null;
+    }
+
+    if (this.currentPage !== 'home') return;
+
+    const grid = this.shadowRoot.getElementById('grid-hot-deals');
+    if (!grid) return;
+
+    let isHovered = false;
+    grid.addEventListener('mouseenter', () => { isHovered = true; });
+    grid.addEventListener('mouseleave', () => { isHovered = false; });
+    grid.addEventListener('touchstart', () => { isHovered = true; }, { passive: true });
+    grid.addEventListener('touchend', () => {
+      setTimeout(() => { isHovered = false; }, 2500);
+    }, { passive: true });
+
+    this._hotDealsAutoSlideInterval = setInterval(() => {
+      if (isHovered || !grid.isConnected || this.currentPage !== 'home') return;
+
+      const maxScroll = grid.scrollWidth - grid.clientWidth;
+      if (maxScroll <= 15) return;
+
+      if (grid.scrollLeft >= maxScroll - 20) {
+        grid.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        grid.scrollBy({ left: 300, behavior: 'smooth' });
+      }
+    }, 4000); // Gentle, slow auto-slide interval (4s)
   }
 
   attachHomeCarouselListeners(activeSections) {
     const shadow = this.shadowRoot;
+
+    // Generic slidable carousel arrow buttons
+    shadow.querySelectorAll('.carousel-control-btn[data-target-carousel]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = btn.getAttribute('data-target-carousel');
+        const container = shadow.getElementById(targetId);
+        if (container) {
+          const isNext = btn.classList.contains('next-btn');
+          container.scrollBy({ left: isNext ? 320 : -320, behavior: 'smooth' });
+        }
+      });
+    });
+
+    // Today's Deals Hero Dynamic Background Slider
+    if (this._dealsSliderInterval) {
+      clearInterval(this._dealsSliderInterval);
+    }
+    const bgSlides = shadow.querySelectorAll('.deals-bg-slide');
+    if (bgSlides.length > 1) {
+      let currentSlide = 0;
+      this._dealsSliderInterval = setInterval(() => {
+        if (!shadow.contains(bgSlides[0])) {
+          clearInterval(this._dealsSliderInterval);
+          return;
+        }
+        bgSlides[currentSlide].classList.remove('active');
+        currentSlide = (currentSlide + 1) % bgSlides.length;
+        bgSlides[currentSlide].classList.add('active');
+      }, 4500);
+    }
+
+    // Today's Deals Action Buttons
+    const scrollDealsBtn = shadow.getElementById('btn-scroll-deals-grid');
+    if (scrollDealsBtn) {
+      scrollDealsBtn.addEventListener('click', () => {
+        const grid = shadow.getElementById('grid-todays-deals');
+        if (grid) {
+          grid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    }
+
+    const catalogDealsBtn = shadow.getElementById('btn-deals-goto-catalog');
+    if (catalogDealsBtn) {
+      catalogDealsBtn.addEventListener('click', () => {
+        this.currentPage = 'catalog';
+        this.renderPageContent();
+        this.shadowRoot.host.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog' } }));
+      });
+    }
+
+    // Today's Deals Marquee Cards Click -> Open Quick View
+    shadow.querySelectorAll('.deals-marquee-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const prodId = parseInt(card.getAttribute('data-product-id'));
+        const product = this.products.find(p => p.id === prodId);
+        if (product) {
+          const quickViewModal = document.querySelector('quick-view-modal');
+          if (quickViewModal) {
+            quickViewModal.open(product);
+          } else {
+            const grid = shadow.getElementById('grid-todays-deals');
+            if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      });
+    });
+
     activeSections.forEach(s => {
       if (s.type === 'carousel') {
         const prev = shadow.getElementById(`btn-prev-${s.id}`);
@@ -2092,143 +3195,241 @@ class ProductList extends HTMLElement {
     }, 600);
   }
 
-  injectCatalogCarousel() {
-    const banner = this.shadowRoot.getElementById('category-carousel-banner');
+  renderCategoryHeroBanner() {
+    const banner = this.shadowRoot.getElementById('category-hero-banner-container');
     if (!banner) return;
 
-    // Filter featured products for the active category
-    const categoryProds = this.products.filter(p => 
-      this.currentCategory === 'All' || p.category === this.currentCategory
-    );
+    const allCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
+    const isAll = !this.currentCategory || this.currentCategory === 'All';
 
-    // Filter by rating >= 4.7, or just slice the first 5 products as fallback
-    let featured = categoryProds.filter(p => p.rating >= 4.7);
-    if (featured.length === 0) {
-      featured = categoryProds.slice(0, 5);
+    // Matching products for this category (including subcategories)
+    const matchingProds = isAll 
+      ? this.products 
+      : this.products.filter(p => this.isProductInCategory(p, this.currentCategory));
+
+    // Active Category record
+    const catRecord = allCats.find(c => c && (
+      String(c.name || '').trim().toLowerCase() === String(this.currentCategory).trim().toLowerCase() ||
+      String(c.id) === String(this.currentCategory)
+    ));
+
+    // Category Theme Colors & Accents
+    const themeMap = {
+      'Keyboards': { bg: 'linear-gradient(135deg, #09111e 0%, #0d2149 50%, #0052cc 100%)', glow1: 'rgba(0, 82, 204, 0.45)', glow2: 'rgba(0, 180, 216, 0.35)', badge: 'CLAVIERS & PERIPHERIQUES', icon: '⌨️' },
+      'Audio': { bg: 'linear-gradient(135deg, #15003b 0%, #310d59 50%, #7000b8 100%)', glow1: 'rgba(147, 51, 234, 0.45)', glow2: 'rgba(236, 72, 153, 0.35)', badge: 'AUDIO & CASQUES STUDIO', icon: '🎧' },
+      'Mice': { bg: 'linear-gradient(135deg, #0b132b 0%, #1c2541 50%, #0284c7 100%)', glow1: 'rgba(56, 189, 248, 0.4)', glow2: 'rgba(99, 102, 241, 0.3)', badge: 'SOURIS & POINTEURS PRO', icon: '🖱️' },
+      'Desks': { bg: 'linear-gradient(135deg, #06283d 0%, #0f4c81 50%, #0284c7 100%)', glow1: 'rgba(19, 99, 223, 0.45)', glow2: 'rgba(71, 181, 255, 0.35)', badge: 'BUREAUX & MOBILIER TECH', icon: '🪑' },
+      'Gaming': { bg: 'linear-gradient(135deg, #1f011b 0%, #4c0033 50%, #9d174d 100%)', glow1: 'rgba(236, 72, 153, 0.45)', glow2: 'rgba(168, 85, 247, 0.35)', badge: 'ESPACE GAMING ULTIME', icon: '🎮' },
+      'Accessories': { bg: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', glow1: 'rgba(148, 163, 184, 0.35)', glow2: 'rgba(56, 189, 248, 0.25)', badge: 'ACCESSOIRES WORKSPACE', icon: '🔌' }
+    };
+
+    const defaultTheme = {
+      bg: 'linear-gradient(135deg, #0b0f19 0%, #131b2e 50%, #1e293b 100%)',
+      glow1: 'rgba(37, 99, 235, 0.4)',
+      glow2: 'rgba(0, 180, 216, 0.25)',
+      badge: 'COLLECTION OFFICIELLE',
+      icon: catRecord?.icon || '📁'
+    };
+
+    const theme = themeMap[this.currentCategory] || defaultTheme;
+
+    // Background cover image (category banner image or first product image)
+    let coverImg = catRecord?.image || '';
+    if (!coverImg && matchingProds.length > 0) {
+      coverImg = matchingProds[0].image || (Array.isArray(matchingProds[0].images) ? matchingProds[0].images[0] : '');
     }
 
-    if (featured.length === 0) {
-      banner.style.display = 'none';
-      return;
-    } else {
-      banner.style.display = 'block';
-    }
+    // Category Title & Subtitle
+    const titleText = isAll 
+      ? 'Explorez Notre Catalogue Complet' 
+      : (catRecord?.name || this.currentCategory);
 
-    // Ensure active index is within bounds
-    if (this.activeFeaturedIndex >= featured.length) {
+    const descText = isAll
+      ? 'Découvrez une sélection rigoureuse d\'équipements haute performance, périphériques d\'exception et accessoires ergonomiques conçus pour transformer votre espace.'
+      : (catRecord?.description || `Explorez notre gamme complète de produits ${this.currentCategory} avec finitions premium, garantie constructeur et livraison express.`);
+
+    // Pick top-rated product as featured showcase item
+    let featuredList = matchingProds.filter(p => (p.rating || 5) >= 4.7);
+    if (featuredList.length === 0) featuredList = matchingProds.slice(0, 5);
+
+    if (this.activeFeaturedIndex >= featuredList.length) {
       this.activeFeaturedIndex = 0;
     }
+    const featProd = featuredList[this.activeFeaturedIndex] || matchingProds[0];
 
-    const p = featured[this.activeFeaturedIndex];
-    // Calculate save percentage
-    const discount = 15; // 15% discount for showcase
-    const originalPrice = Math.round(p.price / (1 - discount / 100));
-    
+    banner.style.background = theme.bg;
+
     banner.innerHTML = `
-      <div class="carousel-glow"></div>
-      
-      <!-- Left arrow button -->
-      <button class="carousel-nav-btn prev" id="carousel-prev-btn" aria-label="Previous Featured Product" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%);">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><polyline points="15 18 9 12 15 6"></polyline></svg>
-      </button>
+      ${coverImg ? `<img src="${coverImg}" alt="${titleText}" class="category-hero-backdrop">` : ''}
+      <div class="category-hero-glow-1" style="background: radial-gradient(circle, ${theme.glow1} 0%, rgba(0,0,0,0) 70%);"></div>
+      <div class="category-hero-glow-2" style="background: radial-gradient(circle, ${theme.glow2} 0%, rgba(0,0,0,0) 70%);"></div>
 
-      <div class="carousel-content-wrapper">
-        <div class="carousel-details">
-          <span class="carousel-badge-pill">
-            <span class="star-sparkle">✦</span> CATEGORY FEATURE
-            <span style="opacity: 0.6; margin-left: 8px;">Item ${this.activeFeaturedIndex + 1} of ${featured.length}</span>
-          </span>
-          
-          <h2 class="carousel-title">${p.name}</h2>
-          <p class="carousel-description">${p.shortDesc || p.description.slice(0, 120) + '...'}</p>
-          
-          <div class="carousel-price-card">
-            <span class="price-label">SPECIAL OFFER PRICE</span>
-            <div class="price-values">
-              <span class="current-price">$${p.price.toFixed(2)}</span>
-              <span class="original-price">$${originalPrice.toFixed(2)}</span>
-              <span class="save-badge">SAVE ${discount}%</span>
+      <!-- Main Banner Content Left Column -->
+      <div class="category-hero-main-content">
+        <div class="category-hero-meta-badge">
+          <span>${theme.icon}</span>
+          <span>${isAll ? 'MASTER CATALOG' : (catRecord?.parent ? 'SOUS-CATÉGORIE' : 'COLLECTION PRINCIPALE')}</span>
+          <span style="opacity: 0.5;">•</span>
+          <span style="color: #38bdf8;">${matchingProds.length} Articles Disponibles</span>
+        </div>
+
+        <h1 class="category-hero-title">${titleText}</h1>
+        <p class="category-hero-desc">${descText}</p>
+
+        <div class="category-hero-perks">
+          <div class="category-hero-perk-item">
+            <span style="color: #38bdf8;">🚚</span> Livraison Express Partout
+          </div>
+          <div class="category-hero-perk-item">
+            <span style="color: #38bdf8;">🛡️</span> Garantie & Authenticité 100%
+          </div>
+          <div class="category-hero-perk-item">
+            <span style="color: #38bdf8;">💬</span> Support Client Réactif
+          </div>
+        </div>
+      </div>
+
+      <!-- Featured Product Card Right Column (if products exist) -->
+      ${featProd ? `
+        <div class="category-hero-featured-card">
+          <div class="category-featured-img-box" id="hero-feat-img-box" style="cursor: pointer;" data-id="${featProd.id}">
+            <img src="${featProd.image}" alt="${featProd.name}" loading="lazy">
+            <span style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); color: #fbbf24; font-size: 11px; font-weight: 850; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);">
+              ⭐ ${featProd.rating ? Number(featProd.rating).toFixed(1) : '5.0'}
+            </span>
+          </div>
+
+          <div class="category-featured-meta">
+            <span class="category-featured-badge">PRODUIT EN VEDETTE</span>
+            <h4 class="category-featured-title" title="${featProd.name}">${featProd.name}</h4>
+            <div class="category-featured-price-row">
+              <span class="category-featured-price">${formatPrice(featProd.price)}</span>
+              ${featProd.originalPrice && featProd.originalPrice > featProd.price ? `
+                <span style="font-size: 13px; color: #94a3b8; text-decoration: line-through;">${formatPrice(featProd.originalPrice)}</span>
+              ` : ''}
             </div>
           </div>
 
-          <div class="carousel-actions">
-            <button class="btn-primary carousel-explore-btn" id="carousel-explore-btn">EXPLORE DETAILS →</button>
-            <button class="btn-secondary carousel-cart-btn" id="carousel-cart-btn">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-              ADD TO CART
+          <div class="category-featured-actions">
+            <button class="btn-cat-buy" id="hero-feat-buy-btn" data-id="${featProd.id}">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+              <span>Acheter</span>
+            </button>
+            <button class="btn-cat-view" id="hero-feat-view-btn" data-id="${featProd.id}">
+              Détails
             </button>
           </div>
         </div>
-
-        <div class="carousel-visual-container">
-          <div class="carousel-image-card">
-            <img src="${p.image}" alt="${p.name}">
-            <div class="carousel-inspect-caption">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              Click to inspect specs & views
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right arrow button -->
-      <button class="carousel-nav-btn next" id="carousel-next-btn" aria-label="Next Featured Product" style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%);">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><polyline points="9 18 15 12 9 6"></polyline></svg>
-      </button>
-
-      <!-- Dots Indicators -->
-      <div class="carousel-indicators">
-        ${featured.map((item, index) => `
-          <div class="carousel-indicator-dot ${index === this.activeFeaturedIndex ? 'active' : ''}" data-index="${index}"></div>
-        `).join('')}
-      </div>
+      ` : ''}
     `;
 
-    // Wire up events
-    const prevBtn = this.shadowRoot.getElementById('carousel-prev-btn');
-    const nextBtn = this.shadowRoot.getElementById('carousel-next-btn');
-    if (prevBtn) {
-      prevBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.activeFeaturedIndex = (this.activeFeaturedIndex - 1 + featured.length) % featured.length;
-        this.injectCatalogCarousel();
-      });
-    }
-    if (nextBtn) {
-      nextBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.activeFeaturedIndex = (this.activeFeaturedIndex + 1) % featured.length;
-        this.injectCatalogCarousel();
-      });
-    }
+    this.attachCatalogHeroListeners(featProd);
+  }
 
-    // Explore details event
-    const exploreBtn = this.shadowRoot.getElementById('carousel-explore-btn');
-    const imgCard = this.shadowRoot.querySelector('.carousel-image-card');
-    [exploreBtn, imgCard].forEach(el => {
+  attachCatalogHeroListeners(featProd) {
+    if (!featProd) return;
+    const shadow = this.shadowRoot;
+
+    const imgBox = shadow.getElementById('hero-feat-img-box');
+    const viewBtn = shadow.getElementById('hero-feat-view-btn');
+    [imgBox, viewBtn].forEach(el => {
       if (el) {
-        el.addEventListener('click', () => {
-          window.dispatchEvent(new CustomEvent('product:view', { detail: p.id }));
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          window.dispatchEvent(new CustomEvent('product:view', { detail: featProd.id }));
         });
       }
     });
 
-    // Add to cart event
-    const cartBtn = this.shadowRoot.getElementById('carousel-cart-btn');
-    if (cartBtn) {
-      cartBtn.addEventListener('click', () => {
+    const buyBtn = shadow.getElementById('hero-feat-buy-btn');
+    if (buyBtn) {
+      buyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         window.dispatchEvent(new CustomEvent('cart:add', {
-          detail: { productId: p.id, quantity: 1, color: p.colors ? p.colors[0]?.name : '' }
+          detail: { productId: featProd.id, quantity: 1, color: featProd.colors ? featProd.colors[0]?.name : '' }
         }));
       });
     }
+  }
 
-    // Dots clicks
-    this.shadowRoot.querySelectorAll('.carousel-indicator-dot').forEach(dot => {
-      dot.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.activeFeaturedIndex = parseInt(dot.getAttribute('data-index'));
-        this.injectCatalogCarousel();
+  injectCatalogPills() {
+    const container = this.shadowRoot.getElementById('category-smart-pills-row');
+    if (!container) return;
+
+    const allCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
+    const isAll = !this.currentCategory || this.currentCategory === 'All';
+
+    // Find current category object
+    const currentCatObj = allCats.find(c => c && (
+      String(c.name || '').trim().toLowerCase() === String(this.currentCategory).trim().toLowerCase() ||
+      String(c.id) === String(this.currentCategory)
+    ));
+
+    let pillsHTML = '';
+
+    // If "All" view: show All + Top-Level Parent Categories
+    if (isAll) {
+      pillsHTML += `
+        <button class="category-pill-btn active" data-category="All">
+          <span class="pill-icon">💙</span> Tout le Catalogue <span style="opacity: 0.6; font-size: 11px; margin-left: 4px;">(${this.products.length})</span>
+        </button>
+      `;
+      const parents = allCats.filter(c => c && !c.parent);
+      parents.forEach(p => {
+        const pProds = this.products.filter(prod => this.isProductInCategory(prod, p.name || p.id));
+        pillsHTML += `
+          <button class="category-pill-btn" data-category="${p.name}">
+            <span class="pill-icon">${p.icon || '📁'}</span> ${p.name} <span style="opacity: 0.6; font-size: 11px; margin-left: 4px;">(${pProds.length})</span>
+          </button>
+        `;
+      });
+    } else {
+      // Specific Category selected:
+      // If current is a parent category, find its subcategories
+      const isParent = !currentCatObj?.parent;
+      const parentId = isParent ? currentCatObj?.id : currentCatObj?.parent;
+      const parentCatObj = isParent ? currentCatObj : allCats.find(c => c && (String(c.id) === String(parentId) || String(c.name).toLowerCase() === String(parentId).toLowerCase()));
+      const parentName = parentCatObj?.name || this.currentCategory;
+
+      // Subcategories of this parent
+      const subcategories = allCats.filter(c => c && (
+        String(c.parent) === String(parentId) ||
+        String(c.parent).trim().toLowerCase() === String(parentName).trim().toLowerCase()
+      ));
+
+      pillsHTML += `
+        <button class="category-pill-btn" data-category="All" style="background: #f1f5f9; border-color: #cbd5e1;">
+          <span class="pill-icon">←</span> Tout le Catalogue
+        </button>
+        <button class="category-pill-btn ${this.currentCategory === parentName ? 'active' : ''}" data-category="${parentName}">
+          <span class="pill-icon">${parentCatObj?.icon || '📁'}</span> Tous ${parentName}
+        </button>
+      `;
+
+      subcategories.forEach(sub => {
+        const isCurrentSub = String(this.currentCategory).trim().toLowerCase() === String(sub.name).trim().toLowerCase();
+        const subProds = this.products.filter(p => this.isProductInCategory(p, sub.name || sub.id));
+        pillsHTML += `
+          <button class="category-pill-btn ${isCurrentSub ? 'active' : ''}" data-category="${sub.name}">
+            <span class="pill-icon">${sub.icon || '🏷️'}</span> ${sub.name} <span style="opacity: 0.6; font-size: 11px; margin-left: 4px;">(${subProds.length})</span>
+          </button>
+        `;
+      });
+    }
+
+    container.innerHTML = pillsHTML;
+
+    // Attach pill click events
+    container.querySelectorAll('.category-pill-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cat = btn.getAttribute('data-category') || 'All';
+        this.currentCategory = cat;
+        this.currentQuery = '';
+        this.catalogLocalQuery = '';
+        this.activeFeaturedIndex = 0;
+        window.dispatchEvent(new CustomEvent('search:query', { detail: { query: '', category: cat } }));
+        this.renderPageContent();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
   }
@@ -2236,219 +3437,431 @@ class ProductList extends HTMLElement {
   injectCatalogProducts() {
     const container = this.shadowRoot.getElementById('catalog-grouped-sections');
     const noResults = this.shadowRoot.getElementById('no-results');
-    if (!container) return;
+    const countPill = this.shadowRoot.getElementById('cat-count-pill');
+    if (!container || !noResults) return;
+
     container.innerHTML = '';
 
-    // First filter products by query
-    const textFiltered = this.products.filter(product => {
-      return this.currentQuery === '' || 
-        product.name.toLowerCase().includes(this.currentQuery.toLowerCase()) || 
-        product.shortDesc.toLowerCase().includes(this.currentQuery.toLowerCase());
+    // 1. Text Search Filter (header query + category local query)
+    const headerQ = (this.currentQuery || '').trim().toLowerCase();
+    const localQ = (this.catalogLocalQuery || '').trim().toLowerCase();
+
+    let textFiltered = this.products.filter(product => {
+      if (!product) return false;
+      const name = (product.name || '').toLowerCase();
+      const desc = (product.shortDesc || product.description || '').toLowerCase();
+      const cat = (product.category || '').toLowerCase();
+      const brand = (product.brand || '').toLowerCase();
+      const sku = (product.sku || '').toLowerCase();
+
+      if (headerQ) {
+        if (!name.includes(headerQ) && !desc.includes(headerQ) && !cat.includes(headerQ) && !brand.includes(headerQ) && !sku.includes(headerQ)) {
+          return false;
+        }
+      }
+      if (localQ) {
+        if (!name.includes(localQ) && !desc.includes(localQ) && !cat.includes(localQ) && !brand.includes(localQ) && !sku.includes(localQ)) {
+          return false;
+        }
+      }
+      return true;
     });
 
-    // Calculate final counts for headers
-    let finalCount = 0;
-    if (this.currentBrand) {
-      const brandProducts = textFiltered.filter(p => p.name.toLowerCase().startsWith(this.currentBrand.toLowerCase()));
-      const finalProducts = brandProducts.filter(p => this.currentCategory === 'All' || p.category === this.currentCategory);
-      finalCount = finalProducts.length;
-    } else if (this.currentCategory === 'All') {
-      finalCount = textFiltered.length;
-    } else {
-      finalCount = textFiltered.filter(p => p.category === this.currentCategory).length;
+    // 2. Category / Subcategory Filter
+    let catFiltered = textFiltered.filter(p => this.isProductInCategory(p, this.currentCategory));
+
+    // 3. Brand Filter
+    if (this.catalogBrandFilter && this.catalogBrandFilter !== 'All') {
+      catFiltered = catFiltered.filter(p => p.brand && p.brand.toLowerCase() === this.catalogBrandFilter.toLowerCase());
     }
 
-    if (finalCount === 0 && this.currentQuery && this.currentQuery.trim() !== '') {
-      let failed = [];
-      try {
-        failed = JSON.parse(localStorage.getItem('SWEETOS_failed_searches') || '[]');
-      } catch (err) {}
-      
-      const queryNormal = this.currentQuery.trim().toLowerCase();
-      if (!failed.some(item => item.query.toLowerCase() === queryNormal)) {
-        failed.push({
-          query: this.currentQuery.trim(),
-          timestamp: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-        });
-        localStorage.setItem('SWEETOS_failed_searches', JSON.stringify(failed));
-      }
+    // 4. In-Stock Filter
+    if (this.catalogInStockOnly) {
+      catFiltered = catFiltered.filter(p => (p.stock !== undefined ? p.stock : 10) > 0);
     }
 
-    const titleHeader = this.shadowRoot.getElementById('catalog-title-header');
-    const countBadge = this.shadowRoot.getElementById('catalog-count-badge');
-    if (titleHeader) {
-      titleHeader.textContent = this.currentBrand 
-        ? `Brand: ${this.currentBrand}` 
-        : `Category: ${this.currentCategory}`;
+    // 5. Sorting
+    catFiltered.sort((a, b) => {
+      if (this.catalogSort === 'price_low') return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+      if (this.catalogSort === 'price_high') return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+      if (this.catalogSort === 'rating') return (parseFloat(b.rating) || 5) - (parseFloat(a.rating) || 5);
+      if (this.catalogSort === 'newest') return (b.id || 0) - (a.id || 0);
+      // 'featured'
+      return 0;
+    });
+
+    // Update Counter Badge
+    if (countPill) {
+      countPill.textContent = `${catFiltered.length} articles`;
     }
-    if (countBadge) {
-      countBadge.textContent = `${finalCount} Items Found`;
+
+    // If 0 products match, render rich empty state
+    if (catFiltered.length === 0) {
+      this.renderEmptySearchExperience(headerQ || localQ || this.currentCategory, container, noResults);
+      return;
     }
 
-    // If a brand filter is active (e.g. Apple), render a dedicated brand page layout
-    if (this.currentBrand) {
-      noResults.style.display = 'none';
-      container.style.display = 'block';
+    noResults.style.display = 'none';
+    container.style.display = 'block';
 
-      const brandProducts = textFiltered.filter(p => p.name.toLowerCase().startsWith(this.currentBrand.toLowerCase()));
-      const finalProducts = brandProducts.filter(p => this.currentCategory === 'All' || p.category === this.currentCategory);
+    const isAllView = (!this.currentCategory || this.currentCategory === 'All') && !headerQ && !localQ && this.catalogBrandFilter === 'All' && !this.catalogInStockOnly && this.catalogSort === 'featured';
 
-      const brandBanner = document.createElement('div');
-      brandBanner.className = 'brand-grouped-header-banner animate-in';
-      brandBanner.setAttribute('style', `
-        background: linear-gradient(135deg, #1c1c1e 0%, #3a3a43 100%);
-        border-radius: 24px;
-        padding: 36px 40px;
-        color: white;
-        margin-bottom: 28px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.06);
-        position: relative;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 28px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-      `);
-      brandBanner.innerHTML = `
-        <div style="position: absolute; top: -50%; right: -20%; width: 300px; height: 300px; background: rgba(0, 82, 204, 0.12); filter: blur(80px); border-radius: 50%; pointer-events: none; z-index: 1;"></div>
-        
-        <div style="display: flex; align-items: center; gap: 24px; z-index: 2;">
-          <div style="background: rgba(255,255,255,0.08); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 20px; font-size: 32px; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.1);">🍏</div>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-              <h2 style="font-size: 28px; font-weight: 850; margin: 0; color: white; letter-spacing: -0.5px;">${this.currentBrand} Workspace Collection</h2>
-              <span style="font-size: 11px; font-weight: 700; color: #00b4d8; background: rgba(255, 255, 255, 0.15); padding: 4px 10px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Brand Store</span>
+    if (isAllView) {
+      // Group by top-level parent categories
+      const storedCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
+      const parentCats = storedCats.filter(c => c && !c.parent);
+      const catList = parentCats.length > 0 ? parentCats : storedCats;
+
+      catList.forEach(c => {
+        const catName = c.name || c;
+        const sectionProducts = catFiltered.filter(p => this.isProductInCategory(p, catName));
+        if (sectionProducts.length === 0) return;
+
+        const section = document.createElement('div');
+        section.className = 'catalog-category-section';
+        section.style.marginBottom = '44px';
+
+        section.innerHTML = `
+          <div class="category-section-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid var(--border); padding-bottom:12px; margin-bottom:20px;">
+            <h4 class="category-section-title" style="font-size: 20px; font-weight: 850; color: var(--text-dark); margin:0; display:flex; align-items:center; gap:8px;">
+              <span>${c.icon || '📁'}</span>
+              <span>${catName}</span>
+              <span class="cat-count" style="font-size: 13px; font-weight: 550; color: var(--text-light); margin-left: 4px;">(${sectionProducts.length} articles)</span>
+            </h4>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="view-all-cat-btn" data-cat="${catName}" style="background: rgba(0, 82, 204, 0.08); color: var(--primary); border: 1px solid rgba(0, 82, 204, 0.15); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 750; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+                Voir tout (${sectionProducts.length}) →
+              </button>
             </div>
-            <p style="font-size: 14px; color: #cbd5e1; margin: 0; max-width: 600px; line-height: 1.4;">Designed in California. Full ecosystem integration of premium workspace displays, input accessories, and audio gear.</p>
           </div>
-        </div>
+        `;
 
-        <button id="clear-brand-filter-btn" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.15); padding: 10px 18px; border-radius: 12px; font-weight: 700; font-size: 13px; cursor: pointer; z-index: 2; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px;">✕ Close Brand</button>
-      `;
-      container.appendChild(brandBanner);
-
-      if (finalProducts.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'no-results';
-        empty.style.display = 'flex';
-        empty.style.padding = '40px 0';
-        empty.innerHTML = `<h3>No products match category "${this.currentCategory}"</h3>`;
-        container.appendChild(empty);
-      } else {
         const grid = document.createElement('div');
         grid.className = 'product-grid';
-        finalProducts.forEach(p => {
+        sectionProducts.slice(0, 8).forEach(p => {
           const card = document.createElement('product-card');
           card.product = p;
           grid.appendChild(card);
         });
-        container.appendChild(grid);
+        section.appendChild(grid);
+
+        // Attach view all button
+        const viewAllBtn = section.querySelector('.view-all-cat-btn');
+        if (viewAllBtn) {
+          viewAllBtn.addEventListener('click', () => {
+            this.currentCategory = catName;
+            this.currentQuery = '';
+            this.catalogLocalQuery = '';
+            window.dispatchEvent(new CustomEvent('search:query', { detail: { query: '', category: catName } }));
+            this.renderPageContent();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+        }
+
+        container.appendChild(section);
+      });
+
+      // Today's Deals Flash Section
+      const dealsConfig = getTodaysDealsConfig();
+      if (isTodaysDealsActive(dealsConfig)) {
+        const dealProducts = (dealsConfig.productIds || [])
+          .map(id => this.products.find(p => p.id === id))
+          .filter(Boolean)
+          .slice(0, 12);
+
+        if (dealProducts.length > 0) {
+          const dealsSection = document.createElement('div');
+          dealsSection.className = 'todays-deals-storefront-section animate-in';
+          dealsSection.style.marginTop = '24px';
+          dealsSection.style.marginBottom = '48px';
+
+          dealsSection.innerHTML = `
+            <div style="background: linear-gradient(135deg, #0b1a30 0%, #1e3a8a 50%, #0284c7 100%); border-radius: 24px; padding: 32px 36px; color: white; position: relative; overflow: hidden; margin-bottom: 28px; box-shadow: 0 12px 36px rgba(11,26,48,0.22); border: 1.5px solid rgba(255,255,255,0.12);">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+                <div>
+                  <span style="font-size: 11px; font-weight: 850; background: #ff2e93; color: white; padding: 4px 10px; border-radius: 8px; text-transform: uppercase;">🔥 FLASH DEALS</span>
+                  <h3 style="font-size: 24px; font-weight: 850; margin: 8px 0 0 0; color: white;">Offres Spéciales Limitées</h3>
+                </div>
+                <button id="deals-catalog-view-btn" style="background: white; color: #0052cc; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 800; font-size: 13px; cursor: pointer;">Voir Toutes Les Offres →</button>
+              </div>
+            </div>
+          `;
+
+          const dealsGrid = document.createElement('div');
+          dealsGrid.className = 'product-grid';
+          dealProducts.forEach(p => {
+            const card = document.createElement('product-card');
+            card.product = p;
+            dealsGrid.appendChild(card);
+          });
+          dealsSection.appendChild(dealsGrid);
+
+          const viewDealsBtn = dealsSection.querySelector('#deals-catalog-view-btn');
+          if (viewDealsBtn) {
+            viewDealsBtn.addEventListener('click', () => {
+              this.currentPage = 'deals';
+              window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'deals' } }));
+              this.renderPageContent();
+            });
+          }
+
+          container.appendChild(dealsSection);
+        }
       }
-      return;
-    }
 
-    // If query was entered, just show search results in a single grid
-    if (this.currentQuery !== '') {
-      const filtered = textFiltered.filter(p => this.currentCategory === 'All' || p.category === this.currentCategory);
-      if (filtered.length === 0) {
-        container.style.display = 'none';
-        noResults.style.display = 'flex';
-        return;
-      }
-      noResults.style.display = 'none';
-      container.style.display = 'block';
-
-      // Render search results header
-      const searchTitle = document.createElement('h4');
-      searchTitle.className = 'search-results-header';
-      searchTitle.textContent = `Search Results for "${this.currentQuery}" (${filtered.length} products found)`;
-      container.appendChild(searchTitle);
-
+    } else {
+      // Direct Single Grid view (for specific category or when filtered)
       const grid = document.createElement('div');
       grid.className = 'product-grid';
-      filtered.forEach(p => {
+      catFiltered.forEach(p => {
         const card = document.createElement('product-card');
         card.product = p;
         grid.appendChild(card);
       });
       container.appendChild(grid);
-      return;
     }
+  }
 
-    // No search query: standard category grouping or filtered category listing
-    noResults.style.display = 'none';
-    container.style.display = 'block';
+  renderEmptySearchExperience(query, container, noResults) {
+    const cleanQuery = (query || '').trim();
 
-    const storedCats = JSON.parse(localStorage.getItem('SWEETOS_categories') || '[]');
-    const categories = this.currentCategory === 'All'
-      ? storedCats.map(c => c.name)
-      : [this.currentCategory];
-    
-    let hasProducts = false;
-    categories.forEach(cat => {
-      const catProducts = textFiltered.filter(p => p.category === cat);
-      if (catProducts.length === 0) return;
-      hasProducts = true;
-
-      // Create Section element
-      const section = document.createElement('div');
-      section.className = 'catalog-category-section';
-      section.id = `cat-sec-${cat.toLowerCase()}`;
-      section.style.scrollMarginTop = '120px';
-      section.style.marginBottom = '40px';
-
-      // Header (only show header if they are in "All" view)
-      if (this.currentCategory === 'All') {
-        const header = document.createElement('div');
-        header.className = 'category-section-header';
-        header.style.borderBottom = '1.5px solid var(--border)';
-        header.style.paddingBottom = '12px';
-        header.style.marginBottom = '24px';
-        header.innerHTML = `
-          <h4 class="category-section-title" style="font-size: 20px; font-weight: 850; color: var(--text-dark); margin:0;">
-            ${cat} <span class="cat-count" style="font-size: 13px; font-weight: 550; color: var(--text-light); margin-left: 6px;">(${catProducts.length} items)</span>
-          </h4>
-        `;
-        section.appendChild(header);
+    // 1. Real-time recording to Admin Demand Intelligence
+    if (cleanQuery && cleanQuery !== 'All') {
+      let failedSearches = [];
+      try {
+        failedSearches = JSON.parse(localStorage.getItem('SWEETOS_failed_searches') || '[]');
+      } catch (e) {
+        failedSearches = [];
       }
 
-      // Grid - lists all products inside the category!
-      const grid = document.createElement('div');
-      grid.className = 'product-grid';
-      
-      catProducts.forEach(p => {
+      let loggedUser = null;
+      try {
+        loggedUser = JSON.parse(localStorage.getItem('SWEETOS_logged_in_user') || 'null');
+      } catch(e) {}
+
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const now = new Date();
+      const timeStr = `${now.getDate()} ${now.toLocaleString('default', { month: 'short' })}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+      const existingIndex = failedSearches.findIndex(f => f.query.toLowerCase() === cleanQuery.toLowerCase());
+      if (existingIndex >= 0) {
+        failedSearches[existingIndex].count = (failedSearches[existingIndex].count || 1) + 1;
+        failedSearches[existingIndex].timestamp = timeStr;
+        if (loggedUser) {
+          if (!failedSearches[existingIndex].customerName || failedSearches[existingIndex].customerName === 'Store Visitor') {
+            failedSearches[existingIndex].customerName = loggedUser.name || loggedUser.email;
+          }
+          if (!failedSearches[existingIndex].phone && loggedUser.phone) {
+            failedSearches[existingIndex].phone = loggedUser.phone;
+          }
+        }
+      } else {
+        failedSearches.unshift({
+          id: `fs_${Date.now()}`,
+          query: cleanQuery,
+          customerName: loggedUser ? (loggedUser.name || loggedUser.email) : 'Store Visitor',
+          phone: loggedUser ? (loggedUser.phone || '') : '',
+          email: loggedUser ? (loggedUser.email || '') : '',
+          timestamp: timeStr,
+          device: isMobile ? 'Mobile' : 'Desktop',
+          city: 'Abidjan, CI',
+          count: 1,
+          notified: false
+        });
+      }
+
+      localStorage.setItem('SWEETOS_failed_searches', JSON.stringify(failedSearches));
+      window.dispatchEvent(new CustomEvent('failed_searches:updated', { detail: failedSearches }));
+    }
+
+    // 2. Hide default noResults, display custom rich empty experience in container
+    if (noResults) noResults.style.display = 'none';
+    if (!container) return;
+    container.style.display = 'block';
+    container.innerHTML = '';
+
+    // Get related/popular items from the same category or general bestsellers
+    const allProds = this.products || [];
+    let relatedProds = allProds.filter(p => this.currentCategory !== 'All' && p.category === this.currentCategory);
+    if (relatedProds.length === 0) {
+      relatedProds = allProds.filter(p => (p.rating || 5) >= 4.8).slice(0, 4);
+    } else {
+      relatedProds = relatedProds.slice(0, 4);
+    }
+
+    let loggedUser = null;
+    try {
+      loggedUser = JSON.parse(localStorage.getItem('SWEETOS_logged_in_user') || 'null');
+    } catch(e) {}
+
+    const emptyBox = document.createElement('div');
+    emptyBox.className = 'empty-search-showcase animate-in';
+    emptyBox.innerHTML = `
+      <div style="background: rgba(255, 255, 255, 0.9); border: 1.5px solid var(--border); border-radius: 24px; padding: 40px 32px; text-align: center; margin-bottom: 48px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); backdrop-filter: blur(8px);">
+        
+        <div style="width: 72px; height: 72px; border-radius: 50%; background: rgba(239, 68, 68, 0.08); color: #ef4444; font-size: 34px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
+          📦
+        </div>
+
+        <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #ef4444; background: rgba(239, 68, 68, 0.1); padding: 4px 12px; border-radius: 20px; display: inline-block; margin-bottom: 12px;">
+          Article Épuisé ou Non Disponible / Out of Stock
+        </span>
+
+        <h3 style="font-size: 24px; font-weight: 850; color: var(--text-dark); margin: 0 0 8px 0;">
+          Aucun résultat direct pour "<span style="color: var(--primary);">${cleanQuery}</span>"
+        </h3>
+        
+        <p style="font-size: 14.5px; color: var(--text-gray); max-width: 580px; margin: 0 auto 24px auto; line-height: 1.6;">
+          Cet article est actuellement en rupture de stock ou en cours d'approvisionnement. Laissez votre numéro WhatsApp ci-dessous pour être alerté(e) directement sur votre téléphone dès son arrivée en rayon !
+        </p>
+
+        <!-- Notification subscription form -->
+        <div id="restock-notify-box" style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 16px; padding: 20px; max-width: 520px; margin: 0 auto 24px auto;">
+          <div style="display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 12px;">
+            <span style="font-size: 18px;">📲</span>
+            <strong style="font-size: 13.5px; color: #0f172a;">Alerte Réapprovisionnement Téléphone / WhatsApp</strong>
+          </div>
+          
+          <form id="demand-notify-form" style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <input type="text" id="demand-user-name" placeholder="Votre Nom / Name" value="${loggedUser ? (loggedUser.name || '') : ''}" required style="padding: 10px 14px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 13px; outline: none; background: white;">
+              <input type="tel" id="demand-user-phone" placeholder="Numéro WhatsApp (ex: +225...)" value="${loggedUser ? (loggedUser.phone || '') : ''}" required style="padding: 10px 14px; border-radius: 10px; border: 1px solid #cbd5e1; font-size: 13px; outline: none; background: white;">
+            </div>
+            <button type="submit" style="background: #0052cc; color: white; border: none; padding: 11px 20px; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s;">
+              <span>🔔 M'alerter dès réapprovisionnement</span>
+            </button>
+          </form>
+        </div>
+
+        <button id="empty-state-reset-btn" class="btn-primary" style="background: transparent; color: var(--primary); border: 1.5px solid var(--primary); padding: 10px 24px; border-radius: 12px; font-weight: 750; font-size: 13.5px; cursor: pointer;">
+          ← Explorer Tout le Catalogue / View All Products
+        </button>
+
+      </div>
+
+      <!-- Related Recommended Section -->
+      ${relatedProds.length > 0 ? `
+        <div class="related-recommendations-section animate-in" style="margin-top: 32px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1.5px solid var(--border); padding-bottom: 12px;">
+            <div>
+              <h4 style="font-size: 20px; font-weight: 850; color: var(--text-dark); margin: 0;">
+                ✨ Articles Similaires & Produits Populaires
+              </h4>
+              <span style="font-size: 13px; color: var(--text-gray);">Découvrez notre sélection alternative disponible immédiatement :</span>
+            </div>
+          </div>
+          <div class="product-grid" id="empty-related-grid"></div>
+        </div>
+      ` : ''}
+    `;
+
+    container.appendChild(emptyBox);
+
+    // Populate related products
+    const relatedGrid = emptyBox.querySelector('#empty-related-grid');
+    if (relatedGrid) {
+      relatedProds.forEach(p => {
         const card = document.createElement('product-card');
         card.product = p;
-        grid.appendChild(card);
+        relatedGrid.appendChild(card);
       });
-      section.appendChild(grid);
-      container.appendChild(section);
-    });
-
-    if (!hasProducts) {
-      container.style.display = 'none';
-      noResults.style.display = 'flex';
     }
+
+    // Attach notify form submit
+    const notifyForm = emptyBox.querySelector('#demand-notify-form');
+    if (notifyForm) {
+      notifyForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const nameVal = emptyBox.querySelector('#demand-user-name').value.trim();
+        const phoneVal = emptyBox.querySelector('#demand-user-phone').value.trim();
+
+        let failedSearches = [];
+        try {
+          failedSearches = JSON.parse(localStorage.getItem('SWEETOS_failed_searches') || '[]');
+          const target = failedSearches.find(f => f.query.toLowerCase() === cleanQuery.toLowerCase());
+          if (target) {
+            target.customerName = nameVal;
+            target.phone = phoneVal;
+          } else {
+            failedSearches.unshift({
+              id: `fs_${Date.now()}`,
+              query: cleanQuery,
+              customerName: nameVal,
+              phone: phoneVal,
+              email: '',
+              timestamp: 'Just now',
+              device: 'Mobile',
+              city: 'Abidjan, CI',
+              count: 1,
+              notified: false
+            });
+          }
+          localStorage.setItem('SWEETOS_failed_searches', JSON.stringify(failedSearches));
+        } catch(err) {}
+
+        const notifyBox = emptyBox.querySelector('#restock-notify-box');
+        if (notifyBox) {
+          notifyBox.innerHTML = `
+            <div style="color: #16a34a; font-weight: 800; font-size: 14px; text-align: center; padding: 10px 0;">
+              ✓ Merci ${nameVal} ! Vous recevrez une notification directe par WhatsApp (${phoneVal}) dès que "${cleanQuery}" sera disponible en stock ! 📲
+            </div>
+          `;
+        }
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Demande enregistrée ! Vous serez alerté dès réapprovisionnement.' }));
+      });
+    }
+
+    // Attach reset button
+    const resetBtn = emptyBox.querySelector('#empty-state-reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        this.currentQuery = '';
+        this.currentCategory = 'All';
+        window.dispatchEvent(new CustomEvent('search:query', { detail: { query: '', category: 'All' } }));
+        this.renderPageContent();
+      });
+    }
+  }
+
+  getSectionProductPools() {
+    const all = this.products || [];
+    
+    // 1. Hot Deals: high discount products or assigned to sec-deals
+    const dealIds = [5, 14, 28, 40, 7, 18, 32, 45];
+    const deals = all.filter(p => (p.homepageSections && p.homepageSections.includes('sec-deals')) || dealIds.includes(p.id) || (p.originalPrice && p.originalPrice > p.price * 1.2));
+    const dealIdSet = new Set(deals.map(p => p.id));
+
+    // 2. New Arrivals: newest product IDs, strictly excluding any Hot Deals
+    const newArrivalIds = [46, 47, 48, 49, 50, 41, 42, 43, 44];
+    const newArrivals = all.filter(p => !dealIdSet.has(p.id) && ((p.homepageSections && p.homepageSections.includes('sec-new')) || newArrivalIds.includes(p.id)));
+    const newIdSet = new Set(newArrivals.map(p => p.id));
+
+    // 3. Best Sellers: high rating / reviews, strictly excluding Deals & New Arrivals
+    const bestIds = [1, 13, 26, 39, 2, 8, 15, 22];
+    const bestSellers = all.filter(p => !dealIdSet.has(p.id) && !newIdSet.has(p.id) && ((p.homepageSections && p.homepageSections.includes('sec-best')) || bestIds.includes(p.id) || (p.rating >= 4.8 && p.reviews >= 50)));
+
+    return { deals, newArrivals, bestSellers };
   }
 
   injectCategorizedProducts(type) {
     let gridElementId = '';
     let filteredList = [];
+    const pools = this.getSectionProductPools();
 
     if (type === 'deals') {
       gridElementId = 'grid-deals';
-      filteredList = this.products.filter(p => p.price < 100);
+      filteredList = pools.deals;
     } else if (type === 'new') {
       gridElementId = 'grid-new';
-      filteredList = this.products.slice(38, 50);
+      filteredList = pools.newArrivals;
     } else if (type === 'best') {
       gridElementId = 'grid-best';
-      filteredList = this.products.filter(p => p.rating >= 4.8 && p.reviews >= 90);
+      filteredList = pools.bestSellers;
     }
 
     const grid = this.shadowRoot.getElementById(gridElementId);
     if (!grid) return;
+    grid.innerHTML = '';
 
     filteredList.forEach(p => {
       const card = document.createElement('product-card');
@@ -2502,11 +3915,28 @@ class ProductList extends HTMLElement {
       const { page, category, brand } = e.detail;
       let targetPage = page || 'home';
       if (targetPage === 'about') targetPage = 'about-us';
+
+      // Authentication route guard
+      const requiresAuthPages = ['orders', 'profile', 'coupons'];
+      const isLoggedIn = localStorage.getItem('SWEETOS_logged_in_user') !== null;
+      if (requiresAuthPages.includes(targetPage) && !isLoggedIn) {
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: '🔒 Veuillez vous connecter pour accéder à cette page / Please log in to access this page!' }));
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'auth' } }));
+        }, 0);
+        return;
+      }
+
       this.currentPage = targetPage;
       this.currentCategory = category || 'All';
       this.currentBrand = brand || '';
       this.currentBrandFilter = 'All'; // Reset active brand filter on navigation change
       this.activeFeaturedIndex = 0; // Reset active featured index on navigation changes
+      if (e.detail && e.detail.query !== undefined) {
+        this.currentQuery = e.detail.query;
+      } else {
+        this.currentQuery = ''; // Clear search query on page/category navigation!
+      }
       
       cards.forEach(c => {
         if (c.getAttribute('data-category') === this.currentCategory) {
@@ -2592,6 +4022,12 @@ class ProductList extends HTMLElement {
       }
     });
 
+    window.addEventListener('reviews:updated', () => {
+      if (this.currentPage === 'pdp' && this.currentProductId) {
+        this.renderPageContent();
+      }
+    });
+
     // Infinite scroll window listener for "For You"
     window.addEventListener('scroll', () => {
       if (this.currentPage !== 'home') return;
@@ -2608,6 +4044,20 @@ class ProductList extends HTMLElement {
 
   attachDynamicUIListeners() {
     const shadow = this.shadowRoot;
+
+    // Generic slidable carousel arrow buttons
+    shadow.querySelectorAll('.carousel-control-btn[data-target-carousel]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetId = btn.getAttribute('data-target-carousel');
+        const container = shadow.getElementById(targetId);
+        if (container) {
+          const isNext = btn.classList.contains('next-btn');
+          container.scrollBy({ left: isNext ? 320 : -320, behavior: 'smooth' });
+        }
+      });
+    });
 
     shadow.querySelectorAll('.view-all-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2680,8 +4130,9 @@ class ProductList extends HTMLElement {
         shadow.querySelectorAll('.category-pill-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         
-        const cat = btn.getAttribute('data-category');
+        const cat = btn.getAttribute('data-category') || 'All';
         this.currentCategory = cat;
+        this.currentQuery = ''; // Clear search query when choosing a category!
         this.activeFeaturedIndex = 0; // Reset active featured carousel item
         
         // Sync quick selector active states if any
@@ -2693,364 +4144,526 @@ class ProductList extends HTMLElement {
           }
         });
 
-        // Trigger updates
-        this.injectCatalogCarousel();
-        this.injectCatalogProducts();
-      });
-    });
-
-    shadow.querySelectorAll('.brand-pill-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        shadow.querySelectorAll('.brand-pill-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        
-        const brand = btn.getAttribute('data-brand');
-        this.currentBrandFilter = brand;
-        this.activeFeaturedIndex = 0; // Reset active featured carousel item
-        
-        // Trigger updates
-        this.injectBrandCarousel();
-        this.injectBrandsGrouped();
+        window.dispatchEvent(new CustomEvent('search:query', { detail: { query: '', category: cat } }));
+        this.renderPageContent();
       });
     });
   }
 
-  injectBrandCarousel() {
-    const banner = this.shadowRoot.getElementById('brand-carousel-banner');
+  attachCatalogHeaderListeners() {
+    const shadow = this.shadowRoot;
+
+    // Clear Global Search
+    const clearSearchBtn = shadow.getElementById('catalog-clear-search-btn');
+    if (clearSearchBtn) {
+      clearSearchBtn.addEventListener('click', () => {
+        this.currentQuery = '';
+        this.catalogLocalQuery = '';
+        this.currentCategory = 'All';
+        window.dispatchEvent(new CustomEvent('search:query', { detail: { query: '', category: 'All' } }));
+        this.renderPageContent();
+      });
+    }
+
+    // Breadcrumbs Navigation
+    const crumbHome = shadow.getElementById('crumb-home');
+    if (crumbHome) {
+      crumbHome.addEventListener('click', () => {
+        this.currentQuery = '';
+        this.catalogLocalQuery = '';
+        this.currentPage = 'home';
+        window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+        this.renderPageContent();
+      });
+    }
+
+    const crumbCatalogAll = shadow.getElementById('crumb-catalog-all');
+    if (crumbCatalogAll) {
+      crumbCatalogAll.addEventListener('click', () => {
+        this.currentQuery = '';
+        this.catalogLocalQuery = '';
+        this.currentCategory = 'All';
+        this.catalogBrandFilter = 'All';
+        this.catalogSort = 'featured';
+        this.catalogInStockOnly = false;
+        window.dispatchEvent(new CustomEvent('search:query', { detail: { query: '', category: 'All' } }));
+        this.renderPageContent();
+      });
+    }
+
+    const crumbParent = shadow.querySelector('.crumb-parent-cat');
+    if (crumbParent) {
+      crumbParent.addEventListener('click', () => {
+        const parentName = crumbParent.getAttribute('data-parent') || 'All';
+        this.currentQuery = '';
+        this.catalogLocalQuery = '';
+        this.currentCategory = parentName;
+        window.dispatchEvent(new CustomEvent('search:query', { detail: { query: '', category: parentName } }));
+        this.renderPageContent();
+      });
+    }
+
+    // In-Category Local Search
+    const localSearchInput = shadow.getElementById('cat-local-search');
+    if (localSearchInput) {
+      let searchTimeout = null;
+      localSearchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          this.catalogLocalQuery = e.target.value;
+          this.injectCatalogProducts();
+        }, 200);
+      });
+    }
+
+    // Brand Select Dropdown
+    const brandSelect = shadow.getElementById('cat-brand-select');
+    if (brandSelect) {
+      brandSelect.addEventListener('change', (e) => {
+        this.catalogBrandFilter = e.target.value;
+        this.injectCatalogProducts();
+      });
+    }
+
+    // Sort Select Dropdown
+    const sortSelect = shadow.getElementById('cat-sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        this.catalogSort = e.target.value;
+        this.injectCatalogProducts();
+      });
+    }
+
+    // Stock Toggle Button
+    const stockToggleBtn = shadow.getElementById('cat-stock-toggle');
+    if (stockToggleBtn) {
+      stockToggleBtn.addEventListener('click', () => {
+        this.catalogInStockOnly = !this.catalogInStockOnly;
+        stockToggleBtn.classList.toggle('active', this.catalogInStockOnly);
+        this.injectCatalogProducts();
+      });
+    }
+  }
+
+  renderBrandHeroBanner() {
+    const banner = this.shadowRoot.getElementById('brand-hero-banner-container');
     if (!banner) return;
 
-    const brandList = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
-    const brands = brandList.map(b => b.name);
+    const storedBrands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
+    const isAll = !this.currentBrandFilter || this.currentBrandFilter === 'All';
 
     const isProductOfBrand = (product, brandName) => {
+      if (!product || !brandName) return false;
       if (product.brand && product.brand.toLowerCase() === brandName.toLowerCase()) return true;
-      return product.name.toLowerCase().startsWith(brandName.toLowerCase());
+      return (product.name || '').toLowerCase().startsWith(brandName.toLowerCase());
     };
 
-    // Filter products by active brand filter
-    let brandProducts = [];
-    if (this.currentBrandFilter === 'All') {
-      brandProducts = this.products.filter(p => 
-        brands.some(b => isProductOfBrand(p, b))
-      );
-    } else {
-      brandProducts = this.products.filter(p => 
-        isProductOfBrand(p, this.currentBrandFilter)
-      );
+    // Matching products for this brand
+    const matchingProds = isAll 
+      ? this.products 
+      : this.products.filter(p => isProductOfBrand(p, this.currentBrandFilter));
+
+    // Active Brand record
+    const brandRecord = storedBrands.find(b => b && (
+      String(b.name || '').trim().toLowerCase() === String(this.currentBrandFilter).trim().toLowerCase() ||
+      String(b.id) === String(this.currentBrandFilter)
+    ));
+
+    // Brand Theme Presets
+    const themeMap = {
+      'Apple': { bg: 'linear-gradient(135deg, #090a0f 0%, #181924 50%, #2b2d3c 100%)', glow1: 'rgba(203, 213, 225, 0.35)', glow2: 'rgba(0, 180, 216, 0.25)', badge: 'MAISON OFFICIELLE APPLE', icon: '🍏' },
+      'Aero': { bg: 'linear-gradient(135deg, #09111e 0%, #0d2149 50%, #0052cc 100%)', glow1: 'rgba(0, 82, 204, 0.45)', glow2: 'rgba(0, 180, 216, 0.35)', badge: 'ATELIER MECANIQUE AERO', icon: '⌨️' },
+      'Keychron': { bg: 'linear-gradient(135deg, #09111e 0%, #0d2149 50%, #0052cc 100%)', glow1: 'rgba(0, 82, 204, 0.45)', glow2: 'rgba(0, 180, 216, 0.35)', badge: 'KEYCHRON OFFICIAL STORE', icon: '⌨️' },
+      'SWEETOS': { bg: 'linear-gradient(135deg, #18120b 0%, #301f10 50%, #543818 100%)', glow1: 'rgba(251, 191, 36, 0.4)', glow2: 'rgba(217, 119, 6, 0.3)', badge: 'ARTISANAT NOBLE SWEETOS', icon: '🪵' },
+      'Apex': { bg: 'linear-gradient(135deg, #15003b 0%, #310d59 50%, #7000b8 100%)', glow1: 'rgba(147, 51, 234, 0.45)', glow2: 'rgba(236, 72, 153, 0.35)', badge: 'LABORATOIRE AUDIO APEX', icon: '🎧' },
+      'Nebula': { bg: 'linear-gradient(135deg, #1f011b 0%, #4c0033 50%, #9d174d 100%)', glow1: 'rgba(236, 72, 153, 0.45)', glow2: 'rgba(168, 85, 247, 0.35)', badge: 'NEBULA AMBIENT LIGHTS', icon: '🌌' }
+    };
+
+    const defaultTheme = {
+      bg: 'linear-gradient(135deg, #0b0f19 0%, #131b2e 50%, #1e293b 100%)',
+      glow1: 'rgba(37, 99, 235, 0.4)',
+      glow2: 'rgba(0, 180, 216, 0.25)',
+      badge: 'MAISON DU CREATEUR',
+      icon: brandRecord?.logo || '🏷️'
+    };
+
+    const theme = themeMap[this.currentBrandFilter] || defaultTheme;
+
+    // Background cover image
+    let coverImg = brandRecord?.banner || '';
+    if (!coverImg && matchingProds.length > 0) {
+      coverImg = matchingProds[0].image || '';
     }
 
-    // Filter by rating >= 4.7, or just slice first 5
-    let featured = brandProducts.filter(p => p.rating >= 4.7);
-    if (featured.length === 0) {
-      featured = brandProducts.slice(0, 5);
-    }
+    const titleText = isAll
+      ? 'Les Plus Grandes Marques de Workspace'
+      : `${brandRecord?.name || this.currentBrandFilter} Collection`;
 
-    if (featured.length === 0) {
-      banner.style.display = 'none';
-      return;
-    } else {
-      banner.style.display = 'block';
-    }
+    const descriptionMap = {
+      "Aero": "Claviers mécaniques de haute voltige, switches pré-lubrifiés et câbles aviateur conçus pour la précision absolue.",
+      "Keychron": "Claviers mécaniques sans fil, layouts personnalisables et compatibilité multi-OS Mac et Windows.",
+      "SWEETOS": "Rehausseurs de moniteurs en chêne massif, supports ergonomiques et pièces de bois noble taillées sur mesure.",
+      "Apex": "Systèmes acoustiques de monitoring, casques studio à haute impédance et convertisseurs numériques purs.",
+      "Nebula": "Barres d'écran intelligentes, luminaires d'ambiance LED réactifs et colonnes de visualisation sonore.",
+      "Apple": "Conçu en Californie. Matériel minimaliste, intégration logicielle fluide et écrans 5K Retina de référence."
+    };
 
-    // Ensure active index is within bounds
-    if (this.activeFeaturedIndex >= featured.length) {
+    const descText = isAll
+      ? 'Explorez notre sélection de fabricants de renom. Finitions d\'exception, écosystèmes complets et garantie constructeur officielle.'
+      : (descriptionMap[this.currentBrandFilter] || `Découvrez la gamme officielle ${this.currentBrandFilter} avec performances maximales et livraison express.`);
+
+    // Pick top-rated product as featured showcase item
+    let featuredList = matchingProds.filter(p => (p.rating || 5) >= 4.7);
+    if (featuredList.length === 0) featuredList = matchingProds.slice(0, 5);
+
+    if (this.activeFeaturedIndex >= featuredList.length) {
       this.activeFeaturedIndex = 0;
     }
+    const featProd = featuredList[this.activeFeaturedIndex] || matchingProds[0];
 
-    const p = featured[this.activeFeaturedIndex];
-    
-    // Determine brand styling based on the product
-    let bgGradient = 'linear-gradient(135deg, #0b0f19 0%, #151b2d 100%)';
-    let textColor = 'white';
-    let descColor = '#cbd5e1';
-    let dotColor = '#00b4d8';
-    let navColor = 'white';
-    let shadowColor = 'rgba(0,0,0,0.3)';
-    let isLight = false;
-    let badgeColor = 'rgba(147, 51, 234, 0.15)';
-    let badgeText = '#c084fc';
-    let badgeBorder = 'rgba(147, 51, 234, 0.25)';
-
-    if (p.name.toLowerCase().startsWith('aero')) {
-      bgGradient = 'linear-gradient(135deg, #0b1220 0%, #17223b 100%)';
-    } else if (p.name.toLowerCase().startsWith('sweetos')) {
-      bgGradient = 'linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%)';
-      textColor = 'var(--text-dark)';
-      descColor = 'var(--text-gray)';
-      dotColor = 'var(--primary)';
-      navColor = 'var(--text-dark)';
-      shadowColor = 'rgba(0,0,0,0.1)';
-      isLight = true;
-      badgeColor = 'rgba(0, 82, 204, 0.08)';
-      badgeText = 'var(--primary)';
-      badgeBorder = 'rgba(0, 82, 204, 0.15)';
-    } else if (p.name.toLowerCase().startsWith('apex')) {
-      bgGradient = 'linear-gradient(135deg, #0c1c38 0%, #1a325a 100%)';
-    } else if (p.name.toLowerCase().startsWith('nebula')) {
-      bgGradient = 'linear-gradient(135deg, #09090b 0%, #18181b 100%)';
-      badgeColor = 'rgba(244, 63, 94, 0.15)';
-      badgeText = '#fb7185';
-      badgeBorder = 'rgba(244, 63, 94, 0.25)';
-    } else if (p.name.toLowerCase().startsWith('apple')) {
-      bgGradient = 'linear-gradient(135deg, #1c1c1e 0%, #3a3a43 100%)';
-      badgeColor = 'rgba(255, 255, 255, 0.15)';
-      badgeText = '#cbd5e1';
-      badgeBorder = 'rgba(255, 255, 255, 0.25)';
-    }
-
-    const discount = 15;
-    const originalPrice = Math.round(p.price / (1 - discount / 100));
-
-    banner.setAttribute('style', `
-      background: ${bgGradient};
-      border-radius: 24px;
-      color: ${textColor};
-      padding: 40px 60px;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      min-height: 380px;
-      border: ${isLight ? '1px solid var(--border)' : '1px solid rgba(255, 255, 255, 0.08)'};
-      box-shadow: 0 16px 40px ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.18)'};
-      box-sizing: border-box;
-      transition: all 0.5s ease;
-    `);
+    banner.style.background = theme.bg;
 
     banner.innerHTML = `
-      <div class="carousel-glow" style="background: ${isLight ? 'transparent' : 'radial-gradient(circle, rgba(0, 82, 204, 0.15) 0%, rgba(0, 0, 0, 0) 70%)'};"></div>
-      
-      <!-- Left arrow button -->
-      <button class="carousel-nav-btn prev" id="brand-carousel-prev-btn" aria-label="Previous Featured Product" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: ${navColor}; border-color: ${isLight ? 'var(--border)' : 'rgba(255,255,255,0.1)'}; background: ${isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.05)'};">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><polyline points="15 18 9 12 15 6"></polyline></svg>
-      </button>
+      ${coverImg ? `<img src="${coverImg}" alt="${titleText}" class="brand-hero-backdrop">` : ''}
+      <div class="brand-hero-glow-1" style="background: radial-gradient(circle, ${theme.glow1} 0%, rgba(0,0,0,0) 70%);"></div>
+      <div class="brand-hero-glow-2" style="background: radial-gradient(circle, ${theme.glow2} 0%, rgba(0,0,0,0) 70%);"></div>
 
-      <div class="carousel-content-wrapper">
-        <div class="carousel-details">
-          <span class="carousel-badge-pill" style="background: ${badgeColor}; color: ${badgeText}; border-color: ${badgeBorder};">
-            <span class="star-sparkle" style="color: ${badgeText};">✦</span> BRAND FEATURE
-            <span style="opacity: 0.6; margin-left: 8px;">Item ${this.activeFeaturedIndex + 1} of ${featured.length}</span>
-          </span>
-          
-          <h2 class="carousel-title" style="color: ${textColor};">${p.name}</h2>
-          <p class="carousel-description" style="color: ${descColor};">${p.shortDesc || p.description.slice(0, 120) + '...'}</p>
-          
-          <div class="carousel-price-card" style="border-color: ${isLight ? 'var(--border)' : 'rgba(255,255,255,0.06)'}; background: ${isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.04)'};">
-            <span class="price-label" style="color: ${isLight ? 'var(--text-gray)' : '#94a3b8'};">SPECIAL OFFER PRICE</span>
-            <div class="price-values">
-              <span class="current-price" style="color: ${isLight ? 'var(--primary)' : '#00b4d8'};">$${p.price.toFixed(2)}</span>
-              <span class="original-price" style="color: ${isLight ? '#94a3b8' : '#64748b'};">$${originalPrice.toFixed(2)}</span>
-              <span class="save-badge">SAVE ${discount}%</span>
+      <!-- Main Banner Content Left Column -->
+      <div class="brand-hero-main-content">
+        <div class="brand-hero-meta-badge">
+          <span>${theme.icon}</span>
+          <span>${theme.badge}</span>
+          <span style="opacity: 0.5;">•</span>
+          <span style="color: #38bdf8;">${matchingProds.length} Articles Disponibles</span>
+        </div>
+
+        <h1 class="brand-hero-title">${titleText}</h1>
+        <p class="brand-hero-desc">${descText}</p>
+
+        <div class="brand-hero-perks">
+          <div class="brand-hero-perk-item">
+            <span style="color: #38bdf8;">🛡️</span> 100% Produit Authentique & Neuf
+          </div>
+          <div class="brand-hero-perk-item">
+            <span style="color: #38bdf8;">🚚</span> Expédition Rapide & Sécurisée
+          </div>
+          <div class="brand-hero-perk-item">
+            <span style="color: #38bdf8;">⚙️</span> Garantie Constructeur & SAV
+          </div>
+        </div>
+      </div>
+
+      <!-- Featured Product Card Right Column (if products exist) -->
+      ${featProd ? `
+        <div class="brand-hero-featured-card">
+          <div class="brand-featured-img-box" id="brand-feat-img-box" style="cursor: pointer;" data-id="${featProd.id}">
+            <img src="${featProd.image}" alt="${featProd.name}" loading="lazy">
+            <span style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); color: #fbbf24; font-size: 11px; font-weight: 850; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);">
+              ⭐ ${featProd.rating ? Number(featProd.rating).toFixed(1) : '5.0'}
+            </span>
+          </div>
+
+          <div class="brand-featured-meta">
+            <span class="brand-featured-badge">PRODUIT PHARE DE LA MARQUE</span>
+            <h4 class="brand-featured-title" title="${featProd.name}">${featProd.name}</h4>
+            <div class="brand-featured-price-row">
+              <span class="brand-featured-price">${formatPrice(featProd.price)}</span>
+              ${featProd.originalPrice && featProd.originalPrice > featProd.price ? `
+                <span style="font-size: 13px; color: #94a3b8; text-decoration: line-through;">${formatPrice(featProd.originalPrice)}</span>
+              ` : ''}
             </div>
           </div>
 
-          <div class="carousel-actions">
-            <button class="btn-primary carousel-explore-btn" id="brand-carousel-explore-btn" style="background: ${isLight ? 'var(--primary)' : '#0052cc'} !important;">EXPLORE DETAILS →</button>
-            <button class="btn-secondary carousel-cart-btn" id="brand-carousel-cart-btn" style="color: ${textColor} !important; border-color: ${isLight ? 'var(--border)' : 'rgba(255,255,255,0.12)'} !important; background: ${isLight ? 'white' : 'rgba(255,255,255,0.06)'} !important;">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-              ADD TO CART
+          <div class="brand-featured-actions">
+            <button class="btn-cat-buy" id="brand-feat-buy-btn" data-id="${featProd.id}">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+              <span>Acheter</span>
+            </button>
+            <button class="btn-cat-view" id="brand-feat-view-btn" data-id="${featProd.id}">
+              Détails
             </button>
           </div>
         </div>
-
-        <div class="carousel-visual-container">
-          <div class="carousel-image-card" style="border-color: ${isLight ? 'var(--border)' : 'rgba(255,255,255,0.08)'}; background: ${isLight ? 'white' : 'rgba(255,255,255,0.03)'}; box-shadow: 0 20px 40px ${shadowColor};">
-            <img src="${p.image}" alt="${p.name}">
-            <div class="carousel-inspect-caption" style="color: ${isLight ? 'var(--text-gray)' : '#94a3b8'};">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              Click to inspect specs & views
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right arrow button -->
-      <button class="carousel-nav-btn next" id="brand-carousel-next-btn" aria-label="Next Featured Product" style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: ${navColor}; border-color: ${isLight ? 'var(--border)' : 'rgba(255,255,255,0.1)'}; background: ${isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.05)'};">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><polyline points="9 18 15 12 9 6"></polyline></svg>
-      </button>
-
-      <!-- Dots Indicators -->
-      <div class="carousel-indicators">
-        ${featured.map((item, index) => `
-          <div class="carousel-indicator-dot ${index === this.activeFeaturedIndex ? 'active' : ''}" data-index="${index}" style="background: ${index === this.activeFeaturedIndex ? dotColor : (isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)')};"></div>
-        `).join('')}
-      </div>
+      ` : ''}
     `;
 
-    // Wire up events
-    const prevBtn = this.shadowRoot.getElementById('brand-carousel-prev-btn');
-    const nextBtn = this.shadowRoot.getElementById('brand-carousel-next-btn');
-    if (prevBtn) {
-      prevBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.activeFeaturedIndex = (this.activeFeaturedIndex - 1 + featured.length) % featured.length;
-        this.injectBrandCarousel();
-      });
-    }
-    if (nextBtn) {
-      nextBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.activeFeaturedIndex = (this.activeFeaturedIndex + 1) % featured.length;
-        this.injectBrandCarousel();
-      });
-    }
+    this.attachBrandHeroListeners(featProd);
+  }
 
-    // Explore details event
-    const exploreBtn = this.shadowRoot.getElementById('brand-carousel-explore-btn');
-    const imgCard = this.shadowRoot.querySelector('.carousel-image-card');
-    [exploreBtn, imgCard].forEach(el => {
+  attachBrandHeroListeners(featProd) {
+    if (!featProd) return;
+    const shadow = this.shadowRoot;
+
+    const imgBox = shadow.getElementById('brand-feat-img-box');
+    const viewBtn = shadow.getElementById('brand-feat-view-btn');
+    [imgBox, viewBtn].forEach(el => {
       if (el) {
-        el.addEventListener('click', () => {
-          window.dispatchEvent(new CustomEvent('product:view', { detail: p.id }));
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          window.dispatchEvent(new CustomEvent('product:view', { detail: featProd.id }));
         });
       }
     });
 
-    // Add to cart event
-    const cartBtn = this.shadowRoot.getElementById('brand-carousel-cart-btn');
-    if (cartBtn) {
-      cartBtn.addEventListener('click', () => {
+    const buyBtn = shadow.getElementById('brand-feat-buy-btn');
+    if (buyBtn) {
+      buyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         window.dispatchEvent(new CustomEvent('cart:add', {
-          detail: { productId: p.id, quantity: 1, color: p.colors ? p.colors[0]?.name : '' }
+          detail: { productId: featProd.id, quantity: 1, color: featProd.colors ? featProd.colors[0]?.name : '' }
         }));
       });
     }
+  }
 
-    // Dots clicks
-    this.shadowRoot.querySelectorAll('.carousel-indicators .carousel-indicator-dot').forEach(dot => {
-      dot.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.activeFeaturedIndex = parseInt(dot.getAttribute('data-index'));
-        this.injectBrandCarousel();
+  injectBrandPills() {
+    const container = this.shadowRoot.getElementById('brand-smart-pills-row');
+    if (!container) return;
+
+    const storedBrands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
+    const isAll = !this.currentBrandFilter || this.currentBrandFilter === 'All';
+
+    const isProductOfBrand = (product, brandName) => {
+      if (!product || !brandName) return false;
+      if (product.brand && product.brand.toLowerCase() === brandName.toLowerCase()) return true;
+      return (product.name || '').toLowerCase().startsWith(brandName.toLowerCase());
+    };
+
+    let pillsHTML = `
+      <button class="brand-pill-btn ${isAll ? 'active' : ''}" data-brand="All">
+        <span class="pill-icon">🌟</span> Toutes les Marques <span style="opacity: 0.6; font-size: 11px; margin-left: 4px;">(${this.products.length})</span>
+      </button>
+    `;
+
+    storedBrands.forEach(b => {
+      const bProds = this.products.filter(p => isProductOfBrand(p, b.name));
+      const isActive = !isAll && String(this.currentBrandFilter).trim().toLowerCase() === String(b.name).trim().toLowerCase();
+      pillsHTML += `
+        <button class="brand-pill-btn ${isActive ? 'active' : ''}" data-brand="${b.name}">
+          <span class="pill-icon">${b.logo || '🏷️'}</span> ${b.name} <span style="opacity: 0.6; font-size: 11px; margin-left: 4px;">(${bProds.length})</span>
+        </button>
+      `;
+    });
+
+    container.innerHTML = pillsHTML;
+
+    container.querySelectorAll('.brand-pill-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const brand = btn.getAttribute('data-brand') || 'All';
+        this.currentBrandFilter = brand;
+        this.brandLocalQuery = '';
+        this.activeFeaturedIndex = 0;
+        this.renderPageContent();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
   }
 
   injectBrandsGrouped() {
     const container = this.shadowRoot.getElementById('brands-grouped-container');
+    const countPill = this.shadowRoot.getElementById('brand-count-pill');
     if (!container) return;
     container.innerHTML = '';
 
-    const storedBrands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
-    const brandsData = storedBrands.map(b => {
-      const descriptionMap = {
-        "Aero": "High-performance mechanical layouts, pre-lubed silent switches, coiled aviator links, and custom macropad decks.",
-        "SWEETOS": "Solid oak monitor stands, riser shelves, and minimalist structural workspace woods built for ergonomics.",
-        "Apex": "Professional audio converters, high-impedance headphones, sound-reactive towers, and acoustic speaker cones.",
-        "Nebula": "Immersive smart monitor screenbars, active ambient LED lights, and acoustic visualization pillars.",
-        "Apple": "Designed in California. Minimalist ecosystem hardware, ultra-thin aluminum designs, and reference 5K Retina displays."
-      };
-      
-      const bannersMap = {
-        "Aero": "linear-gradient(135deg, #0b1220 0%, #17223b 100%)",
-        "SWEETOS": "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-        "Apex": "linear-gradient(135deg, #0c1c38 0%, #1a325a 100%)",
-        "Nebula": "linear-gradient(135deg, #09090b 0%, #18181b 100%)",
-        "Apple": "linear-gradient(135deg, #1c1c1e 0%, #3a3a43 100%)"
-      };
-
-      const isLight = b.name === 'SWEETOS';
-
-      return {
-        name: b.name === 'SWEETOS' ? "SWEETOS Handcrafted" : (b.name === 'Apple' ? "Apple Workspace" : (b.name === 'Apex' ? "Apex Studio" : (b.name === 'Nebula' ? "Nebula Ambient" : `${b.name} Series`))),
-        query: b.name,
-        description: descriptionMap[b.name] || `Explore curated ${b.name} setups, adapters, and accessories optimized for high workspace efficiency.`,
-        icon: b.logo || "🏷️",
-        bannerStyle: bannersMap[b.name] || "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-        textColor: isLight ? "var(--text-dark)" : "white",
-        badgeColor: isLight ? "rgba(0, 82, 204, 0.08)" : "rgba(255, 255, 255, 0.12)",
-        descColor: isLight ? "var(--text-gray)" : "#cbd5e1",
-        border: isLight ? "1px solid var(--border)" : "1px solid rgba(255, 255, 255, 0.06)"
-      };
-    });
-
     const isProductOfBrand = (product, brandName) => {
+      if (!product || !brandName) return false;
       if (product.brand && product.brand.toLowerCase() === brandName.toLowerCase()) return true;
-      return product.name.toLowerCase().startsWith(brandName.toLowerCase());
+      return (product.name || '').toLowerCase().startsWith(brandName.toLowerCase());
     };
 
-    // Filter brand list based on active filter
-    const activeBrands = this.currentBrandFilter === 'All'
-      ? brandsData
-      : brandsData.filter(b => b.query.toLowerCase() === this.currentBrandFilter.toLowerCase());
-
-    // Calculate total count
-    let totalItems = 0;
-    activeBrands.forEach(brand => {
-      const brandProducts = this.products.filter(p => isProductOfBrand(p, brand.query));
-      totalItems += brandProducts.length;
+    // 1. Text Search Filter (brand local query)
+    const localQ = (this.brandLocalQuery || '').trim().toLowerCase();
+    let textFiltered = this.products.filter(product => {
+      if (!product) return false;
+      if (!localQ) return true;
+      const name = (product.name || '').toLowerCase();
+      const desc = (product.shortDesc || product.description || '').toLowerCase();
+      const cat = (product.category || '').toLowerCase();
+      const brand = (product.brand || '').toLowerCase();
+      const sku = (product.sku || '').toLowerCase();
+      return name.includes(localQ) || desc.includes(localQ) || cat.includes(localQ) || brand.includes(localQ) || sku.includes(localQ);
     });
 
-    // Update Header texts
-    const titleHeader = this.shadowRoot.getElementById('brand-title-header');
-    const countBadge = this.shadowRoot.getElementById('brand-count-badge');
-    if (titleHeader) {
-      titleHeader.textContent = `Brand: ${this.currentBrandFilter}`;
+    // 2. Brand Filter
+    let brandFiltered = this.currentBrandFilter === 'All'
+      ? textFiltered
+      : textFiltered.filter(p => isProductOfBrand(p, this.currentBrandFilter));
+
+    // 3. Category Filter
+    if (this.brandCategoryFilter && this.brandCategoryFilter !== 'All') {
+      brandFiltered = brandFiltered.filter(p => this.isProductInCategory(p, this.brandCategoryFilter));
     }
-    if (countBadge) {
-      countBadge.textContent = `${totalItems} Items Found`;
+
+    // 4. In-Stock Filter
+    if (this.brandInStockOnly) {
+      brandFiltered = brandFiltered.filter(p => (p.stock !== undefined ? p.stock : 10) > 0);
     }
 
-    activeBrands.forEach(brand => {
-      const brandProducts = this.products.filter(p => isProductOfBrand(p, brand.query));
+    // 5. Sorting
+    brandFiltered.sort((a, b) => {
+      if (this.brandSort === 'price_low') return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+      if (this.brandSort === 'price_high') return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+      if (this.brandSort === 'rating') return (parseFloat(b.rating) || 5) - (parseFloat(a.rating) || 5);
+      if (this.brandSort === 'newest') return (b.id || 0) - (a.id || 0);
+      return 0;
+    });
 
-      if (brandProducts.length === 0) return;
+    if (countPill) {
+      countPill.textContent = `${brandFiltered.length} articles`;
+    }
 
-      const section = document.createElement('div');
-      section.className = 'brand-grouped-section';
-      section.style.marginBottom = '48px';
+    // Empty state handling
+    if (brandFiltered.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'no-results animate-in';
+      empty.style.display = 'flex';
+      empty.style.flexDirection = 'column';
+      empty.style.alignItems = 'center';
+      empty.style.justifyContent = 'center';
+      empty.style.padding = '60px 20px';
+      empty.style.textAlign = 'center';
+      empty.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 16px;">🔍</div>
+        <h3 style="font-size: 22px; font-weight: 800; color: var(--text-dark); margin: 0 0 8px 0;">Aucun produit trouvé</h3>
+        <p style="font-size: 14px; color: #64748b; margin: 0 0 20px 0; max-width: 420px;">Aucun article ne correspond à vos critères de recherche pour cette marque.</p>
+        <button id="reset-brand-filter-btn" style="background: #0052cc; color: white; border: none; padding: 10px 22px; border-radius: 12px; font-weight: 750; font-size: 13px; cursor: pointer;">Réinitialiser les filtres</button>
+      `;
+      container.appendChild(empty);
 
-      // Header (only show header if they are in "All" view)
-      if (this.currentBrandFilter === 'All') {
-        const header = document.createElement('div');
-        header.className = 'brand-grouped-header-banner animate-in';
-        header.setAttribute('style', `
-          background: ${brand.bannerStyle};
-          border-radius: 24px;
-          padding: 36px 40px;
-          color: ${brand.textColor};
-          margin-bottom: 28px;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.06);
-          position: relative;
-          overflow: hidden;
-          display: flex;
-          align-items: center;
-          gap: 28px;
-          border: ${brand.border || 'none'};
-        `);
+      const resetBtn = empty.querySelector('#reset-brand-filter-btn');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          this.brandLocalQuery = '';
+          this.brandCategoryFilter = 'All';
+          this.brandInStockOnly = false;
+          this.brandSort = 'featured';
+          this.renderPageContent();
+        });
+      }
+      return;
+    }
 
-        const glowColor = brand.textColor === 'white' ? 'rgba(0, 82, 204, 0.12)' : 'rgba(0, 0, 0, 0.02)';
-        header.innerHTML = `
-          <div style="position: absolute; top: -50%; right: -20%; width: 300px; height: 300px; background: ${glowColor}; filter: blur(80px); border-radius: 50%; pointer-events: none; z-index: 1;"></div>
-          
-          <div style="background: ${brand.textColor === 'white' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'}; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; border-radius: 20px; font-size: 32px; flex-shrink: 0; position: relative; z-index: 2; border: 1px solid ${brand.textColor === 'white' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'};">
-            ${brand.icon}
-          </div>
-          
-          <div style="display: flex; flex-direction: column; gap: 8px; position: relative; z-index: 2; flex: 1;">
-            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-              <h4 style="font-size: 24px; font-weight: 850; margin: 0; letter-spacing: -0.5px;">${brand.name}</h4>
-              <span style="font-size: 12px; font-weight: 700; color: ${brand.textColor === 'white' ? '#00b4d8' : 'var(--primary)'}; background: ${brand.badgeColor}; padding: 4px 10px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
-                ${brandProducts.length} Products Available
-              </span>
+    const isAllView = (!this.currentBrandFilter || this.currentBrandFilter === 'All') && !localQ && this.brandCategoryFilter === 'All' && !this.brandInStockOnly && this.brandSort === 'featured';
+
+    if (isAllView) {
+      const storedBrands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
+      
+      storedBrands.forEach(brand => {
+        const brandProducts = brandFiltered.filter(p => isProductOfBrand(p, brand.name));
+        if (brandProducts.length === 0) return;
+
+        const section = document.createElement('div');
+        section.className = 'brand-grouped-section';
+        section.style.marginBottom = '44px';
+
+        section.innerHTML = `
+          <div class="category-section-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid var(--border); padding-bottom:12px; margin-bottom:20px;">
+            <h4 class="category-section-title" style="font-size: 20px; font-weight: 850; color: var(--text-dark); margin:0; display:flex; align-items:center; gap:8px;">
+              <span>${brand.logo || '🏷️'}</span>
+              <span>${brand.name} Collection</span>
+              <span class="cat-count" style="font-size: 13px; font-weight: 550; color: var(--text-light); margin-left: 4px;">(${brandProducts.length} articles)</span>
+            </h4>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="view-all-brand-btn" data-brand="${brand.name}" style="background: rgba(0, 82, 204, 0.08); color: var(--primary); border: 1px solid rgba(0, 82, 204, 0.15); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 750; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+                Voir la boutique (${brandProducts.length}) →
+              </button>
             </div>
-            <p style="font-size: 14px; color: ${brand.descColor}; margin: 0; line-height: 1.5; max-width: 750px;">${brand.description}</p>
           </div>
         `;
-        section.appendChild(header);
-      }
 
+        const grid = document.createElement('div');
+        grid.className = 'product-grid';
+        brandProducts.slice(0, 8).forEach(p => {
+          const card = document.createElement('product-card');
+          card.product = p;
+          grid.appendChild(card);
+        });
+        section.appendChild(grid);
+
+        const viewAllBtn = section.querySelector('.view-all-brand-btn');
+        if (viewAllBtn) {
+          viewAllBtn.addEventListener('click', () => {
+            this.currentBrandFilter = brand.name;
+            this.brandLocalQuery = '';
+            this.renderPageContent();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+        }
+
+        container.appendChild(section);
+      });
+    } else {
       const grid = document.createElement('div');
       grid.className = 'product-grid';
-      brandProducts.forEach(p => {
+      brandFiltered.forEach(p => {
         const card = document.createElement('product-card');
         card.product = p;
         grid.appendChild(card);
       });
-      section.appendChild(grid);
-      container.appendChild(section);
-    });
+      container.appendChild(grid);
+    }
+  }
+
+  attachBrandHeaderListeners() {
+    const shadow = this.shadowRoot;
+
+    const crumbHome = shadow.getElementById('crumb-home');
+    if (crumbHome) {
+      crumbHome.addEventListener('click', () => {
+        this.currentPage = 'home';
+        window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+        this.renderPageContent();
+      });
+    }
+
+    const crumbBrandAll = shadow.getElementById('crumb-brand-all');
+    if (crumbBrandAll) {
+      crumbBrandAll.addEventListener('click', () => {
+        this.currentBrandFilter = 'All';
+        this.brandLocalQuery = '';
+        this.brandCategoryFilter = 'All';
+        this.brandSort = 'featured';
+        this.brandInStockOnly = false;
+        this.renderPageContent();
+      });
+    }
+
+    const localSearch = shadow.getElementById('brand-local-search');
+    if (localSearch) {
+      let searchTimeout = null;
+      localSearch.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          this.brandLocalQuery = e.target.value;
+          this.injectBrandsGrouped();
+        }, 200);
+      });
+    }
+
+    const catSelect = shadow.getElementById('brand-cat-select');
+    if (catSelect) {
+      catSelect.addEventListener('change', (e) => {
+        this.brandCategoryFilter = e.target.value;
+        this.injectBrandsGrouped();
+      });
+    }
+
+    const sortSelect = shadow.getElementById('brand-sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        this.brandSort = e.target.value;
+        this.injectBrandsGrouped();
+      });
+    }
+
+    const stockToggle = shadow.getElementById('brand-stock-toggle');
+    if (stockToggle) {
+      stockToggle.addEventListener('click', () => {
+        this.brandInStockOnly = !this.brandInStockOnly;
+        stockToggle.classList.toggle('active', this.brandInStockOnly);
+        this.injectBrandsGrouped();
+      });
+    }
   }
 
   injectCuratedCollections() {
@@ -3142,7 +4755,7 @@ class ProductList extends HTMLElement {
               <span style="font-size:12px;color:var(--text-light);padding: 10px 0;">No items inside. Open a product page and click "+ Add to Collection"!</span>
             ` : colProducts.map(p => `
               <div class="thumb-item" data-id="${p.id}" title="${p.name}">
-                <img src="${p.image}" alt="${p.name}">
+                <img src="${p.image}" alt="${p.name}" loading="lazy">
                 <div class="thumb-hover-overlay">
                   <span>View Details</span>
                 </div>
@@ -3224,322 +4837,219 @@ class ProductList extends HTMLElement {
 
   attachPdpListeners(product) {
     const shadow = this.shadowRoot;
+    const p = product;
 
-    // Back button
-    const backBtn = shadow.getElementById('pdp-back-btn');
-    if (backBtn) {
-      backBtn.addEventListener('click', () => {
-        if (document.referrer || window.history.length > 1) {
-          window.history.back();
-        } else {
-          this.currentPage = 'catalog';
-          this.currentCategory = 'All';
-          this.renderPageContent();
-          window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog', category: 'All' } }));
+    // Breadcrumb navigation
+    const crumbHome = shadow.getElementById('pdpCrumbHome');
+    if (crumbHome) {
+      crumbHome.addEventListener('click', () => {
+        this.currentPage = 'home';
+        this.renderPageContent();
+        window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+      });
+    }
+
+    const crumbCat = shadow.getElementById('pdpCrumbCategory');
+    if (crumbCat) {
+      crumbCat.addEventListener('click', () => {
+        this.currentPage = 'catalog';
+        this.currentCategory = p.category || 'All';
+        this.renderPageContent();
+        window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog', category: this.currentCategory } }));
+      });
+    }
+
+    // Stage Zoom on hover
+    const stage = shadow.getElementById('pdpStage');
+    const mainImg = shadow.getElementById('pdpMainImage');
+    if (stage && mainImg) {
+      stage.addEventListener('mousemove', (e) => {
+        const rect = stage.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1);
+        const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1);
+        mainImg.style.transformOrigin = `${x}% ${y}%`;
+      });
+      stage.addEventListener('mouseenter', () => stage.classList.add('zoomed'));
+      stage.addEventListener('mouseleave', () => stage.classList.remove('zoomed'));
+    }
+
+    // Thumbnails click
+    let allImages = (p.images && p.images.length > 0) ? p.images : [p.image, p.image, p.image, p.image];
+    shadow.querySelectorAll('#pdpThumbsContainer .thumb').forEach(thumb => {
+      thumb.addEventListener('click', () => {
+        const idx = parseInt(thumb.getAttribute('data-index'));
+        this.activeThumbnailIdx = idx;
+        shadow.querySelectorAll('#pdpThumbsContainer .thumb').forEach(t => t.classList.remove('active'));
+        thumb.classList.add('active');
+
+        if (stage && mainImg) {
+          stage.classList.add('switching');
+          mainImg.src = allImages[idx] || allImages[0];
+          setTimeout(() => stage.classList.remove('switching'), 200);
+        }
+      });
+    });
+
+    // Swatches selection (in-place update)
+    const colorsMap = {
+      Keyboards: [
+        { name: 'Opal White', priceAdjust: 0 },
+        { name: 'Cobalt Blue', priceAdjust: 10 },
+        { name: 'Felt Brown', priceAdjust: 15 },
+        { name: 'Light Gold', priceAdjust: 20 }
+      ],
+      Audio: [
+        { name: 'Studio Black', priceAdjust: 0 },
+        { name: 'Ice Blue', priceAdjust: 10 },
+        { name: 'Sunset Bronze', priceAdjust: 15 },
+        { name: 'Pure White', priceAdjust: 20 }
+      ],
+      Lighting: [
+        { name: 'Aurora RGB', priceAdjust: 0 },
+        { name: 'Warm Amber', priceAdjust: 10 },
+        { name: 'Ice White', priceAdjust: 15 }
+      ],
+      Desks: [
+        { name: 'Space Grey', priceAdjust: 0 },
+        { name: 'Natural Oak', priceAdjust: 25 },
+        { name: 'White Felt', priceAdjust: 15 }
+      ]
+    };
+    const productColors = (p.colors && p.colors.length > 0) 
+      ? p.colors 
+      : (colorsMap[p.category] || colorsMap['Keyboards']);
+
+    const updatePriceDisplay = () => {
+      const currentVariant = productColors[this.selectedVariantIndex] || productColors[0];
+      const finalUnitPrice = p.price + (currentVariant.priceAdjust || 0);
+      const oldPrice = p.comparePrice || p.original_price || p.originalPrice || 0;
+      const savingsVal = (oldPrice > finalUnitPrice) ? (oldPrice - finalUnitPrice) : 0;
+      const totalPrice = finalUnitPrice * (this.pdpQuantity || 1);
+
+      const finalPriceEl = shadow.getElementById('pdpFinalPriceDisplay');
+      if (finalPriceEl) finalPriceEl.textContent = formatPrice(totalPrice);
+
+      const comparePriceEl = shadow.getElementById('pdpComparePriceDisplay');
+      if (comparePriceEl) comparePriceEl.textContent = formatPrice(oldPrice * (this.pdpQuantity || 1));
+
+      const saveEl = shadow.querySelector('.save');
+      if (saveEl) saveEl.textContent = `You save ${formatPrice(savingsVal * (this.pdpQuantity || 1))}`;
+    };
+
+    shadow.querySelectorAll('.swatches .swatch').forEach(swatch => {
+      swatch.addEventListener('click', (e) => {
+        e.preventDefault();
+        const idx = parseInt(swatch.getAttribute('data-idx'));
+        this.selectedVariantIndex = idx;
+        this.selectedColor = productColors[idx]?.name || productColors[0].name;
+
+        shadow.querySelectorAll('.swatches .swatch').forEach((s, i) => {
+          s.classList.toggle('active', i === idx);
+        });
+
+        const labelEl = shadow.getElementById('pdpSelectedVariantLabel');
+        if (labelEl) labelEl.textContent = this.selectedColor;
+
+        updatePriceDisplay();
+      });
+    });
+
+    // Quantity controls (in-place update)
+    const qtyOutput = shadow.getElementById('pdpQtyOutput');
+    const qtyDec = shadow.getElementById('pdpQtyDec');
+    const qtyInc = shadow.getElementById('pdpQtyInc');
+
+    if (qtyDec && qtyInc) {
+      qtyDec.addEventListener('click', (e) => {
+        e.preventDefault();
+        if ((this.pdpQuantity || 1) > 1) {
+          this.pdpQuantity = (this.pdpQuantity || 1) - 1;
+          if (qtyOutput) qtyOutput.textContent = this.pdpQuantity;
+          updatePriceDisplay();
+        }
+      });
+      qtyInc.addEventListener('click', (e) => {
+        e.preventDefault();
+        if ((this.pdpQuantity || 1) < (p.stock || 20)) {
+          this.pdpQuantity = (this.pdpQuantity || 1) + 1;
+          if (qtyOutput) qtyOutput.textContent = this.pdpQuantity;
+          updatePriceDisplay();
         }
       });
     }
 
-    // Breadcrumbs
-    shadow.getElementById('crumb-home').addEventListener('click', () => {
-      this.currentPage = 'home';
-      this.renderPageContent();
-      window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
-    });
+    // Add to Cart Handlers
+    const handleAddToCart = (btnEl) => {
+      const addedProduct = { 
+        ...p,
+        selectedColor: this.selectedColor,
+        quantity: this.pdpQuantity || 1
+      };
 
-    shadow.getElementById('crumb-catalog').addEventListener('click', () => {
-      this.currentPage = 'catalog';
-      this.currentCategory = 'All';
-      this.renderPageContent();
-      window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog', category: 'All' } }));
-    });
-
-    shadow.getElementById('crumb-cat-name').addEventListener('click', () => {
-      this.currentPage = 'catalog';
-      this.currentCategory = product.category;
-      this.renderPageContent();
-      window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog', category: product.category } }));
-    });
-
-    // Thumbnails
-    shadow.querySelectorAll('.pdp-thumb-card').forEach(thumb => {
-      thumb.addEventListener('click', () => {
-        shadow.querySelectorAll('.pdp-thumb-card').forEach(t => t.classList.remove('active'));
-        thumb.classList.add('active');
-        this.activeThumbnailIdx = parseInt(thumb.getAttribute('data-index'));
-      });
-    });
-
-    // Wishlist
-    shadow.getElementById('pdp-wish-btn').addEventListener('click', () => {
-      this.addToWishlist(product);
-    });
-    shadow.getElementById('pdp-wish-side-btn').addEventListener('click', () => {
-      this.addToWishlist(product);
-    });
-
-    // Share
-    shadow.getElementById('pdp-share-btn').addEventListener('click', () => {
-      const shareUrl = `${window.location.origin}${window.location.pathname}?product=${product.id}`;
-      
-      if (navigator.share) {
-        navigator.share({
-          title: product.name,
-          text: `Check out the ${product.name} on SWEETOS!`,
-          url: shareUrl
-        }).catch(() => {
-          // Fallback if browser share fails/is cancelled
-          navigator.clipboard.writeText(shareUrl).then(() => {
-            window.dispatchEvent(new CustomEvent('toast:show', { detail: `Link to "${product.name}" copied to clipboard! 🔗` }));
-          });
-        });
-      } else {
-        // Clipboard fallback
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Link to "${product.name}" copied to clipboard! 🔗` }));
-        });
-      }
-    });
-
-    // Quantity selectors
-    const qtyValEl = shadow.getElementById('pdp-qty-val');
-    shadow.getElementById('pdp-qty-dec').addEventListener('click', () => {
-      if (this.pdpQuantity > 1) {
-        this.pdpQuantity--;
-        qtyValEl.textContent = this.pdpQuantity;
-      }
-    });
-    shadow.getElementById('pdp-qty-inc').addEventListener('click', () => {
-      if (this.pdpQuantity < 34) {
-        this.pdpQuantity++;
-        qtyValEl.textContent = this.pdpQuantity;
-      }
-    });
-
-    // Colors
-    shadow.querySelectorAll('.pdp-color-dot').forEach(dot => {
-      dot.addEventListener('click', () => {
-        shadow.querySelectorAll('.pdp-color-dot').forEach(d => d.classList.remove('active'));
-        shadow.querySelectorAll('.pdp-color-dot').forEach(d => d.innerHTML = '');
-        
-        dot.classList.add('active');
-        this.selectedColor = dot.getAttribute('data-color-name');
-        shadow.getElementById('color-label').textContent = this.selectedColor.toUpperCase();
-        
-        dot.innerHTML = `
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="white" stroke-width="3">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-        `;
-      });
-    });
-
-    // Add to Cart
-    shadow.getElementById('pdp-add-cart-btn').addEventListener('click', () => {
-      const addedProduct = { ...product };
-      for (let i = 0; i < this.pdpQuantity; i++) {
+      for (let i = 0; i < (this.pdpQuantity || 1); i++) {
         window.dispatchEvent(new CustomEvent('cart:add', { detail: addedProduct }));
       }
-    });
+
+      if (btnEl) {
+        btnEl.classList.add('done');
+        btnEl.textContent = 'Added ✓';
+        setTimeout(() => {
+          btnEl.classList.remove('done');
+          btnEl.textContent = 'Add to cart →';
+        }, 900);
+      }
+    };
+
+    const addBtn = shadow.getElementById('pdpAddBtn');
+    if (addBtn) addBtn.addEventListener('click', () => handleAddToCart(addBtn));
 
     // Buy Now
-    shadow.getElementById('pdp-buy-now-btn').addEventListener('click', () => {
-      const addedProduct = { ...product };
-      window.dispatchEvent(new CustomEvent('cart:add', { detail: addedProduct }));
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('checkout:start'));
-      }, 100);
-    });
-
-    // Accordions
-    shadow.querySelectorAll('.pdp-accordion-header').forEach(header => {
-      header.addEventListener('click', () => {
-        const section = header.getAttribute('data-section');
-        this.openAccordions[section] = !this.openAccordions[section];
-        
-        const itemEl = header.closest('.pdp-accordion-item');
-        const iconEl = header.querySelector('.accordion-icon');
-        
-        if (this.openAccordions[section]) {
-          itemEl.classList.add('expanded');
-          iconEl.textContent = '×';
-        } else {
-          itemEl.classList.remove('expanded');
-          iconEl.textContent = '+';
-        }
-      });
-    });
-
-    // Toggle Review Form
-    shadow.getElementById('pdp-write-review-btn').addEventListener('click', () => {
-      this.showReviewForm = !this.showReviewForm;
-      const formBox = shadow.getElementById('review-form-box');
-      if (this.showReviewForm) {
-        formBox.classList.add('open');
-        formBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        formBox.classList.remove('open');
-      }
-    });
-
-    // Cancel Review Form
-    shadow.getElementById('review-cancel-btn').addEventListener('click', () => {
-      this.showReviewForm = false;
-      shadow.getElementById('review-form-box').classList.remove('open');
-    });
-
-    // Stars selection
-    const previewStars = shadow.getElementById('preview-stars-display');
-    shadow.querySelectorAll('.interactive-star-icon').forEach(star => {
-      star.addEventListener('click', () => {
-        const value = parseInt(star.getAttribute('data-value'));
-        this.formRating = value;
-        
-        shadow.querySelectorAll('.interactive-star-icon').forEach((s, idx) => {
-          if (idx < value) {
-            s.classList.add('active');
-          } else {
-            s.classList.remove('active');
-          }
-        });
-
-        if (previewStars) {
-          previewStars.textContent = '★ '.repeat(value) + '☆ '.repeat(5 - value);
-        }
-      });
-    });
-
-    // Real-time live review preview input listeners
-    const authorInput = shadow.getElementById('review-author-name');
-    const commentTextarea = shadow.getElementById('review-comment-body');
-    const previewUser = shadow.getElementById('preview-user-display');
-    const previewBody = shadow.getElementById('preview-body-display');
-
-    if (authorInput) {
-      authorInput.addEventListener('input', (e) => {
-        if (previewUser) {
-          previewUser.textContent = e.target.value.trim() || 'Your Name';
-        }
-      });
-    }
-
-    if (commentTextarea) {
-      commentTextarea.addEventListener('input', (e) => {
-        if (previewBody) {
-          previewBody.textContent = e.target.value.trim() ? `"${e.target.value.trim()}"` : '"Share your experience with this product..."';
-        }
-      });
-    }
-
-    // Submit Review
-    shadow.getElementById('review-submit-btn').addEventListener('click', () => {
-      const nameInput = shadow.getElementById('review-author-name');
-      const commentTextarea = shadow.getElementById('review-comment-body');
-      
-      const author = nameInput.value.trim();
-      const body = commentTextarea.value.trim();
-      
-      if (!author) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Please enter your name.' }));
-        nameInput.focus();
-        return;
-      }
-      if (!body) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Please write some review details.' }));
-        commentTextarea.focus();
-        return;
-      }
-
-      const reviews = this.loadProductReviews(product.id, product.rating, product.reviews);
-      reviews.unshift({
-        user: author,
-        rating: this.formRating,
-        comment: body
-      });
-
-      this.saveProductReviews(product.id, reviews);
-      
-      this.showReviewForm = false;
-      this.formRating = 5;
-      
-      this.visibleReviewsCount = Math.max(this.visibleReviewsCount, 5);
-      
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Review submitted successfully! Thank you ⭐' }));
-      this.renderPageContent();
-      
-      setTimeout(() => {
-        const dashboard = this.shadowRoot.querySelector('.pdp-reviews-dashboard-section');
-        if (dashboard) {
-          dashboard.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 300);
-    });
-
-    // See More reviews click
-    const seeMoreReviewsBtn = shadow.getElementById('pdp-see-more-reviews-btn');
-    if (seeMoreReviewsBtn) {
-      seeMoreReviewsBtn.addEventListener('click', () => {
-        this.visibleReviewsCount += 5;
-        this.renderPageContent();
-        
+    const buyNowBtn = shadow.getElementById('pdpBuyNowBtn');
+    if (buyNowBtn) {
+      buyNowBtn.addEventListener('click', () => {
+        handleAddToCart();
         setTimeout(() => {
-          const listArea = this.shadowRoot.querySelector('.reviews-filtered-content-area');
-          if (listArea) {
-            listArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
-          }
-        }, 50);
+          window.dispatchEvent(new CustomEvent('checkout:start'));
+        }, 120);
       });
     }
 
-    // Review Filters
-    shadow.querySelectorAll('.filter-pill-btn').forEach(pill => {
-      pill.addEventListener('click', () => {
-        shadow.querySelectorAll('.filter-pill-btn').forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        this.activeReviewFilter = pill.getAttribute('data-filter');
-        this.visibleReviewsCount = 5; 
-        this.renderPageContent();
-        
-        const dashboardEl = this.shadowRoot.querySelector('.pdp-reviews-dashboard-section');
-        if (dashboardEl) {
-          dashboardEl.scrollIntoView({ behavior: 'auto' });
+    // Wishlist Toggle
+    const wishBtn = shadow.getElementById('pdpWishBtn');
+    if (wishBtn) {
+      wishBtn.addEventListener('click', () => {
+        this.addToWishlist(p);
+        const isNowWished = wishBtn.classList.toggle('on');
+        window.dispatchEvent(new CustomEvent('toast:show', { 
+          detail: isNowWished ? `Added "${p.name}" to wishlist ❤️` : `Removed from wishlist` 
+        }));
+      });
+    }
+
+    // Collection Dropdown Handlers
+    const addColBtn = shadow.getElementById('pdpAddColBtn');
+    const colDropdown = shadow.getElementById('pdp-col-dropdown');
+    const colQuickCreateBtn = shadow.getElementById('pdp-col-modal-quick-btn');
+
+    if (addColBtn && colDropdown) {
+      this.populatePdpColDropdown(p.id);
+
+      addColBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.populatePdpColDropdown(p.id);
+        colDropdown.classList.toggle('open');
+      });
+
+      window.addEventListener('click', (e) => {
+        if (!e.composedPath().includes(colDropdown) && !e.composedPath().includes(addColBtn)) {
+          colDropdown.classList.remove('open');
         }
       });
-    });
-
-    // Scroll to reviews
-    const revLink = shadow.getElementById('reviews-jump-btn');
-    if (revLink) {
-      revLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        const dashboardEl = this.shadowRoot.querySelector('.pdp-reviews-dashboard-section');
-      });
     }
 
-    // Curated Collections Dropdown & Create handlers
-    const colBtn = shadow.getElementById('pdp-add-col-btn');
-    const colDropdown = shadow.getElementById('pdp-col-dropdown');
-    
-    if (colBtn && colDropdown) {
-      colBtn.addEventListener('click', (e) => {
+    if (colQuickCreateBtn) {
+      colQuickCreateBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        colDropdown.classList.toggle('open');
-        this.populatePdpColDropdown(product.id);
-      });
-      
-      // Close dropdown when clicking outside
-      document.addEventListener('click', () => {
-        colDropdown.classList.remove('open');
-      });
-      
-      colDropdown.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-    }
-
-    const createBtn = shadow.getElementById('pdp-col-create-btn');
-    if (createBtn) {
-      createBtn.addEventListener('click', () => {
         if (colDropdown) colDropdown.classList.remove('open');
         this.openCustomCreateModal((name) => {
           const collections = this.loadCustomCollections();
@@ -3552,16 +5062,280 @@ class ProductList extends HTMLElement {
             price: 0,
             originalPrice: 0,
             themeColor: "#0052cc",
-            productIds: [product.id] // seed with current product!
+            productIds: [p.id]
           };
           collections.push(newCol);
           this.saveCustomCollections(collections);
-          window.dispatchEvent(new CustomEvent('toast:show', { 
-            detail: `Created "${name}" and added ${product.name}! 📁` 
-          }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Created collection "${name}" and saved item! 📁` }));
+          this.populatePdpColDropdown(p.id);
         });
       });
     }
+
+    // Share Modal Handlers
+    const shareBtn = shadow.getElementById('pdpShareBtn');
+    const shareModal = shadow.getElementById('pdpShareModal');
+    const shareModalBack = shadow.getElementById('pdpShareModalBack');
+    const shareModalClose = shadow.getElementById('pdpShareModalClose');
+
+    const openShare = () => shareModal && shareModal.classList.add('on');
+    const closeShare = () => shareModal && shareModal.classList.remove('on');
+
+    if (shareBtn) shareBtn.addEventListener('click', openShare);
+    if (shareModalBack) shareModalBack.addEventListener('click', closeShare);
+    if (shareModalClose) shareModalClose.addEventListener('click', closeShare);
+
+    const shareUrl = `${window.location.origin}${window.location.pathname}?product=${p.id}`;
+    const shareText = `Découvrez ${p.name} sur SWEETOS ! ${formatPrice(p.price)}`;
+
+    const fbBtn = shadow.getElementById('pdpShareFacebook');
+    if (fbBtn) {
+      fbBtn.addEventListener('click', () => {
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, 'share', 'width=600,height=500');
+        closeShare();
+      });
+    }
+
+    const twBtn = shadow.getElementById('pdpShareTwitter');
+    if (twBtn) {
+      twBtn.addEventListener('click', () => {
+        window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`, 'share', 'width=600,height=500');
+        closeShare();
+      });
+    }
+
+    const liBtn = shadow.getElementById('pdpShareLinkedIn');
+    if (liBtn) {
+      liBtn.addEventListener('click', () => {
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`, 'share', 'width=600,height=500');
+        closeShare();
+      });
+    }
+
+    const waBtn = shadow.getElementById('pdpShareWhatsApp');
+    if (waBtn) {
+      waBtn.addEventListener('click', () => {
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`, '_blank');
+        closeShare();
+      });
+    }
+
+    const nativeShare = shadow.getElementById('pdpShareNative');
+    if (nativeShare) {
+      if (!navigator.share) nativeShare.style.display = 'none';
+      nativeShare.addEventListener('click', async () => {
+        closeShare();
+        if (navigator.share) {
+          const shareData = { title: p.name, text: shareText, url: shareUrl };
+          if (p.image) {
+            try {
+              const res = await fetch(p.image);
+              const blob = await res.blob();
+              const file = new File([blob], 'product.jpg', { type: blob.type || 'image/jpeg' });
+              if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                shareData.files = [file];
+              }
+            } catch(e) {}
+          }
+          navigator.share(shareData).catch(() => {});
+        }
+      });
+    }
+
+    // Accordions
+    shadow.querySelectorAll('.pdp-acc-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.acc-item');
+        const isOpen = item.classList.contains('open');
+        shadow.querySelectorAll('#pdpAccordion .acc-item').forEach(el => el.classList.remove('open'));
+        if (!isOpen) item.classList.add('open');
+      });
+    });
+
+    // In-place review cards & summary renderer
+    const renderReviewsInPlace = (filterVal = 'all') => {
+      this.activeReviewFilter = filterVal;
+      shadow.querySelectorAll('.reviews .filters .pill').forEach(pill => {
+        pill.classList.toggle('active', pill.getAttribute('data-filter') === filterVal);
+      });
+
+      const reviews = this.loadProductReviews(p.id);
+      const totalCount = reviews.length;
+      const avgRating = totalCount > 0 
+        ? (reviews.reduce((sum, r) => sum + Number(r.rating || 5), 0) / totalCount).toFixed(1) 
+        : (p.rating ? p.rating.toFixed(1) : "4.8");
+
+      // Update count & avg displays in DOM
+      const countTitle = shadow.getElementById('pdpReviewCountTitle');
+      if (countTitle) countTitle.textContent = totalCount;
+
+      const jumpLink = shadow.getElementById('pdpReviewJumpLink');
+      if (jumpLink) jumpLink.textContent = `${totalCount} reviews`;
+
+      const scoreEl = shadow.querySelector('.rev-score b');
+      if (scoreEl) scoreEl.textContent = avgRating;
+
+      const scoreStars = shadow.querySelector('.rev-score .stars');
+      if (scoreStars) scoreStars.innerHTML = this.getPdpStarsSvg(avgRating, 16);
+
+      const basedOn = shadow.querySelector('.rev-score div span:last-child');
+      if (basedOn) basedOn.textContent = `Based on ${totalCount} reviews`;
+
+      // Recalculate star bar percentages
+      const starCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+      reviews.forEach(r => {
+        const score = Math.round(Number(r.rating) || 5);
+        if (starCounts[score] !== undefined) starCounts[score]++;
+      });
+      [5, 4, 3, 2, 1].forEach((stars, sIdx) => {
+        const pct = totalCount > 0 ? Math.round((starCounts[stars] / totalCount) * 100) : (stars === 5 ? 85 : stars === 4 ? 12 : 3);
+        const fillEl = shadow.querySelectorAll('.bars .bar-fill')[sIdx];
+        const pctEl = shadow.querySelectorAll('.bars .bar-row span:last-child')[sIdx];
+        if (fillEl) fillEl.style.width = `${pct}%`;
+        if (pctEl) pctEl.textContent = `${pct}%`;
+      });
+
+      // Filter reviews
+      const filtered = reviews.filter(r => {
+        if (filterVal === 'all') return true;
+        return String(Math.round(Number(r.rating) || 5)) === filterVal;
+      });
+
+      const cardsContainer = shadow.getElementById('pdpReviewCardsContainer');
+      if (cardsContainer) {
+        cardsContainer.innerHTML = filtered.length > 0 ? filtered.map(r => `
+          <article class="rev-card">
+            <div class="rev-top">
+              <span class="ava" style="background: #1F6FEB;">${(r.user || 'User').substring(0, 2).toUpperCase()}</span>
+              <div class="rev-who">
+                <b>${r.user || 'Client Vérifié'}</b>
+                <span>${r.date || 'Recent'}</span>
+              </div>
+              <span class="verif">✓ Verified</span>
+            </div>
+            <span class="stars">${this.getPdpStarsSvg(r.rating, 13)}</span>
+            <h4>${r.title || 'Excellent Quality'}</h4>
+            <p>${r.comment || ''}</p>
+          </article>
+        `).join('') : `
+          <div style="grid-column: 1/-1; text-align: center; color: var(--ink-soft); padding: 30px; background: var(--card); border-radius: var(--r); border: 1px solid var(--line);">
+            No reviews in this category yet. Be the first to share your thoughts!
+          </div>
+        `;
+      }
+    };
+
+    // Review Modal & Rating Picker
+    const revModal = shadow.getElementById('pdpReviewModal');
+    const openRevBtn = shadow.getElementById('pdpOpenReviewModalBtn');
+    const closeRevBtn = shadow.getElementById('pdpReviewModalClose');
+    const backRevBtn = shadow.getElementById('pdpReviewModalBack');
+
+    let currentRatingPick = 5;
+    const ratingHints = ['', 'Poor', 'Fair', 'Good', 'Great', 'Legendary'];
+    const ratingHintEl = shadow.getElementById('pdpRatingHint');
+
+    const updateStarPick = (val) => {
+      currentRatingPick = val;
+      shadow.querySelectorAll('#pdpStarPick button').forEach((b, idx) => {
+        b.classList.toggle('lit', idx < val);
+      });
+      if (ratingHintEl) ratingHintEl.textContent = ratingHints[val] || '';
+    };
+
+    shadow.querySelectorAll('#pdpStarPick button').forEach(b => {
+      b.addEventListener('click', () => {
+        const val = parseInt(b.getAttribute('data-star'));
+        updateStarPick(val);
+      });
+    });
+
+    const openRevModal = () => {
+      if (revModal) {
+        revModal.classList.add('on');
+        updateStarPick(5);
+      }
+    };
+    const closeRevModal = () => revModal && revModal.classList.remove('on');
+
+    if (openRevBtn) openRevBtn.addEventListener('click', openRevModal);
+    if (closeRevBtn) closeRevBtn.addEventListener('click', closeRevModal);
+    if (backRevBtn) backRevBtn.addEventListener('click', closeRevModal);
+
+    // Review Form Submit (in-place)
+    const revForm = shadow.getElementById('pdpReviewForm');
+    if (revForm) {
+      revForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = shadow.getElementById('pdpRevNameInput').value.trim();
+        const email = shadow.getElementById('pdpRevEmailInput').value.trim();
+        const title = shadow.getElementById('pdpRevTitleInput').value.trim() || 'Excellent Quality';
+        const body = shadow.getElementById('pdpRevBodyInput').value.trim();
+
+        if (!name || !body) return;
+
+        const reviews = this.loadProductReviews(p.id);
+        reviews.unshift({
+          user: name,
+          email: email,
+          title: title,
+          rating: currentRatingPick,
+          comment: body,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          verified: true
+        });
+
+        this.saveProductReviews(p.id, reviews);
+        closeRevModal();
+        revForm.reset();
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Review submitted successfully! Thank you ⭐' }));
+        renderReviewsInPlace(this.activeReviewFilter || 'all');
+      });
+    }
+
+    // Review Filter Pills (in-place update)
+    shadow.querySelectorAll('.reviews .filters .pill').forEach(pill => {
+      pill.addEventListener('click', (e) => {
+        e.preventDefault();
+        const filterVal = pill.getAttribute('data-filter');
+        renderReviewsInPlace(filterVal);
+      });
+    });
+
+    // Jump to reviews link
+    const jumpLink = shadow.getElementById('pdpReviewJumpLink');
+    if (jumpLink) {
+      jumpLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        const revSec = shadow.getElementById('pdpReviewsSection');
+        if (revSec) revSec.scrollIntoView({ behavior: 'smooth' });
+      });
+    }
+
+    // Related cards and + buttons
+    shadow.querySelectorAll('.rel-card').forEach(card => {
+      const prodId = parseInt(card.getAttribute('data-prod-id'));
+      const addBtn = card.querySelector('.rel-add');
+
+      if (addBtn) {
+        addBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetProd = this.products.find(item => item.id === prodId);
+          if (targetProd) {
+            window.dispatchEvent(new CustomEvent('cart:add', { detail: targetProd }));
+            window.dispatchEvent(new CustomEvent('toast:show', { detail: `Added "${targetProd.name}" to cart! 🛒` }));
+          }
+        });
+      }
+
+      card.addEventListener('click', () => {
+        this.currentProductId = prodId;
+        this.pdpQuantity = 1;
+        this.selectedVariantIndex = 0;
+        this.renderPageContent();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
   }
 
   // --- Functional Wishlist Event Handlers ---
@@ -3575,6 +5349,42 @@ class ProductList extends HTMLElement {
         this.currentCategory = 'All';
         this.renderPageContent();
         window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'catalog', category: 'All' } }));
+      });
+    }
+
+    const moveAllBtn = shadow.getElementById('wishlist-move-all-btn');
+    if (moveAllBtn) {
+      moveAllBtn.addEventListener('click', () => {
+        const wishlist = this.loadWishlistFromStorage();
+        if (wishlist.length === 0) return;
+        wishlist.forEach(item => {
+          window.dispatchEvent(new CustomEvent('cart:add', { detail: item }));
+        });
+        localStorage.setItem('SWEETOS_wishlist', JSON.stringify([]));
+        window.dispatchEvent(new CustomEvent('wishlist:updated', { detail: [] }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Tous les articles (${wishlist.length}) ont été ajoutés à votre panier ! 🛒` }));
+        this.renderPageContent();
+      });
+    }
+
+    const shareWaBtn = shadow.getElementById('wishlist-share-wa-btn');
+    if (shareWaBtn) {
+      shareWaBtn.addEventListener('click', () => {
+        const wishlist = this.loadWishlistFromStorage();
+        if (wishlist.length === 0) return;
+        const itemsText = wishlist.map(p => `- ${p.name} (${formatPrice(p.price)})`).join('\n');
+        const text = `Découvrez ma liste de souhaits sur SWEETOS 🇨🇮 :\n${itemsText}\n\nCommander sur SWEETOS !`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+      });
+    }
+
+    const clearWishlistBtn = shadow.getElementById('wishlist-clear-btn');
+    if (clearWishlistBtn) {
+      clearWishlistBtn.addEventListener('click', () => {
+        localStorage.setItem('SWEETOS_wishlist', JSON.stringify([]));
+        window.dispatchEvent(new CustomEvent('wishlist:updated', { detail: [] }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Liste de souhaits vidée.' }));
+        this.renderPageContent();
       });
     }
 
@@ -4449,11 +6259,13 @@ class ProductList extends HTMLElement {
           
           try {
             let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
-            const idx = scratchcards.findIndex(sc => sc.id === cardId);
+            const rawCardId = canvas.getAttribute('data-scratchcard-id');
+            const idx = scratchcards.findIndex(sc => String(sc.id) === String(rawCardId));
             if (idx > -1 && !scratchcards[idx].scratched) {
               scratchcards[idx].scratched = true;
               
-              const totalCFA = scratchcards[idx].amount;
+              const card = scratchcards[idx];
+              const totalCFA = card.amount || 0;
               
               const loggedInUserStr = localStorage.getItem('SWEETOS_logged_in_user');
               let userEmail = 'guest@sweetos.com';
@@ -4462,41 +6274,91 @@ class ProductList extends HTMLElement {
                   userEmail = JSON.parse(loggedInUserStr).email;
                 } catch(e) {}
               }
-              
-              let allOrders = [];
-              try {
-                allOrders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
-              } catch(e) {}
-              const qualifyingOrders = allOrders.filter(o => 
-                o.customerEmail === userEmail && 
-                (o.status === 'Livré' || o.status === 'Done') && 
-                parseFloat(o.total) >= 10000
-              );
-              
-              let couponValue = 0;
-              let couponCodePrefix = 'OFF';
-              
-              if (qualifyingOrders.length >= 3) {
-                couponValue = 5;
-                couponCodePrefix = 'LOYAL5';
-              } else if (totalCFA >= 20000 && totalCFA <= 40000) {
-                couponValue = 5;
-                couponCodePrefix = 'SAVE5';
-              } else if (totalCFA >= 50000 && totalCFA <= 100000) {
-                couponValue = 10;
-                couponCodePrefix = 'SAVE10';
-              } else if (totalCFA > 100000 && totalCFA <= 150000) {
-                couponValue = 20;
-                couponCodePrefix = 'SAVE20';
-              } else if (totalCFA > 150000) {
-                couponValue = 30;
-                couponCodePrefix = 'SAVE30';
+
+              // 1. Check if this is a Badge Reward Mystery Box
+              if (card.badgeReward || card.rewardCode) {
+                const wonReward = scratchBadgeReward(userEmail);
+                const rewardCode = wonReward?.code || card.rewardCode || `BADGE5-${Math.floor(1000 + Math.random() * 9000)}`;
+                const uses = wonReward?.remainingUses || 5;
+                scratchcards[idx].scratched = true;
+                scratchcards[idx].couponWon = {
+                  code: rewardCode,
+                  type: 'percentage',
+                  value: 5,
+                  limit: wonReward?.totalUses || uses,
+                  remainingUses: uses,
+                  totalUses: wonReward?.totalUses || uses,
+                  badgeCoupon: true,
+                  expiry: 'Sans expiration',
+                  status: 'active',
+                  description: `5% de réduction (${uses}/${wonReward?.totalUses || uses} utilisations)`
+                };
+                localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+                window.dispatchEvent(new CustomEvent('toast:show', { 
+                  detail: `🎉 FÉLICITATIONS ! Badge gratté avec succès ! Coupon de 5% OFF débloqué (Code: ${rewardCode}) disponible dans votre panier ! 🎟️✨` 
+                }));
+              } 
+              // 2. Check if this box is from Today's Deals with minimum spend requirement
+              else if (card.dealsActive || card.dealsSpent > 0 || card.meetsRequirement) {
+                const dealsCfg = getTodaysDealsConfig();
+                const requiredDealSpend = card.requiredDealSpend || dealsCfg.minSpendForReward || 15000;
+                const dealsSpent = card.dealsSpent || 0;
+                const meetsDealSpend = (dealsSpent >= requiredDealSpend) || Boolean(card.meetsRequirement);
+
+                if (meetsDealSpend) {
+                  // Today's Deals Reward Won!
+                  const pool = dealsCfg.couponPool || { discountPercent: 5 };
+                  const code = `DEAL5-${Math.floor(1000 + Math.random() * 9000)}`;
+                  const expiry14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                  const dealCoupon = {
+                    code: code,
+                    type: 'percentage',
+                    value: pool.discountPercent || 5,
+                    minOrder: 0,
+                    limit: 1,
+                    used: 0,
+                    expiry: expiry14Days,
+                    status: 'active',
+                    description: `Coupon Offre Flash du Jour (Achat ${formatPrice(dealsSpent || totalCFA)} atteint)`
+                  };
+
+                  let adminCoupons = [];
+                  try {
+                    adminCoupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+                  } catch(e) {}
+                  adminCoupons.unshift(dealCoupon);
+                  localStorage.setItem('SWEETOS_coupons', JSON.stringify(adminCoupons));
+
+                  scratchcards[idx].scratched = true;
+                  scratchcards[idx].couponWon = dealCoupon;
+                  localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+
+                  window.dispatchEvent(new CustomEvent('toast:show', { 
+                    detail: `🎉 FÉLICITATIONS ! Palier Offre du Jour atteint ! Coupon de ${dealCoupon.value}% OFF débloqué (Code: ${code}) ! 🎟️✨` 
+                  }));
+                } else {
+                  // Didn't reach the required deal spend
+                  scratchcards[idx].scratched = true;
+                  scratchcards[idx].couponWon = 'lost';
+                  const emptyMessage = `Oups ! Bonne chance pour la prochaine fois ! 🍀 (Pour débloquer ce coupon, achetez pour au moins ${requiredDealSpend.toLocaleString()} FCFA dans les Offres du Jour).`;
+                  scratchcards[idx].emptyMessage = emptyMessage;
+                  localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+                  window.dispatchEvent(new CustomEvent('toast:show', { detail: `📦 ${emptyMessage}` }));
+                }
               }
-              
-              if (couponValue === 0) {
-                scratchcards[idx].couponWon = 'lost';
-                window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Oops! Good luck next time! 😢' }));
-              } else {
+              // 3. Check if customer has unlocked a Level (from 50,000 FCFA up)
+              else if (totalCFA >= 50000) {
+                const customerTier = getCustomerLevel(totalCFA);
+                const couponValue = customerTier.rewardDiscount || customerTier.levelNum || 1;
+                const couponCodePrefix = `LOYAL${couponValue}`;
+
+                // Check Admin Market for active valid coupon
+                let adminCoupons = [];
+                try {
+                  adminCoupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+                } catch(e) {}
+
+                const expiry7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
                 const code = `${couponCodePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
                 const newCoupon = {
                   code: code,
@@ -4505,37 +6367,28 @@ class ProductList extends HTMLElement {
                   minOrder: 5000,
                   limit: 1,
                   used: 0,
-                  expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 days expiry
-                  status: 'active'
+                  scratchedAt: Date.now(),
+                  expiry: expiry7Days,
+                  status: 'active',
+                  description: `${couponValue}% de réduction ${customerTier.label}`
                 };
                 
-                let coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
-                const parentCoupon = coupons.find(c => 
-                  c.status === 'active' && 
-                  c.type === 'percentage' && 
-                  c.value === couponValue &&
-                  c.stock !== undefined
-                );
-                if (parentCoupon) {
-                  parentCoupon.stock = Math.max(0, parentCoupon.stock - 1);
-                  if (parentCoupon.stock === 0) {
-                    parentCoupon.status = 'expired';
-                  }
-                }
-                coupons.unshift(newCoupon);
-                localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
+                adminCoupons.unshift(newCoupon);
+                localStorage.setItem('SWEETOS_coupons', JSON.stringify(adminCoupons));
                 
-                fetch('/api/coupons', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify(coupons)
-                }).catch(e => console.error('Failed to sync won coupon:', e));
-
                 scratchcards[idx].couponWon = newCoupon;
-                window.dispatchEvent(new CustomEvent('toast:show', { detail: `Félicitations ! Vous avez gagné un coupon de ${couponValue}% : ${code} ! 🎉` }));
+                const winMsg = `🎉 Félicitations ! Vous avez débloqué le ${customerTier.label} avec un coupon de ${couponValue}% OFF (Code: ${code}) valable 7 jours ! 🎟️`;
+                window.dispatchEvent(new CustomEvent('toast:show', { detail: winMsg }));
+              } 
+              // 4. Default: No requirements reached -> Oops! Better luck next time!
+              else {
+                scratchcards[idx].couponWon = 'lost';
+                const emptyMessage = 'Oops! Good luck next time! / Oups ! Bonne chance pour la prochaine fois ! 🍀✨';
+                scratchcards[idx].emptyMessage = emptyMessage;
+                localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
+                window.dispatchEvent(new CustomEvent('toast:show', { detail: `📦 ${emptyMessage}` }));
               }
+
               localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
               
               setTimeout(() => {
@@ -4634,14 +6487,37 @@ class ProductList extends HTMLElement {
       });
     }
 
-    // Share to WhatsApp
+    // Share to WhatsApp / Web Share
     const shareBtn = shadow.getElementById('detail-coupon-share-btn');
     if (shareBtn) {
       shareBtn.addEventListener('click', () => {
-        const discountText = coupon.type === 'percentage' ? `${coupon.value}% OFF` : `${coupon.value} OFF`;
-        const message = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${coupon.code}*\nRéduction : *${discountText}*\nDate d'expiration : *${coupon.expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-        window.open(whatsappUrl, '_blank');
+        const discountText = coupon.type === 'percentage' ? `${coupon.value}% OFF` : `${formatPrice(coupon.value)} OFF`;
+        const shareTitle = `🎫 Code Promo SWEETOS: ${coupon.code}`;
+        const shareText = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${coupon.code}*\nRéduction : *${discountText}*\nDate d'expiration : *${coupon.expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
+        
+        const copyToClipboardFallback = () => {
+          navigator.clipboard.writeText(shareText)
+            .then(() => {
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: '📋 Coupon copié dans le presse-papiers ! / Copied to clipboard! 🌟' }));
+            })
+            .catch(() => {
+              const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+              window.open(whatsappUrl, '_blank');
+            });
+        };
+
+        if (navigator.share) {
+          navigator.share({
+            title: shareTitle,
+            text: shareText,
+            url: window.location.origin
+          }).catch(err => {
+            console.log('Error sharing:', err);
+            copyToClipboardFallback();
+          });
+        } else {
+          copyToClipboardFallback();
+        }
       });
     }
   }
@@ -4754,19 +6630,47 @@ class ProductList extends HTMLElement {
         } catch (e) {}
       }
 
+      const avatarData = getCustomerAvatarStyle(profile, 88);
+      const avatarStyle = avatarData.style;
+      const levelColor = avatarData.color;
+
+      const initials = `${(profile.firstName || 'C').charAt(0)}${(profile.lastName || 'U').charAt(0)}`.toUpperCase();
+
       tabArea.innerHTML = `
         <div class="profile-overview-tab animate-in">
           <div class="profile-overview-hero">
-            <div class="profile-avatar-circle">
-              ${profile.firstName.charAt(0)}${profile.lastName.charAt(0)}
-            </div>
-            <div class="profile-hero-info">
-              <div class="profile-hero-name-row">
-                <h3>${profile.firstName} ${profile.lastName}</h3>
-                <span class="vip-member-badge">VIP Premium</span>
+            <div style="position: relative; width: 88px; height: 88px; flex-shrink: 0;">
+              <div class="profile-avatar-circle" style="width: 88px; height: 88px; border-radius: 50%; font-size: 28px; font-weight: 850; display: flex; align-items: center; justify-content: center; position: relative; ${avatarStyle}">
+                ${profile.avatar ? '' : initials}
               </div>
-              <p class="profile-hero-email">${profile.email}</p>
-              <p class="profile-hero-bio">"${profile.bio}"</p>
+              ${renderLevelChevronV(avatarData.level, 26)}
+              <button id="profile-upload-avatar-trigger" title="Changer la photo de profil" style="position: absolute; bottom: 0; right: 0; width: 30px; height: 30px; border-radius: 50%; background: ${levelColor}; color: white; border: 2px solid white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 8px ${levelColor}50; transition: all 0.2s; z-index: 4;">
+                📷
+              </button>
+              <input type="file" id="profile-avatar-file-input" accept="image/*" style="display: none;">
+            </div>
+
+            <div class="profile-hero-info">
+              <div class="profile-hero-name-row" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h3 style="margin: 0; font-size: 22px; font-weight: 850; color: var(--text-dark);">${profile.firstName} ${profile.lastName}</h3>
+                ${renderVerificationBadge(profile.badgeType || 'none', 22)}
+                ${renderLevelPill(profile.level || 'starter')}
+              </div>
+              <p class="profile-hero-email" style="margin: 4px 0 6px 0; color: var(--text-gray); font-size: 13.5px;">${profile.email}</p>
+              <p class="profile-hero-bio" style="margin: 0; font-size: 13.5px; color: var(--text-dark);">"${profile.bio || 'Passionné d’accessoires et de tech setups.'}"</p>
+              
+              ${(() => {
+                const badgeReward = getBadgeRewardCoupon(profile.email);
+                if (badgeReward && badgeReward.remainingUses > 0) {
+                  return `
+                    <div style="margin-top: 10px; display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, rgba(0, 102, 255, 0.08), rgba(0, 180, 216, 0.08)); border: 1.5px dashed #0066ff; padding: 6px 14px; border-radius: 12px; font-size: 12px; color: #0052cc; font-weight: 800;">
+                      <span>🎟️ Coupon Badge 5% OFF : <code style="background: white; padding: 2px 6px; border-radius: 6px; color: #0052cc; font-weight: 900;">${badgeReward.code}</code></span>
+                      <span style="color: #475569; font-weight: 700;">• <strong>${badgeReward.remainingUses}/${badgeReward.totalUses}</strong> utilisations restantes (Sans expiration)</span>
+                    </div>
+                  `;
+                }
+                return '';
+              })()}
             </div>
           </div>
 
@@ -4781,7 +6685,7 @@ class ProductList extends HTMLElement {
             <div class="stat-card">
               <div class="stat-icon dollar">💵</div>
               <div class="stat-nums">
-                <span class="stat-value">$${profile.orders.reduce((sum, o) => sum + o.total, 0).toFixed(2)}</span>
+                <span class="stat-value">${formatPrice(profile.orders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0))}</span>
                 <span class="stat-label">Total Spent</span>
               </div>
             </div>
@@ -4804,7 +6708,11 @@ class ProductList extends HTMLElement {
           <div class="profile-orders-list-panel">
             <h4 class="profile-section-title">Order History & Tracking</h4>
             <div class="orders-list-wrapper">
-              ${profile.orders.map(o => `
+              ${profile.orders.length === 0 ? `
+                <div style="padding: 30px; text-align: center; color: var(--text-gray);">
+                  <span>📦 Aucune commande enregistrée pour le moment.</span>
+                </div>
+              ` : profile.orders.map(o => `
                 <div class="profile-order-row">
                   <div class="order-info-block">
                     <span class="order-id-label">${o.id}</span>
@@ -4817,7 +6725,7 @@ class ProductList extends HTMLElement {
                     <span class="progress-status-text">Delivered on ${o.date}</span>
                   </div>
                   <div class="order-price-block">
-                    <span class="order-total-price">$${o.total.toFixed(2)}</span>
+                    <span class="order-total-price">${formatPrice(o.total)}</span>
                     <button class="order-invoice-btn" data-id="${o.id}">Invoice PDF</button>
                   </div>
                 </div>
@@ -4826,6 +6734,29 @@ class ProductList extends HTMLElement {
           </div>
         </div>
       `;
+
+      // Attach avatar upload listeners
+      const uploadTrigger = tabArea.querySelector('#profile-upload-avatar-trigger');
+      const fileInput = tabArea.querySelector('#profile-avatar-file-input');
+      if (uploadTrigger && fileInput) {
+        uploadTrigger.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (loadEvt) => {
+              const base64 = loadEvt.target.result;
+              profile.avatar = base64;
+              this.saveUserProfile(profile);
+              window.dispatchEvent(new CustomEvent('profile:updated'));
+              window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true } }));
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Photo de profil mise à jour avec succès ! 📷✨' }));
+              this.injectProfileTabContent();
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      }
 
       tabArea.querySelectorAll('.order-invoice-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -4838,8 +6769,29 @@ class ProductList extends HTMLElement {
       tabArea.innerHTML = `
         <div class="profile-settings-tab animate-in">
           <h4 class="profile-section-title">Edit Profile Information</h4>
-          <p class="profile-section-subtitle">Update your personal account credentials and details stored on SWEETOS.</p>
+          <p class="profile-section-subtitle">Update your personal account credentials, photo and details stored on SWEETOS.</p>
           
+          <!-- Avatar Edit Row -->
+          <div style="display: flex; align-items: center; gap: 18px; margin-bottom: 24px; padding: 16px; background: rgba(255,255,255,0.7); border: 1.5px solid var(--border); border-radius: 16px;">
+            <div style="width: 64px; height: 64px; border-radius: 50%; ${profile.avatar ? `background-image: url('${profile.avatar}'); background-size: cover; background-position: center; border: 2px solid #0052cc;` : 'background: linear-gradient(135deg, #0052cc 0%, #00b4d8 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 850;'}">
+              ${profile.avatar ? '' : `${(profile.firstName || 'C').charAt(0)}${(profile.lastName || 'U').charAt(0)}`}
+            </div>
+            <div>
+              <div style="display: flex; gap: 8px; margin-bottom: 4px;">
+                <button type="button" id="settings-upload-avatar-btn" style="background: var(--primary); color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer;">
+                  📷 Importer une photo
+                </button>
+                ${profile.avatar ? `
+                  <button type="button" id="settings-remove-avatar-btn" style="background: transparent; color: var(--red); border: 1px solid var(--red); padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 750; cursor: pointer;">
+                    Supprimer
+                  </button>
+                ` : ''}
+              </div>
+              <small style="color: var(--text-gray); font-size: 11.5px;">Formats acceptés : JPG, PNG, WEBP (Max 5 Mo).</small>
+              <input type="file" id="settings-avatar-file-input" accept="image/*" style="display: none;">
+            </div>
+          </div>
+
           <form class="profile-settings-form" id="profile-edit-form">
             <div class="form-row-2">
               <div class="form-group">
@@ -4865,7 +6817,7 @@ class ProductList extends HTMLElement {
 
             <div class="form-group">
               <label for="prof-bio">Short Biography</label>
-              <textarea id="prof-bio" rows="4" placeholder="Brief info about your desk setup preferences...">${profile.bio}</textarea>
+              <textarea id="prof-bio" rows="4" placeholder="Brief info about your desk setup preferences...">${profile.bio || ''}</textarea>
             </div>
 
             <button type="submit" class="btn-primary profile-save-submit-btn">Save Changes</button>
@@ -4873,75 +6825,131 @@ class ProductList extends HTMLElement {
         </div>
       `;
 
-      tabArea.getElementById('profile-edit-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const fname = tabArea.getElementById('prof-fname').value.trim();
-        const lname = tabArea.getElementById('prof-lname').value.trim();
-        const email = tabArea.getElementById('prof-email').value.trim();
-        const phone = tabArea.getElementById('prof-phone').value.trim();
-        const bio = tabArea.getElementById('prof-bio').value.trim();
+      const settingsUploadBtn = tabArea.querySelector('#settings-upload-avatar-btn');
+      const settingsFileInput = tabArea.querySelector('#settings-avatar-file-input');
+      const settingsRemoveBtn = tabArea.querySelector('#settings-remove-avatar-btn');
 
-        profile.firstName = fname;
-        profile.lastName = lname;
-        profile.email = email;
-        profile.phone = phone;
-        profile.bio = bio;
+      if (settingsUploadBtn && settingsFileInput) {
+        settingsUploadBtn.addEventListener('click', () => settingsFileInput.click());
+        settingsFileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (loadEvt) => {
+              profile.avatar = loadEvt.target.result;
+              this.saveUserProfile(profile);
+              window.dispatchEvent(new CustomEvent('profile:updated'));
+              window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true } }));
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Photo de profil mise à jour ! 📷' }));
+              this.injectProfileTabContent();
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      }
 
-        this.saveUserProfile(profile);
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Profile updated successfully! ✨' }));
-        
-        window.dispatchEvent(new CustomEvent('profile:updated'));
+      if (settingsRemoveBtn) {
+        settingsRemoveBtn.addEventListener('click', () => {
+          profile.avatar = '';
+          this.saveUserProfile(profile);
+          window.dispatchEvent(new CustomEvent('profile:updated'));
+          window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true } }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Photo de profil supprimée.' }));
+          this.injectProfileTabContent();
+        });
+      }
 
-        this.injectProfileTabContent();
-      });
+      const editForm = this.shadowRoot.getElementById('profile-edit-form');
+      if (editForm) {
+        editForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const fname = (this.shadowRoot.getElementById('prof-fname')?.value || '').trim();
+          const lname = (this.shadowRoot.getElementById('prof-lname')?.value || '').trim();
+          const email = (this.shadowRoot.getElementById('prof-email')?.value || '').trim();
+          const phone = (this.shadowRoot.getElementById('prof-phone')?.value || '').trim();
+          const bio = (this.shadowRoot.getElementById('prof-bio')?.value || '').trim();
+
+          profile.firstName = fname;
+          profile.lastName = lname;
+          profile.email = email;
+          profile.phone = phone;
+          profile.bio = bio;
+
+          this.saveUserProfile(profile);
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Profile updated successfully! ✨' }));
+          
+          window.dispatchEvent(new CustomEvent('profile:updated'));
+
+          this.injectProfileTabContent();
+        });
+      }
 
     } else if (this.activeProfileTab === 'addresses') {
       tabArea.innerHTML = `
         <div class="profile-addresses-tab animate-in">
-          <h4 class="profile-section-title">Saved Shipping Addresses</h4>
-          <p class="profile-section-subtitle">Manage delivery locations and workspace delivery dropoffs.</p>
+          <h4 class="profile-section-title">Adresses de Livraison Enregistrées / Saved Addresses</h4>
+          <p class="profile-section-subtitle">Gérez vos lieux et repères de livraison en Côte d'Ivoire (Abidjan et villes de l'intérieur).</p>
 
           <div class="addresses-grid">
             ${profile.addresses.map(a => `
               <div class="address-item-card glass-panel" data-id="${a.id}">
                 <div class="address-card-header">
-                  <h5>${a.label}</h5>
-                  <button class="address-delete-btn" data-id="${a.id}">Delete</button>
+                  <h5>📍 ${a.label || 'Adresse'}</h5>
+                  <button class="address-delete-btn" data-id="${a.id}">Supprimer</button>
                 </div>
-                <p class="address-street">${a.street}</p>
-                <p class="address-city-zip">${a.city}, ${a.state} ${a.zip}</p>
+                <p class="address-street" style="font-weight: 750; color: #0f172a; margin: 4px 0;">${a.street || ''}</p>
+                <p class="address-city-zip" style="color: #64748b; font-size: 13px; margin: 2px 0;">
+                  ${a.commune ? `${a.commune}, ` : ''}${a.city || 'Abidjan'} • Côte d'Ivoire
+                </p>
+                ${a.phone ? `<p style="font-size: 12px; color: #0052cc; font-weight: 700; margin: 4px 0 0 0;">📞 ${a.phone}</p>` : ''}
               </div>
             `).join('')}
           </div>
 
           <div class="add-address-form-box glass-panel">
-            <h5>Add Shipping Location</h5>
+            <h5 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 850; color: #0f172a;">Ajouter un lieu de livraison (Côte d'Ivoire 🇨🇮)</h5>
             <form class="profile-address-form" id="profile-address-form">
               <div class="form-row-2">
                 <div class="form-group">
-                  <label for="addr-label">Label (e.g. Home, Office)</label>
-                  <input type="text" id="addr-label" placeholder="e.g. Office Layout" autocomplete="off" required>
+                  <label for="addr-label">Libellé (ex: Domicile, Bureau, Studio) *</label>
+                  <input type="text" id="addr-label" placeholder="Ex: Bureau Plateau / Domicile Angré" autocomplete="off" required>
                 </div>
                 <div class="form-group">
-                  <label for="addr-street">Street Address</label>
-                  <input type="text" id="addr-street" placeholder="e.g. 500 High St" autocomplete="street-address" required>
+                  <label for="addr-city">Ville / Région *</label>
+                  <select id="addr-city" required style="padding: 11px 14px; border-radius: 10px; border: 1.5px solid var(--border); font-size: 13.5px; background: white; outline: none; width: 100%; box-sizing: border-box;">
+                    <option value="Abidjan">Abidjan (District Autonome)</option>
+                    <option value="Yamoussoukro">Yamoussoukro</option>
+                    <option value="Bouaké">Bouaké</option>
+                    <option value="San-Pédro">San-Pédro</option>
+                    <option value="Korhogo">Korhogo</option>
+                    <option value="Daloa">Daloa</option>
+                    <option value="Grand-Bassam">Grand-Bassam</option>
+                    <option value="Bingerville">Bingerville</option>
+                    <option value="Autre Ville">Autre Ville de l'Intérieur</option>
+                  </select>
                 </div>
               </div>
-              <div class="form-row-3">
+              <div class="form-row-2">
                 <div class="form-group">
-                  <label for="addr-city">City</label>
-                  <input type="text" id="addr-city" placeholder="Sky City" autocomplete="address-level2" required>
+                  <label for="addr-commune">Commune / Quartier *</label>
+                  <input type="text" id="addr-commune" placeholder="Ex: Cocody Angré 8ème Tranche / Marcory Zone 4 / Plateau" required>
                 </div>
                 <div class="form-group">
-                  <label for="addr-state">State</label>
-                  <input type="text" id="addr-state" placeholder="NY" autocomplete="address-level1" required>
-                </div>
-                <div class="form-group">
-                  <label for="addr-zip">ZIP Code</label>
-                  <input type="text" id="addr-zip" placeholder="10001" autocomplete="postal-code" required>
+                  <label for="addr-street">Rue / Repère précis de livraison *</label>
+                  <input type="text" id="addr-street" placeholder="Ex: Près de la Pharmacie des Grâces, Immeuble Horizon" required>
                 </div>
               </div>
-              <button type="submit" class="btn-primary address-save-btn">Add Address</button>
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="addr-phone">Numéro WhatsApp / Téléphone de réception *</label>
+                  <input type="tel" id="addr-phone" placeholder="Ex: +225 05 00 61 99 23" required>
+                </div>
+                <div class="form-group">
+                  <label for="addr-bp">Boîte Postale / Repère complémentaire (Optionnel)</label>
+                  <input type="text" id="addr-bp" placeholder="Ex: BP 1234 Abidjan 01 (Optionnel)">
+                </div>
+              </div>
+              <button type="submit" class="btn-primary address-save-btn" style="margin-top: 8px;">Enregistrer l'Adresse</button>
             </form>
           </div>
         </div>
@@ -4952,33 +6960,39 @@ class ProductList extends HTMLElement {
           const id = parseInt(btn.getAttribute('data-id'));
           profile.addresses = profile.addresses.filter(a => a.id !== id);
           this.saveUserProfile(profile);
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Address removed.' }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Adresse supprimée.' }));
           this.injectProfileTabContent();
         });
       });
 
-      tabArea.getElementById('profile-address-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const label = tabArea.getElementById('addr-label').value.trim();
-        const street = tabArea.getElementById('addr-street').value.trim();
-        const city = tabArea.getElementById('addr-city').value.trim();
-        const state = tabArea.getElementById('addr-state').value.trim();
-        const zip = tabArea.getElementById('addr-zip').value.trim();
+      const addressForm = this.shadowRoot.getElementById('profile-address-form');
+      if (addressForm) {
+        addressForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const label = (this.shadowRoot.getElementById('addr-label')?.value || '').trim();
+          const city = (this.shadowRoot.getElementById('addr-city')?.value || '').trim();
+          const commune = (this.shadowRoot.getElementById('addr-commune')?.value || '').trim();
+          const street = (this.shadowRoot.getElementById('addr-street')?.value || '').trim();
+          const phone = (this.shadowRoot.getElementById('addr-phone')?.value || '').trim();
+          const bp = (this.shadowRoot.getElementById('addr-bp')?.value || '').trim();
 
-        const newAddr = {
-          id: Date.now(),
-          label,
-          street,
-          city,
-          state,
-          zip
-        };
+          const newAddr = {
+            id: Date.now(),
+            label,
+            street,
+            commune,
+            city,
+            phone,
+            bp
+          };
 
-        profile.addresses.push(newAddr);
-        this.saveUserProfile(profile);
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Address "${label}" added! 📍` }));
-        this.injectProfileTabContent();
-      });
+          if (!profile.addresses) profile.addresses = [];
+          profile.addresses.push(newAddr);
+          this.saveUserProfile(profile);
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Adresse "${label}" ajoutée avec succès ! 📍` }));
+          this.injectProfileTabContent();
+        });
+      }
 
     } else if (this.activeProfileTab === 'security') {
       tabArea.innerHTML = `
@@ -5053,44 +7067,58 @@ class ProductList extends HTMLElement {
         </div>
       `;
 
-      const emailCheck = tabArea.getElementById('pref-email');
-      const smsCheck = tabArea.getElementById('pref-sms');
-      const twoFaCheck = tabArea.getElementById('pref-2fa');
+      const emailCheck = this.shadowRoot.getElementById('pref-email');
+      const smsCheck = this.shadowRoot.getElementById('pref-sms');
+      const twoFaCheck = this.shadowRoot.getElementById('pref-2fa');
 
       const savePrefs = () => {
-        profile.marketingEmails = emailCheck.checked;
-        profile.smsUpdates = smsCheck.checked;
-        profile.twoFactor = twoFaCheck.checked;
+        if (emailCheck) profile.marketingEmails = emailCheck.checked;
+        if (smsCheck) profile.smsUpdates = smsCheck.checked;
+        if (twoFaCheck) profile.twoFactor = twoFaCheck.checked;
         this.saveUserProfile(profile);
       };
 
-      emailCheck.addEventListener('change', () => {
-        savePrefs();
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Notification preferences saved.' }));
-      });
-      smsCheck.addEventListener('change', () => {
-        savePrefs();
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'SMS alert settings updated.' }));
-      });
-      twoFaCheck.addEventListener('change', () => {
-        savePrefs();
-        const msg = profile.twoFactor ? 'Two-Factor verification activated! 🛡ï¸' : 'Two-Factor verification deactivated.';
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: msg }));
-      });
+      if (emailCheck) {
+        emailCheck.addEventListener('change', () => {
+          savePrefs();
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Notification preferences saved.' }));
+        });
+      }
+      if (smsCheck) {
+        smsCheck.addEventListener('change', () => {
+          savePrefs();
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'SMS alert settings updated.' }));
+        });
+      }
+      if (twoFaCheck) {
+        twoFaCheck.addEventListener('change', () => {
+          savePrefs();
+          const msg = profile.twoFactor ? 'Two-Factor verification activated! 🛡️' : 'Two-Factor verification deactivated.';
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: msg }));
+        });
+      }
 
-      tabArea.getElementById('theme-apply-btn').addEventListener('click', () => {
-        const theme = tabArea.getElementById('theme-selector').value;
-        profile.theme = theme;
-        this.saveUserProfile(profile);
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Accent palette shifted to "${theme}"!` }));
-      });
+      const themeBtn = this.shadowRoot.getElementById('theme-apply-btn');
+      if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+          const theme = this.shadowRoot.getElementById('theme-selector')?.value || 'Ice Blue';
+          profile.theme = theme;
+          this.saveUserProfile(profile);
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Accent palette shifted to "${theme}"!` }));
+        });
+      }
 
-      tabArea.getElementById('password-change-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        tabArea.getElementById('pass-current').value = '';
-        tabArea.getElementById('pass-new').value = '';
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Password updated successfully! Key secured. 🔑' }));
-      });
+      const passForm = this.shadowRoot.getElementById('password-change-form');
+      if (passForm) {
+        passForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const curr = this.shadowRoot.getElementById('pass-current');
+          const nw = this.shadowRoot.getElementById('pass-new');
+          if (curr) curr.value = '';
+          if (nw) nw.value = '';
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Password updated successfully! Key secured. 🔑' }));
+        });
+      }
     }
   }
 
@@ -5360,12 +7388,10 @@ class ProductList extends HTMLElement {
         <div class="order-compact-meta">
           <span class="meta-item">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line>
-              <line x1="8" y1="2" x2="8" y2="6"></line>
-              <line x1="3" y1="10" x2="21" y2="10"></line>
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            ${o.date}
+            ${formatTimeAgo(o.createdAt || o.date)} • ${o.date}
           </span>
           <span class="meta-item">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -5373,14 +7399,14 @@ class ProductList extends HTMLElement {
               <line x1="3" y1="6" x2="21" y2="6"></line>
               <path d="M16 10a4 4 0 0 1-8 0"></path>
             </svg>
-            ${itemCount} ${itemCount === 1 ? 'item' : 'items'}
+            ${itemCount} ${itemCount === 1 ? 'article' : 'articles'}
           </span>
           <span class="meta-item">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
-            ${profile.firstName} ${profile.lastName}
+            ${profile.firstName || 'Client'} ${profile.lastName || ''}
           </span>
         </div>
 
@@ -6287,26 +8313,8 @@ class ProductList extends HTMLElement {
             })
             .catch(e => console.error('Failed to sync received order status:', e));
 
-          // 5. Generate Mystery Box scratchcard if total >= 2000 CFA
-          const totalCFA = parseFloat(targetOrder.total) || 0;
-          if (totalCFA >= 2000) {
-            try {
-              let scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
-              if (!scratchcards.some(sc => sc.orderId === targetOrder.id)) {
-                scratchcards.push({
-                  id: Date.now() + 1,
-                  orderId: targetOrder.id,
-                  amount: totalCFA,
-                  scratched: false,
-                  couponWon: null,
-                  createdAt: Date.now(),
-                  expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000
-                });
-                localStorage.setItem('SWEETOS_user_scratchcards', JSON.stringify(scratchcards));
-              }
-            } catch(e) {
-              console.error('Failed to create scratchcard on customer side:', e);
-            }
+          // 5. Award Mystery Box upon order Delivery / Confirmation
+          awardMysteryBoxForDeliveredOrder(targetOrder);
             
             // Add customer notifications
             const notifKey = getNotificationsStorageKey();
@@ -6354,15 +8362,14 @@ class ProductList extends HTMLElement {
             
             localStorage.setItem(notifKey, JSON.stringify(customerNotifs));
             window.dispatchEvent(new CustomEvent('notifications:updated'));
-          }
 
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order marked as Received! Thank you! 🎁' }));
-          overlay.classList.remove('open');
-          this.injectOrdersDashboardList();
-        }
-      });
+            window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order marked as Received! Thank you! 🎁' }));
+            overlay.classList.remove('open');
+            this.injectOrdersDashboardList();
+          }
+        });
+      }
     }
-  }
 
 
   isTimelineStepActive(status, step) {
@@ -6508,28 +8515,42 @@ class ProductList extends HTMLElement {
 
     const collections = this.loadCustomCollections();
     if (collections.length === 0) {
-      list.innerHTML = `<div style="padding: 10px 14px; font-size: 12px; color: var(--text-light); text-align: center;">No collections yet.</div>`;
+      list.innerHTML = `<div style="padding: 14px; font-size: 12px; color: var(--ink-soft); text-align: center;">No collections yet.<br><span style="font-size: 11px; color: var(--accent); font-weight: 700;">Click + above to create one</span></div>`;
       return;
     }
 
     collections.forEach(col => {
+      const isInside = col.productIds && col.productIds.includes(productId);
       const btn = document.createElement('button');
       btn.className = 'col-dropdown-item';
-      btn.textContent = col.name;
+      btn.style.display = 'flex';
+      btn.style.justifyContent = 'space-between';
+      btn.style.alignItems = 'center';
+      btn.style.padding = '10px 14px';
+      btn.style.border = 'none';
+      btn.style.background = 'none';
+      btn.style.cursor = 'pointer';
+      btn.style.width = '100%';
+      btn.style.fontSize = '13px';
+      btn.innerHTML = `
+        <span style="font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;">📁 ${col.name}</span>
+        <span style="font-size: 11px; font-weight: 700; color: ${isInside ? 'var(--accent)' : 'var(--ink-soft)'};">${isInside ? '✓ Saved' : '+ Add'}</span>
+      `;
       btn.addEventListener('click', () => {
-        if (!col.productIds.includes(productId)) {
+        if (!isInside) {
           col.productIds.push(productId);
           this.saveCustomCollections(collections);
           window.dispatchEvent(new CustomEvent('toast:show', { 
-            detail: `Added to "${col.name}"! 📁` 
+            detail: `Saved to "${col.name}"! 📁` 
           }));
         } else {
+          col.productIds = col.productIds.filter(id => id !== productId);
+          this.saveCustomCollections(collections);
           window.dispatchEvent(new CustomEvent('toast:show', { 
-            detail: `Already in "${col.name}"!` 
+            detail: `Removed from "${col.name}".` 
           }));
         }
-        const dropdown = this.shadowRoot.getElementById('pdp-col-dropdown');
-        if (dropdown) dropdown.classList.remove('open');
+        this.populatePdpColDropdown(productId);
       });
       list.appendChild(btn);
     });
@@ -6626,25 +8647,34 @@ class ProductList extends HTMLElement {
     const contentArea = this.shadowRoot.getElementById('page-content');
     if (!contentArea) return;
 
+    const config = getMoreToLoveConfig();
+    if (config.enabled === false) return;
+
     const wrapper = document.createElement('div');
     wrapper.className = 'more-to-love-recommendations-section animate-in';
-    wrapper.style.marginTop = '60px';
-    wrapper.style.borderTop = '1.5px solid var(--border)';
-    wrapper.style.paddingTop = '40px';
-    wrapper.style.marginBottom = '20px';
+    wrapper.style.maxWidth = '1280px';
+    wrapper.style.margin = '40px auto 30px';
+    wrapper.style.padding = '0 24px';
+    wrapper.style.boxSizing = 'border-box';
+    wrapper.style.width = '100%';
     
     wrapper.innerHTML = `
-      <div class="section-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-        <h3 class="section-title" style="font-size: 20px; font-weight: 800; color: var(--text-dark); margin: 0;">More to Love</h3>
-        <button class="view-all-btn" id="global-more-love-view-all" style="font-size: 13px; font-weight: 700; color: var(--primary); background: none; border: none; cursor: pointer;">View All →</button>
+      <div class="section-header" style="margin-bottom: 22px; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h3 class="more-to-love-title" style="margin: 0; font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: clamp(24px, 3.2vw, 32px); line-height: 1.15; color: var(--text-dark, #0A2540); letter-spacing: -0.015em;">
+            More to <em style="font-style: italic; color: #1F6FEB; font-family: 'Fraunces', Georgia, serif;">love.</em>
+          </h3>
+          ${config.subtitle ? `<p style="margin: 6px 0 0 0; font-size: 13.5px; color: var(--text-gray, #5A6B84); font-weight: 500;">${config.subtitle}</p>` : ''}
+        </div>
+        <button class="view-all-btn" id="global-more-love-view-all" style="font-size: 13px; font-weight: 700; color: #1F6FEB; background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 6px 0;">View All →</button>
       </div>
       <div class="home-grid-4" id="global-more-to-love-grid"></div>
     `;
     
     contentArea.appendChild(wrapper);
 
-    const moreToLoveIds = [7, 8, 11, 12, 17, 18, 23, 24];
-    const moreToLove = this.products.filter(p => moreToLoveIds.includes(p.id));
+    const productMap = new Map(this.products.map(p => [p.id, p]));
+    const moreToLove = (config.productIds || []).map(id => productMap.get(id)).filter(Boolean);
     const gridMore = this.shadowRoot.getElementById('global-more-to-love-grid');
     if (gridMore) {
       moreToLove.forEach(p => {

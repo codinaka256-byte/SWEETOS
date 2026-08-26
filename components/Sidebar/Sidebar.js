@@ -9,9 +9,27 @@ class Sidebar extends HTMLElement {
     this.setupEventListeners();
     this.updateAuthLink();
     this.syncActivePage();
+    this.syncBadges();
     
     window.addEventListener('auth:changed', () => {
       this.updateAuthLink();
+      this.syncBadges();
+    });
+
+    window.addEventListener('wishlist:updated', () => {
+      this.syncBadges();
+    });
+
+    window.addEventListener('orders:updated', () => {
+      this.syncBadges();
+    });
+
+    window.addEventListener('notifications:updated', () => {
+      this.syncBadges();
+    });
+
+    window.addEventListener('storage', () => {
+      this.syncBadges();
     });
   }
 
@@ -29,11 +47,111 @@ class Sidebar extends HTMLElement {
     });
   }
 
+  syncBadges() {
+    const shadow = this.shadowRoot;
+
+    // 1. Real Customer Orders badge (Shows real in-transit / placed orders or total, or nothing if 0)
+    const ordersBadge = shadow.getElementById('sidebar-orders-badge');
+    if (ordersBadge) {
+      const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
+      let userOrders = [];
+      if (loggedIn) {
+        try {
+          const userEmail = JSON.parse(loggedIn).email;
+          const allOrders = JSON.parse(localStorage.getItem('SWEETOS_all_orders') || '[]');
+          userOrders = allOrders.filter(o => o.customerEmail === userEmail && (o.status || '').toLowerCase() !== 'deleted');
+        } catch(e) {}
+      }
+
+      if (userOrders.length > 0) {
+        const activeOrders = userOrders.filter(o => {
+          const s = (o.status || '').toLowerCase();
+          return s !== 'livré' && s !== 'delivered' && s !== 'done' && s !== 'cancelled';
+        });
+
+        if (activeOrders.length > 0) {
+          ordersBadge.innerHTML = `🚚 ${activeOrders.length}`;
+          ordersBadge.className = 'sidebar-badge orders-badge in-transit';
+          ordersBadge.title = `${activeOrders.length} commande(s) active(s) en cours de livraison`;
+        } else {
+          ordersBadge.innerHTML = `📦 ${userOrders.length}`;
+          ordersBadge.className = 'sidebar-badge orders-badge';
+          ordersBadge.title = `${userOrders.length} commande(s) passée(s)`;
+        }
+        ordersBadge.style.display = 'inline-flex';
+      } else {
+        ordersBadge.style.display = 'none';
+      }
+    }
+
+    // 2. Real Customer Wishlist badge (Shows count if > 0, else completely hidden)
+    const wishBadge = shadow.getElementById('sidebar-wishlist-badge');
+    if (wishBadge) {
+      let wishList = [];
+      try {
+        wishList = JSON.parse(localStorage.getItem('SWEETOS_wishlist') || '[]');
+      } catch(e) {}
+      
+      if (wishList.length > 0) {
+        wishBadge.innerHTML = `❤️ ${wishList.length}`;
+        wishBadge.style.display = 'inline-flex';
+        wishBadge.title = `${wishList.length} article(s) dans vos favoris`;
+      } else {
+        wishBadge.style.display = 'none';
+      }
+    }
+
+    // 3. Real Customer Coupons badge (Unscratched Mystery Cards or Won Active Coupons ONLY!)
+    const couponBadge = shadow.getElementById('sidebar-coupons-badge');
+    if (couponBadge) {
+      const now = Date.now();
+      const today = new Date().toISOString().split('T')[0];
+
+      // A. Real Unscratched Mystery Scratchcards owned by user
+      let unscratchedCount = 0;
+      try {
+        const scratchcards = JSON.parse(localStorage.getItem('SWEETOS_user_scratchcards') || '[]');
+        unscratchedCount = scratchcards.filter(sc => !sc.scratched && (!sc.expiresAt || sc.expiresAt > now)).length;
+      } catch(e) {}
+
+      // B. Real Active Won Coupons owned by user (e.g. LOYAL or SAVE codes)
+      let wonCouponsCount = 0;
+      try {
+        const coupons = JSON.parse(localStorage.getItem('SWEETOS_coupons') || '[]');
+        wonCouponsCount = coupons.filter(c => 
+          c.status === 'active' && 
+          (c.code.startsWith('LOYAL') || c.code.startsWith('SAVE')) &&
+          (!c.expiry || c.expiry >= today)
+        ).length;
+      } catch(e) {}
+
+      if (unscratchedCount > 0) {
+        couponBadge.innerHTML = `🎁 ${unscratchedCount} à gratter`;
+        couponBadge.className = 'sidebar-badge coupon-badge in-transit';
+        couponBadge.style.display = 'inline-flex';
+        couponBadge.title = `${unscratchedCount} boîte(s) mystère prête(s) à être grattée(s) !`;
+      } else if (wonCouponsCount > 0) {
+        couponBadge.innerHTML = `🎟️ ${wonCouponsCount}`;
+        couponBadge.className = 'sidebar-badge coupon-badge';
+        couponBadge.style.display = 'inline-flex';
+        couponBadge.title = `${wonCouponsCount} coupon(s) de réduction actif(s)`;
+      } else {
+        // Nothing active or unscratched -> completely hide!
+        couponBadge.style.display = 'none';
+      }
+    }
+  }
+
   render() {
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="./components/Sidebar/Sidebar.css">
       <aside class="sidebar-wrapper" id="sidebarWrapper">
-        <button class="sidebar-collapse-toggle" id="sidebarToggleBtn" title="Collapse Sidebar">‹</button>
+        <button class="sidebar-collapse-toggle" id="sidebarToggleBtn" title="Collapse Sidebar">
+          <span class="toggle-text">Collapse Menu</span>
+          <svg class="toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
         <nav class="sidebar-nav">
           <a class="sidebar-item active" href="#" data-page="home">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -57,7 +175,7 @@ class Sidebar extends HTMLElement {
               <line x1="7" y1="7" x2="7.01" y2="7"></line>
             </svg>
             <span>Deals</span>
-            <span class="hot-badge">Hot</span>
+            <span class="sidebar-badge hot-badge">🔥 HOT</span>
           </a>
           <a class="sidebar-item" href="#" data-page="new-arrivals">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -98,12 +216,14 @@ class Sidebar extends HTMLElement {
               <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
             <span>My Orders</span>
+            <span class="sidebar-badge orders-badge" id="sidebar-orders-badge" style="display: none;"></span>
           </a>
           <a class="sidebar-item" href="#" data-action="wishlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
             <span>Wishlist</span>
+            <span class="sidebar-badge wishlist-badge" id="sidebar-wishlist-badge" style="display: none;"></span>
           </a>
           <a class="sidebar-item" href="#" data-page="coupons">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -111,6 +231,7 @@ class Sidebar extends HTMLElement {
               <line x1="1" y1="10" x2="23" y2="10"></line>
             </svg>
             <span>Coupons</span>
+            <span class="sidebar-badge coupon-badge" id="sidebar-coupons-badge" style="display: none;"></span>
           </a>
           <a class="sidebar-item" href="#" data-page="about-us">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -144,7 +265,7 @@ class Sidebar extends HTMLElement {
           <h3>Summer Sale</h3>
           <p>Up to 50% Off</p>
           <button class="sidebar-promo-btn">Shop Now</button>
-          <img src="./assets/desk_mat.jpg" alt="Summer Sale Products">
+          <img src="./assets/desk_mat.jpg" alt="Summer Sale Products" loading="lazy">
         </div>
 
         <!-- Sidebar footer help and themes -->
@@ -191,7 +312,6 @@ class Sidebar extends HTMLElement {
       toggleBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const isCollapsed = wrapper.classList.toggle('collapsed');
-        toggleBtn.textContent = isCollapsed ? '›' : '‹';
         toggleBtn.title = isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar';
         
         window.dispatchEvent(new CustomEvent('sidebar:toggle', {
@@ -261,6 +381,7 @@ class Sidebar extends HTMLElement {
           item.classList.remove('active');
         }
       });
+      this.syncBadges();
     });
   }
 

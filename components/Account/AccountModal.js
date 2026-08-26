@@ -110,19 +110,30 @@ class AccountModal extends HTMLElement {
               <div class="orders-list">
                 ${this.orders.length === 0 ? `
                   <p class="no-orders">You haven't placed any orders yet.</p>
-                ` : this.orders.map(order => `
-                  <div class="order-item glass-panel">
-                    <div class="order-header">
-                      <span class="order-id">${order.id}</span>
-                      <span class="order-status delivered">${order.status}</span>
+                ` : this.orders.map(order => {
+                  const statusClass = (() => {
+                    const s = (order.status || '').toLowerCase();
+                    if (s === 'pending' || s === 'placed') return 'pending';
+                    if (s === 'confirm' || s === 'confirmé' || s === 'en cours' || s === 'processing') return 'processing';
+                    if (s === 'shipping' || s === 'shipped') return 'shipping';
+                    if (s === 'done' || s === 'livré' || s === 'delivered') return 'delivered';
+                    if (s === 'cancelled' || s === 'refusé') return 'cancelled';
+                    return 'pending';
+                  })();
+                  return `
+                    <div class="order-item glass-panel">
+                      <div class="order-header">
+                        <span class="order-id">${order.id}</span>
+                        <span class="order-status ${statusClass}">${order.status}</span>
+                      </div>
+                      <div class="order-details-row">
+                        <span class="order-product">${order.items}</span>
+                        <span class="order-price">${formatPrice(Number(order.total))}</span>
+                      </div>
+                      <div class="order-date">${order.date}</div>
                     </div>
-                    <div class="order-details-row">
-                      <span class="order-product">${order.items}</span>
-                      <span class="order-price">${formatPrice(Number(order.total))}</span>
-                    </div>
-                    <div class="order-date">${order.date}</div>
-                  </div>
-                `).join('')}
+                  `;
+                }).join('')}
               </div>
             </div>
           </div>

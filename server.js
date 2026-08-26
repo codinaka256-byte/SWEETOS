@@ -320,6 +320,7 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: 'Invalid orders structure on server' }));
       }
     });
+    return;
   }
 
   // 1g. API: POST /api/broadcast-alert

@@ -1,116 +1,677 @@
 import { formatPrice } from '../../utils/storage.js';
+import { showConfirmModal, showPromptModal } from '../../utils/modal.js';
+
+// Global internal state helpers for filters & selection
+let selectedProductIds = new Set();
+let brandFilter = 'All';
+let sortBy = 'newest';
+
+function getCatAndSubNames(targetCat, allCats) {
+  if (!targetCat || targetCat === 'All') return null;
+  const targetLower = String(targetCat).trim().toLowerCase();
+  const root = (allCats || []).find(c => c && (
+    String(c.name || '').trim().toLowerCase() === targetLower ||
+    String(c.slug || '').trim().toLowerCase() === targetLower ||
+    String(c.id) === String(targetCat)
+  ));
+  const set = new Set([targetLower]);
+  if (root) {
+    if (root.name) set.add(String(root.name).trim().toLowerCase());
+    if (root.slug) set.add(String(root.slug).trim().toLowerCase());
+    const findChildren = (pId, pName) => {
+      (allCats || []).forEach(c => {
+        if (!c || !c.name) return;
+        const pVal = c.parent;
+        const isChild = pVal !== null && pVal !== undefined && pVal !== '' && pVal !== 0 && (
+          String(pVal) === String(pId) ||
+          String(pVal).trim().toLowerCase() === String(pName || '').trim().toLowerCase()
+        );
+        if (isChild) {
+          const cNameLower = String(c.name).trim().toLowerCase();
+          if (!set.has(cNameLower)) {
+            set.add(cNameLower);
+            if (c.slug) set.add(String(c.slug).trim().toLowerCase());
+            findChildren(c.id, c.name);
+          }
+        }
+      });
+    };
+    findChildren(root.id, root.name);
+  }
+  return set;
+}
+
+function isProductInCat(product, targetCat, allCats) {
+  if (!targetCat || targetCat === 'All') return true;
+  if (!product || !product.category) return false;
+  const set = getCatAndSubNames(targetCat, allCats);
+  if (!set) return true;
+  return set.has(String(product.category).trim().toLowerCase());
+}
 
 export function renderAdminProducts(context) {
-  const query = context.searchQuery || '';
+  const query = (context.searchQuery || '').toLowerCase().trim();
   const cat = context.categoryFilter || 'All';
   const stockF = context.stockFilter || 'All';
+  const rawProducts = context.products || [];
   
-  // Filter products list
-  const filteredProducts = context.products.filter(p => {
+  // 1. Filter products list (including subcategories)
+  let filtered = rawProducts.filter(p => {
     if (query) {
-      const q = query.toLowerCase();
-      if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
+      const matchName = (p.name || '').toLowerCase().includes(query);
+      const matchSku = (p.sku || '').toLowerCase().includes(query);
+      const matchBrand = (p.brand || '').toLowerCase().includes(query);
+      const matchCat = (p.category || '').toLowerCase().includes(query);
+      if (!matchName && !matchSku && !matchBrand && !matchCat) return false;
     }
-    if (cat !== 'All' && p.category !== cat) return false;
+    if (cat !== 'All' && !isProductInCat(p, cat, context.categories)) return false;
+    if (brandFilter !== 'All' && p.brand !== brandFilter) return false;
     if (stockF !== 'All') {
-      if (stockF === 'Low Stock' && (p.stock === undefined || p.stock > (p.threshold || 5))) return false;
-      if (stockF === 'Out of Stock' && p.stock !== 0) return false;
+      const stock = p.stock !== undefined ? p.stock : 0;
+      const threshold = p.threshold !== undefined ? p.threshold : 5;
+      if (stockF === 'In Stock' && stock <= threshold) return false;
+      if (stockF === 'Low Stock' && (stock === 0 || stock > threshold)) return false;
+      if (stockF === 'Out of Stock' && stock !== 0) return false;
     }
     return true;
   });
 
+  // 2. Sorting
+  filtered.sort((a, b) => {
+    if (sortBy === 'newest') return (b.id || 0) - (a.id || 0);
+    if (sortBy === 'oldest') return (a.id || 0) - (b.id || 0);
+    if (sortBy === 'price_high') return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+    if (sortBy === 'price_low') return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+    if (sortBy === 'stock_high') return (parseInt(b.stock) || 0) - (parseInt(a.stock) || 0);
+    if (sortBy === 'stock_low') return (parseInt(a.stock) || 0) - (parseInt(b.stock) || 0);
+    if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
+    return 0;
+  });
+
+  // Metrics calculations
+  const totalCount = rawProducts.length;
+  const inStockCount = rawProducts.filter(p => (p.stock || 0) > (p.threshold || 5)).length;
+  const lowStockCount = rawProducts.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= (p.threshold || 5)).length;
+  const outOfStockCount = rawProducts.filter(p => (p.stock || 0) === 0).length;
+  const totalInventoryValue = rawProducts.reduce((sum, p) => sum + ((parseFloat(p.price) || 0) * (parseInt(p.stock) || 0)), 0);
+
   // Pagination bounds
-  const totalItems = filteredProducts.length;
-  const totalPages = Math.ceil(totalItems / context.itemsPerPage) || 1;
-  const startIndex = (context.currentPageIndex - 1) * context.itemsPerPage;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + context.itemsPerPage);
+  const totalItems = filtered.length;
+  const itemsPerPage = context.itemsPerPage || 10;
+  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+  const currentPage = Math.min(context.currentPageIndex || 1, totalPages);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedProducts = filtered.slice(startIndex, startIndex + itemsPerPage);
 
   const isEditing = context.editingProduct !== null;
   const showModal = context.showProductModal;
-  
-  // Pre-fill active status state if editing
   const productStatus = context.editingProduct ? (context.editingProduct.status || 'Active') : (context.productStatus || 'Active');
 
+  const allSelected = paginatedProducts.length > 0 && paginatedProducts.every(p => selectedProductIds.has(p.id));
+
+  // Extract unique brands
+  const savedBrands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
+  const brandNames = Array.from(new Set([...savedBrands.map(b => b.name), ...rawProducts.map(p => p.brand).filter(Boolean)]));
+
   return `
-    <div class="admin-table-filters-bar mb-4" style="margin-bottom: 20px;">
-      <div style="display:flex; gap:12px;">
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" id="product-search" placeholder="Search by name, SKU..." value="${query}" autocomplete="off">
-        </div>
-        
-        <div class="filters-actions">
-          <select id="product-cat-filter">
-            <option value="All" ${cat === 'All' ? 'selected' : ''}>All Categories</option>
-            ${context.categories.map(c => `<option value="${c.name}" ${cat === c.name ? 'selected' : ''}>${c.name}</option>`).join('')}
-          </select>
-          <select id="product-stock-filter">
-            <option value="All" ${stockF === 'All' ? 'selected' : ''}>All Stock Levels</option>
-            <option value="Low Stock" ${stockF === 'Low Stock' ? 'selected' : ''}>Low Stock</option>
-            <option value="Out of Stock" ${stockF === 'Out of Stock' ? 'selected' : ''}>Out of Stock</option>
-          </select>
+    <style>
+      @keyframes pulse-red {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+        70% { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      }
+      .pulse-red-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #ef4444;
+        border-radius: 50%;
+        animation: pulse-red 1.8s infinite;
+      }
+      .products-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .kpi-card {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        transition: all 0.2s ease;
+        backdrop-filter: blur(8px);
+      }
+      .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+      }
+      .kpi-icon-box {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        flex-shrink: 0;
+      }
+      .kpi-title {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 3px;
+        display: block;
+      }
+      .kpi-val {
+        font-size: 22px;
+        font-weight: 850;
+        color: #0f172a;
+        line-height: 1.2;
+      }
+      .product-toolbar {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      }
+      .filter-controls-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        flex: 1;
+      }
+      .clean-search-box {
+        position: relative;
+        min-width: 240px;
+        flex: 1;
+      }
+      .clean-search-box input {
+        width: 100%;
+        padding: 9px 14px 9px 38px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        font-size: 13.5px;
+        font-family: inherit;
+        color: #1e293b;
+        outline: none;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+      }
+      .clean-search-box input:focus {
+        border-color: #0052cc;
+        box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.12);
+      }
+      .clean-search-box svg {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        pointer-events: none;
+      }
+      .select-filter-btn {
+        padding: 9px 14px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        font-family: inherit;
+        outline: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .select-filter-btn:focus, .select-filter-btn:hover {
+        border-color: #0052cc;
+      }
+      .category-pill-list {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        margin-bottom: 16px;
+      }
+      .category-pill-tab {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1.5px solid #e2e8f0;
+        padding: 7px 14px;
+        border-radius: 20px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #475569;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        transition: all 0.2s ease;
+      }
+      .category-pill-tab:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        transform: translateY(-1px);
+      }
+      .category-pill-tab.active {
+        background: #0052cc;
+        color: #ffffff;
+        border-color: #0052cc;
+        box-shadow: 0 4px 12px rgba(0, 82, 204, 0.25);
+      }
+      .category-pill-badge {
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-weight: 800;
+        background: rgba(0, 0, 0, 0.07);
+      }
+      .category-pill-tab.active .category-pill-badge {
+        background: rgba(255, 255, 255, 0.25);
+        color: #ffffff;
+      }
+      .bulk-action-bar {
+        background: #0f172a;
+        color: #ffffff;
+        padding: 10px 18px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        animation: slide-down 0.2s ease;
+        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.15);
+      }
+      @keyframes slide-down {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .bulk-btn {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .bulk-btn:hover {
+        background: rgba(255, 255, 255, 0.22);
+        border-color: rgba(255, 255, 255, 0.35);
+      }
+      .bulk-btn-danger:hover {
+        background: #ef4444;
+        border-color: #ef4444;
+      }
+      .product-table-container {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+      }
+      .product-row-hover:hover {
+        background-color: rgba(241, 245, 249, 0.6) !important;
+      }
+      .stock-stepper-box {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        overflow: hidden;
+      }
+      .stock-stepper-btn {
+        background: #f8fafc;
+        border: none;
+        width: 24px;
+        height: 26px;
+        font-size: 13px;
+        font-weight: 800;
+        color: #475569;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.1s ease;
+      }
+      .stock-stepper-btn:hover {
+        background: #0052cc;
+        color: #ffffff;
+      }
+      .stock-stepper-val {
+        padding: 0 8px;
+        font-size: 12.5px;
+        font-weight: 800;
+        color: #1e293b;
+        min-width: 28px;
+        text-align: center;
+      }
+      .status-toggle-pill {
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 11.5px;
+        font-weight: 800;
+        cursor: pointer;
+        border: 1px solid transparent;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.15s ease;
+      }
+      .status-toggle-pill.active {
+        background: #dcfce7;
+        color: #166534;
+        border-color: #bbf7d0;
+      }
+      .status-toggle-pill.draft {
+        background: #fef3c7;
+        color: #92400e;
+        border-color: #fde68a;
+      }
+      .action-icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .action-icon-btn:hover {
+        background: #0052cc;
+        color: #ffffff;
+        border-color: #0052cc;
+        transform: translateY(-1px);
+      }
+      .action-icon-btn.delete-btn:hover {
+        background: #ef4444;
+        color: #ffffff;
+        border-color: #ef4444;
+      }
+    </style>
+
+    <!-- 1. Products Metrics & KPI Summary Cards -->
+    <div class="products-kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(0, 82, 204, 0.1); color: #0052cc;">📦</div>
+        <div>
+          <span class="kpi-title">Total Catalog</span>
+          <span class="kpi-val">${totalCount} Items</span>
         </div>
       </div>
-      
-      <button class="admin-btn admin-btn-primary" id="add-product-btn">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        <span>Add Product</span>
-      </button>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(34, 197, 94, 0.1); color: #16a34a;">✅</div>
+        <div>
+          <span class="kpi-title">Healthy Stock</span>
+          <span class="kpi-val" style="color: #16a34a;">${inStockCount}</span>
+        </div>
+      </div>
+
+      <div class="kpi-card" style="${lowStockCount > 0 ? 'border-color: #f59e0b; background: rgba(254, 243, 199, 0.3);' : ''}">
+        <div class="kpi-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #d97706;">⚠️</div>
+        <div>
+          <span class="kpi-title" style="display:flex; align-items:center; gap:6px;">
+            Low Stock Alerts ${lowStockCount > 0 ? '<span class="pulse-indicator"></span>' : ''}
+          </span>
+          <span class="kpi-val" style="color: #d97706;">${lowStockCount}</span>
+        </div>
+      </div>
+
+      <div class="kpi-card" style="${outOfStockCount > 0 ? 'border-color: #ef4444; background: rgba(254, 242, 242, 0.4);' : ''}">
+        <div class="kpi-icon-box" style="background: rgba(239, 68, 68, 0.12); color: #dc2626;">❌</div>
+        <div>
+          <span class="kpi-title" style="display:flex; align-items:center; gap:6px;">
+            Out of Stock ${outOfStockCount > 0 ? '<span class="pulse-red-indicator"></span>' : ''}
+          </span>
+          <span class="kpi-val" style="color: #dc2626;">${outOfStockCount}</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(99, 102, 241, 0.1); color: #6366f1;">💎</div>
+        <div>
+          <span class="kpi-title">Catalog Asset Value</span>
+          <span class="kpi-val" style="font-size: 18.5px; color: #6366f1;">${formatPrice(totalInventoryValue)}</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Products Catalog Table -->
-    <div class="admin-table-panel glass-panel">
+    <!-- 2. Category Pill Tabs -->
+    <div class="category-pill-list">
+      <button class="category-pill-tab ${cat === 'All' ? 'active' : ''}" data-cat="All">
+        <span>All Categories</span>
+        <span class="category-pill-badge">${rawProducts.length}</span>
+      </button>
+      ${(context.categories || []).map(c => {
+        const count = rawProducts.filter(p => p.category === c.name).length;
+        return `
+          <button class="category-pill-tab ${cat === c.name ? 'active' : ''}" data-cat="${c.name}">
+            <span>${c.name}</span>
+            <span class="category-pill-badge">${count}</span>
+          </button>
+        `;
+      }).join('')}
+    </div>
+
+    <!-- 3. Toolbar & Multi-Filters -->
+    <div class="product-toolbar">
+      <div class="filter-controls-group">
+        <!-- Live Instant Search -->
+        <div class="clean-search-box">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="product-search-input" placeholder="Search by name, SKU, brand, category..." value="${context.searchQuery || ''}">
+        </div>
+
+        <!-- Stock Filter -->
+        <select class="select-filter-btn" id="product-stock-select" title="Filter by stock">
+          <option value="All" ${stockF === 'All' ? 'selected' : ''}>📦 All Stock Levels</option>
+          <option value="In Stock" ${stockF === 'In Stock' ? 'selected' : ''}>✅ In Stock (> 5)</option>
+          <option value="Low Stock" ${stockF === 'Low Stock' ? 'selected' : ''}>⚠️ Low Stock (1 - 5)</option>
+          <option value="Out of Stock" ${stockF === 'Out of Stock' ? 'selected' : ''}>❌ Out of Stock (0)</option>
+        </select>
+
+        <!-- Brand Filter -->
+        <select class="select-filter-btn" id="product-brand-select" title="Filter by brand">
+          <option value="All" ${brandFilter === 'All' ? 'selected' : ''}>🏷️ All Brands</option>
+          ${brandNames.map(b => `
+            <option value="${b}" ${brandFilter === b ? 'selected' : ''}>${b}</option>
+          `).join('')}
+        </select>
+
+        <!-- Sorting -->
+        <select class="select-filter-btn" id="product-sort-select" title="Sort products">
+          <option value="newest" ${sortBy === 'newest' ? 'selected' : ''}>⚡ Newest First</option>
+          <option value="oldest" ${sortBy === 'oldest' ? 'selected' : ''}>⏳ Oldest First</option>
+          <option value="price_high" ${sortBy === 'price_high' ? 'selected' : ''}>💰 Price: High to Low</option>
+          <option value="price_low" ${sortBy === 'price_low' ? 'selected' : ''}>💵 Price: Low to High</option>
+          <option value="stock_high" ${sortBy === 'stock_high' ? 'selected' : ''}>📦 Stock: High to Low</option>
+          <option value="stock_low" ${sortBy === 'stock_low' ? 'selected' : ''}>⚠️ Stock: Low to High</option>
+          <option value="name_asc" ${sortBy === 'name_asc' ? 'selected' : ''}>🔤 Name: A to Z</option>
+        </select>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="select-filter-btn" id="export-products-csv-btn" style="background:#f8fafc; display:flex; align-items:center; gap:6px;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Export CSV</span>
+        </button>
+
+        <button class="admin-btn admin-btn-primary" id="add-product-btn" style="display:flex; align-items:center; gap:8px; padding:10px 18px;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Add New Product</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. Bulk Actions Bar -->
+    ${selectedProductIds.size > 0 ? `
+      <div class="bulk-action-bar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-weight:800; font-size:13.5px;">✓ ${selectedProductIds.size} product${selectedProductIds.size > 1 ? 's' : ''} selected</span>
+          <button class="bulk-btn" id="bulk-deselect-products-btn" style="background:transparent; border:none; text-decoration:underline; font-size:12px; cursor:pointer;">Clear</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button class="bulk-btn" id="bulk-activate-btn">✓ Mark Active</button>
+          <button class="bulk-btn" id="bulk-draft-btn">⏳ Mark Draft</button>
+          <button class="bulk-btn" id="bulk-restock-btn">📦 Restock (+10)</button>
+          <button class="bulk-btn bulk-btn-danger" id="bulk-delete-products-btn">🗑️ Delete Selected</button>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- 5. Products Data Table -->
+    <div class="product-table-container">
       <div class="table-wrapper">
-        <table>
+        <table style="width:100%; border-collapse:collapse; text-align:left;">
           <thead>
-            <tr>
-              <th>Image</th>
-              <th>Product Name</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Stock</th>
-              <th>Status</th>
-              <th>Actions</th>
+            <tr style="background:#f8fafc; border-bottom:1.5px solid #e2e8f0;">
+              <th style="padding:12px 16px; width:36px; text-align:center;">
+                <input type="checkbox" id="select-all-products-cb" ${allSelected ? 'checked' : ''} style="cursor:pointer; width:16px; height:16px; accent-color:#0052cc;">
+              </th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Product</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">SKU & Brand</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Category</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Price</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Quick Stock</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Status</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody>
             ${paginatedProducts.length === 0 ? `
               <tr>
-                <td colspan="8" class="text-center py-6">No matching products found in the catalog.</td>
+                <td colspan="8" style="padding:48px 20px; text-align:center; color:#94a3b8;">
+                  <div style="font-size:36px; margin-bottom:8px;">🔍</div>
+                  <strong style="font-size:15px; color:#475569; display:block;">No products found</strong>
+                  <span style="font-size:13px;">Try adjusting your search query or filter options.</span>
+                </td>
               </tr>
             ` : paginatedProducts.map(p => {
-              const isLowStock = p.stock !== undefined && p.stock <= (p.threshold || 5);
+              const isChecked = selectedProductIds.has(p.id);
+              const isLowStock = p.stock !== undefined && p.stock <= (p.threshold || 5) && p.stock > 0;
               const isOutOfStock = p.stock === 0;
-              const stockClass = isOutOfStock ? 'badge-danger' : (isLowStock ? 'badge-warning' : 'badge-success');
-              const stockLabel = isOutOfStock ? 'Out of Stock' : (isLowStock ? `${p.stock} Warning` : `${p.stock} Units`);
-              
+              const hasCompare = p.comparePrice && p.comparePrice > p.price;
+              const discountPct = hasCompare ? Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0;
+
               return `
-                <tr class="${isLowStock ? 'low-stock-tr' : ''}">
-                  <td>
-                    <img src="${p.image || './assets/keyboard_1786712380801.jpg'}" class="table-product-thumb" alt="${p.name}">
+                <tr class="product-row-hover" style="border-bottom:1px solid #e2e8f0; transition:all 0.15s ease; ${isChecked ? 'background:#eff6ff;' : ''}">
+                  <!-- Checkbox -->
+                  <td style="padding:14px 16px; text-align:center;">
+                    <input type="checkbox" class="product-select-cb" data-product-id="${p.id}" ${isChecked ? 'checked' : ''} style="cursor:pointer; width:16px; height:16px; accent-color:#0052cc;">
                   </td>
-                  <td><strong>${p.name}</strong></td>
-                  <td><code style="font-weight:700;">${p.sku || 'N/A'}</code></td>
-                  <td>${p.category}</td>
-                  <td><strong>${formatPrice(p.price)}</strong></td>
-                  <td>
-                    <span class="stock-status-badge ${stockClass}">
-                      ${stockLabel}
+
+                  <!-- Product Info -->
+                  <td style="padding:14px 16px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <img src="${p.image || './assets/keyboard_1786712380801.jpg'}" alt="${p.name}" style="width:44px; height:44px; border-radius:10px; object-fit:cover; border:1px solid #e2e8f0; flex-shrink:0;">
+                      <div style="display:flex; flex-direction:column; max-width:260px;">
+                        <a href="#" class="edit-prod-title-link" data-product-id="${p.id}" style="font-size:13.5px; font-weight:800; color:#0f172a; text-decoration:none;">
+                          ${p.name}
+                        </a>
+                        ${p.badge ? `<span style="font-size:10px; font-weight:800; text-transform:uppercase; color:#0052cc; background:#e0f2fe; padding:2px 6px; border-radius:4px; width:fit-content; margin-top:2px;">${p.badge}</span>` : ''}
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- SKU & Brand -->
+                  <td style="padding:14px 16px;">
+                    <div style="display:flex; flex-direction:column; gap:2px;">
+                      <code style="font-size:12px; font-weight:800; color:#0052cc; background:rgba(0,82,204,0.06); padding:2px 6px; border-radius:4px; width:fit-content;">${p.sku || 'N/A'}</code>
+                      <small style="color:#64748b; font-size:11px;">Brand: <strong>${p.brand || 'SWEETOS'}</strong></small>
+                    </div>
+                  </td>
+
+                  <!-- Category -->
+                  <td style="padding:14px 16px;">
+                    <span style="display:inline-block; font-size:12px; font-weight:700; background:#f1f5f9; color:#334155; padding:3px 10px; border-radius:12px; border:1px solid #e2e8f0;">
+                      ${p.category || 'General'}
                     </span>
                   </td>
-                  <td>
-                    <span class="status-badge ${p.status === 'Draft' ? 'status-yellow' : 'status-green'}">
-                      ${p.status || 'Active'}
-                    </span>
+
+                  <!-- Price -->
+                  <td style="padding:14px 16px;">
+                    <div style="display:flex; flex-direction:column;">
+                      <strong style="color:#0f172a; font-size:14px; font-weight:850;">
+                        ${formatPrice(p.price)}
+                      </strong>
+                      ${hasCompare ? `
+                        <div style="display:flex; align-items:center; gap:4px;">
+                          <small style="color:#94a3b8; text-decoration:line-through; font-size:11px;">${formatPrice(p.comparePrice)}</small>
+                          <span style="color:#ef4444; font-size:10px; font-weight:800;">-${discountPct}%</span>
+                        </div>
+                      ` : ''}
+                    </div>
                   </td>
-                  <td>
-                    <div class="row-actions">
-                      <button class="edit-prod-action-btn" data-product-id="${p.id}" title="Edit product settings">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; flex-shrink: 0;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+
+                  <!-- Quick Stock Adjust Stepper -->
+                  <td style="padding:14px 16px;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                      <div class="stock-stepper-box">
+                        <button class="stock-stepper-btn stock-decrement-btn" data-product-id="${p.id}" title="Decrease Stock">-</button>
+                        <span class="stock-stepper-val" style="${isOutOfStock ? 'color:#dc2626;' : (isLowStock ? 'color:#d97706;' : '')}">${p.stock !== undefined ? p.stock : 10}</span>
+                        <button class="stock-stepper-btn stock-increment-btn" data-product-id="${p.id}" title="Increase Stock">+</button>
+                      </div>
+                      ${isOutOfStock ? `
+                        <small style="color:#dc2626; font-size:10.5px; font-weight:800;">Out of Stock</small>
+                      ` : isLowStock ? `
+                        <small style="color:#d97706; font-size:10.5px; font-weight:800;">⚠️ Low (${p.stock})</small>
+                      ` : `
+                        <small style="color:#16a34a; font-size:10.5px; font-weight:700;">In Stock</small>
+                      `}
+                    </div>
+                  </td>
+
+                  <!-- Status Toggle Pill -->
+                  <td style="padding:14px 16px;">
+                    <button class="status-toggle-pill ${p.status === 'Draft' ? 'draft' : 'active'} quick-status-toggle-btn" data-product-id="${p.id}" title="Click to toggle Active/Draft">
+                      <span>${p.status === 'Draft' ? '⏳ Draft' : '✅ Active'}</span>
+                    </button>
+                  </td>
+
+                  <!-- Actions -->
+                  <td style="padding:14px 16px; text-align:right;">
+                    <div style="display:inline-flex; align-items:center; gap:6px;">
+                      <!-- Duplicate -->
+                      <button class="action-icon-btn duplicate-prod-btn" data-product-id="${p.id}" title="Duplicate Product">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                       </button>
-                      <button class="delete-prod-action-btn" data-product-id="${p.id}" title="Delete product">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; flex-shrink: 0;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+
+                      <!-- Edit -->
+                      <button class="action-icon-btn edit-prod-action-btn" data-product-id="${p.id}" title="Edit Product">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                      </button>
+
+                      <!-- Delete -->
+                      <button class="action-icon-btn delete-btn delete-prod-action-btn" data-product-id="${p.id}" title="Delete Product">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                       </button>
                     </div>
                   </td>
@@ -120,183 +681,269 @@ export function renderAdminProducts(context) {
           </tbody>
         </table>
       </div>
-      
-      <!-- Pagination controls -->
-      <div class="pagination-footer">
-        <span class="pagination-info">Showing ${startIndex + 1} to ${Math.min(startIndex + context.itemsPerPage, totalItems)} of ${totalItems} products</span>
-        <div class="pagination-buttons">
-          <button class="pag-btn" id="prev-page-btn" ${context.currentPageIndex === 1 ? 'disabled' : ''}>Previous</button>
-          <span class="page-num">${context.currentPageIndex} / ${totalPages}</span>
-          <button class="pag-btn" id="next-page-btn" ${context.currentPageIndex === totalPages ? 'disabled' : ''}>Next</button>
+
+      <!-- 6. Pagination Footer -->
+      <div class="pagination-footer" style="padding:14px 20px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <span class="pagination-info" style="font-size:13px; color:#64748b; font-weight:600;">
+          Showing <strong>${totalItems === 0 ? 0 : startIndex + 1}</strong> to <strong>${Math.min(startIndex + itemsPerPage, totalItems)}</strong> of <strong>${totalItems}</strong> products
+        </span>
+        <div class="pagination-buttons" style="display:flex; align-items:center; gap:8px;">
+          <button class="pag-btn" id="prev-page-btn" ${currentPage <= 1 ? 'disabled' : ''} style="padding:6px 14px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:12.5px; font-weight:700; cursor:pointer;">Previous</button>
+          <span style="font-size:13px; font-weight:750; color:#334155; padding:0 6px;">${currentPage} / ${totalPages}</span>
+          <button class="pag-btn" id="next-page-btn" ${currentPage >= totalPages ? 'disabled' : ''} style="padding:6px 14px; border-radius:8px; border:1px solid #cbd5e1; background:#ffffff; font-size:12.5px; font-weight:700; cursor:pointer;">Next</button>
         </div>
       </div>
     </div>
 
-    <!-- Product CRUD Modal overlay (Modern dark-slate multi-column upload theme) -->
+    <!-- 7. Advanced & Simple Product CRUD Modal Overlay -->
     <div class="modal-backdrop ${showModal ? 'show' : ''}" id="prod-crud-modal">
-      <div class="modal-wrapper product-form-dark-wrapper glass-panel animate-in">
+      <div class="modal-wrapper product-form-dark-wrapper glass-panel animate-in" style="max-width: 900px; width: 95%;">
+        
         <!-- Modal Header -->
-        <div class="modal-header-modern">
-          <button class="back-circle-btn" id="close-prod-modal-btn" title="Back to list">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; display: block;">
-              <line x1="19" y1="12" x2="5" y2="12"></line>
-              <polyline points="12 19 5 12 12 5"></polyline>
-            </svg>
-          </button>
-          <div>
-            <h3 style="text-transform: uppercase;">${isEditing ? 'Edit Product Details' : 'Add New Product'}</h3>
-            <p>Fill in the details below</p>
+        <div class="modal-header-modern" style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <button class="back-circle-btn" id="close-prod-modal-btn" title="Back to list">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <div>
+              <h3 style="margin:0; font-size:18px; font-weight:850; color:#ffffff;">
+                ${isEditing ? `Edit Product: ${context.editingProduct.name}` : 'Create New Product'}
+              </h3>
+              <p style="margin:2px 0 0 0; font-size:12.5px; color:#94a3b8;">Fill out catalog specifications and pricing</p>
+            </div>
           </div>
+
+          <!-- Quick status switcher in header -->
+          <div class="status-button-toggle" style="margin:0;">
+            <button type="button" class="status-toggle-option ${productStatus === 'Active' ? 'active' : ''}" id="status-active-btn" style="padding:6px 14px; font-size:12px;">Active</button>
+            <button type="button" class="status-toggle-option ${productStatus === 'Draft' ? 'active' : ''}" id="status-draft-btn" style="padding:6px 14px; font-size:12px;">Draft</button>
+          </div>
+          <input type="hidden" id="prod-status-val" value="${productStatus}">
         </div>
         
-        <!-- Modal Body with Two Columns -->
-        <div class="modal-body-modern custom-scroll">
+        <!-- Modal Body -->
+        <div class="modal-body-modern custom-scroll" style="max-height:76vh; overflow-y:auto; padding-right:6px;">
           <form id="prod-crud-form" class="product-modern-form">
-            <!-- Left Column -->
+            
+            <!-- LEFT COLUMN: Core Details, Pricing, Inventory -->
             <div class="form-col-left">
               
+              <!-- Product Title -->
               <div class="form-group-modern">
-                <label>PRODUCT NAME *</label>
-                <input type="text" id="prod-name" required placeholder="e.g. MacBook Pro M3 Max" autocomplete="off" value="${isEditing ? context.editingProduct.name : ''}">
+                <label>Product Title / Name *</label>
+                <input type="text" id="prod-name" required placeholder="e.g. Ergonomic Split Mechanical Keyboard" autocomplete="off" value="${isEditing ? (context.editingProduct.name || '') : ''}">
               </div>
 
-              <div style="display:flex; gap:20px;">
-                <div class="form-group-modern flex-1">
-                  <label>SALE PRICE *</label>
-                  <div class="price-input-wrapper">
-                    <span class="currency-prefix">$</span>
-                    <input type="number" id="prod-price" required step="0.01" placeholder="0.00" min="0" value="${isEditing ? context.editingProduct.price : ''}">
+              <!-- Category & Brand -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-group-modern">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>Category *</label>
+                    <button type="button" id="quick-add-cat-btn" style="background:transparent; border:none; color:#38bdf8; font-size:11px; font-weight:750; cursor:pointer;">+ New</button>
                   </div>
-                </div>
-                <div class="form-group-modern flex-1">
-                  <label>% ORIGINAL PRICE</label>
-                  <input type="number" id="prod-compare-price" step="0.01" placeholder="0.00" value="${isEditing && context.editingProduct.comparePrice ? context.editingProduct.comparePrice : ''}">
-                </div>
-              </div>
-
-              <div style="display:flex; gap:20px;">
-                <div class="form-group-modern flex-1">
-                  <label>CATEGORY *</label>
-                  <select id="prod-cat" required style="padding: 12px 16px;">
-                    <option value="" disabled ${!isEditing ? 'selected' : ''}>Select Category</option>
-                    ${context.categories.map(c => `
-                      <option value="${c.name}" ${isEditing && context.editingProduct.category === c.name ? 'selected' : ''}>${c.name}</option>
-                    `).join('')}
-                  </select>
-                </div>
-                <div class="form-group-modern flex-1">
-                  <label>BRAND</label>
-                  <select id="prod-brand" style="padding: 12px 16px;">
-                    <option value="" disabled ${!isEditing || !context.editingProduct.brand ? 'selected' : ''}>Select Brand</option>
+                  <select id="prod-cat" required style="padding:12px 14px;">
+                    <option value="" disabled ${!isEditing ? 'selected' : ''}>Select Category / Subcategory</option>
                     ${(() => {
-                      const brands = JSON.parse(localStorage.getItem('SWEETOS_brands') || '[]');
-                      return brands.map(b => `
-                        <option value="${b.name}" ${isEditing && context.editingProduct.brand === b.name ? 'selected' : ''}>${b.name}</option>
-                      `).join('');
+                      const allCats = context.categories || [];
+                      const parents = allCats.filter(c => !c.parent);
+                      return parents.map(parent => {
+                        const subs = allCats.filter(sc => sc.parent === parent.id || sc.parent === parent.name);
+                        return `
+                          <option value="${parent.name}" ${isEditing && context.editingProduct.category === parent.name ? 'selected' : ''} style="font-weight:800;">
+                            ${parent.icon || '📁'} ${parent.name}
+                          </option>
+                          ${subs.map(sub => `
+                            <option value="${sub.name}" ${isEditing && context.editingProduct.category === sub.name ? 'selected' : ''}>
+                              &nbsp;&nbsp;&nbsp;&nbsp;↳ ${sub.icon || '🌿'} ${sub.name}
+                            </option>
+                          `).join('')}
+                        `;
+                      }).join('');
                     })()}
                   </select>
                 </div>
+
+                <div class="form-group-modern">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>Brand</label>
+                    <button type="button" id="quick-add-brand-btn" style="background:transparent; border:none; color:#38bdf8; font-size:11px; font-weight:750; cursor:pointer;">+ New</button>
+                  </div>
+                  <select id="prod-brand" style="padding:12px 14px;">
+                    <option value="SWEETOS" ${!isEditing || context.editingProduct.brand === 'SWEETOS' ? 'selected' : ''}>SWEETOS</option>
+                    ${brandNames.filter(b => b !== 'SWEETOS').map(b => `
+                      <option value="${b}" ${isEditing && context.editingProduct.brand === b ? 'selected' : ''}>${b}</option>
+                    `).join('')}
+                  </select>
+                </div>
               </div>
 
-              <div style="display:flex; gap:20px;">
-                <div class="form-group-modern flex-1">
-                  <label>STOCK QUANTITY</label>
-                  <input type="number" id="prod-stock" required min="0" placeholder="10" value="${isEditing ? (context.editingProduct.stock !== undefined ? context.editingProduct.stock : 20) : '10'}">
+              <!-- Pricing Section -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-group-modern">
+                  <label>Sale Price (CFA) *</label>
+                  <div class="price-input-wrapper">
+                    <input type="text" inputmode="numeric" id="prod-price" required placeholder="e.g. 200000" value="${isEditing ? (context.editingProduct.price || '') : ''}">
+                  </div>
                 </div>
-                <div class="form-group-modern flex-1">
-                  <label>$ COST PRICE (BOUGHT PRICE)</label>
-                  <input type="number" id="prod-cost-price" step="0.01" placeholder="0.00" value="${isEditing && context.editingProduct.costPrice ? context.editingProduct.costPrice : ''}">
+
+                <div class="form-group-modern">
+                  <label>Compare-At Price (Optional Original)</label>
+                  <div class="price-input-wrapper">
+                    <input type="text" inputmode="numeric" id="prod-compare-price" placeholder="Leave empty if no discount" value="${isEditing && (context.editingProduct.comparePrice || context.editingProduct.originalPrice) ? (context.editingProduct.comparePrice || context.editingProduct.originalPrice) : ''}">
+                  </div>
                 </div>
               </div>
 
+              <!-- Inventory & SKU Section -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-group-modern">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <label>SKU Code</label>
+                    <button type="button" id="auto-sku-btn" style="background:transparent; border:none; color:#38bdf8; font-size:11px; font-weight:750; cursor:pointer;">Auto ⚡</button>
+                  </div>
+                  <input type="text" id="prod-sku" placeholder="e.g. KB-SPLIT-920" value="${isEditing ? (context.editingProduct.sku || '') : ''}">
+                </div>
+
+                <div class="form-group-modern">
+                  <label>Initial Stock Quantity *</label>
+                  <input type="number" id="prod-stock" required min="0" placeholder="10" value="${isEditing ? (context.editingProduct.stock !== undefined ? context.editingProduct.stock : 15) : '15'}">
+                </div>
+              </div>
+
+              <!-- Low Stock Warning Threshold & Cost Price -->
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-group-modern">
+                  <label>Low-Stock Alert Level</label>
+                  <input type="number" id="prod-threshold" min="1" placeholder="5" value="${isEditing ? (context.editingProduct.threshold || 5) : '5'}">
+                </div>
+
+                <div class="form-group-modern">
+                  <label>Cost Price (CFA)</label>
+                  <input type="number" id="prod-cost-price" min="0" placeholder="e.g. 28000" value="${isEditing && context.editingProduct.costPrice ? context.editingProduct.costPrice : ''}">
+                </div>
+              </div>
+
+              <!-- Description -->
               <div class="form-group-modern">
-                <label>DESCRIPTION</label>
-                <textarea id="prod-desc" required rows="4" placeholder="Tell customers about this product...">${isEditing ? (context.editingProduct.description || '') : ''}</textarea>
+                <label>Detailed Product Description</label>
+                <textarea id="prod-desc" rows="4" placeholder="Highlight key features, dimensions, technical specifications, and what is included in the package...">${isEditing ? (context.editingProduct.description || '') : ''}</textarea>
               </div>
 
-              <div class="form-group-modern">
-                <label>STATUS</label>
-                <div class="status-button-toggle">
-                  <button type="button" class="status-toggle-option ${productStatus === 'Active' ? 'active' : ''}" id="status-active-btn">Active</button>
-                  <button type="button" class="status-toggle-option ${productStatus === 'Draft' ? 'active' : ''}" id="status-draft-btn">Draft</button>
-                </div>
-                <input type="hidden" id="prod-status-val" value="${productStatus}">
-              </div>
-
-              <!-- Helper inputs for validation compatibility -->
-              <input type="hidden" id="prod-sku" value="${isEditing ? (context.editingProduct.sku || '') : ''}">
-              <input type="hidden" id="prod-threshold" value="${isEditing ? (context.editingProduct.threshold || 5) : '5'}">
-              <input type="hidden" id="prod-short-desc" value="${isEditing ? (context.editingProduct.shortDesc || '') : ''}">
             </div>
 
-            <!-- Right Column -->
+            <!-- RIGHT COLUMN: Media, Gallery, Badges, Homepage Sections -->
             <div class="form-col-right">
               
+              <!-- Primary Image -->
               <div class="form-group-modern">
-                <label>PRIMARY PRODUCT IMAGE</label>
-                <!-- File Dropzone -->
-                <div class="image-upload-dropzone" id="primary-image-dropzone">
+                <label>Primary Cover Image</label>
+                
+                <!-- URL input fallback -->
+                <div style="display:flex; gap:8px; margin-bottom:8px;">
+                  <input type="text" id="prod-image-url-input" placeholder="Or paste image URL (https://...)" value="${isEditing ? (context.editingProduct.image || '') : ''}" style="padding:8px 12px; font-size:12px;">
+                  <button type="button" id="apply-img-url-btn" class="admin-btn" style="background:rgba(255,255,255,0.1); color:white; padding:8px 14px; font-size:12px; white-space:nowrap;">Load</button>
+                </div>
+
+                <!-- Dropzone Box -->
+                <div class="image-upload-dropzone" id="primary-image-dropzone" style="height:170px;">
                   <input type="file" id="primary-image-file-input" accept="image/*" style="display:none;">
                   
                   <div class="dropzone-empty-state" id="dropzone-empty" style="${isEditing && context.editingProduct.image ? 'display:none;' : ''}">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#64748b" stroke-width="2" style="width:24px; height:24px; margin-bottom:12px;">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#64748b" stroke-width="2" style="width:24px; height:24px; margin-bottom:8px;">
                       <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                       <circle cx="8.5" cy="8.5" r="1.5"></circle>
                       <polyline points="21 15 16 10 5 21"></polyline>
                     </svg>
-                    <span class="upload-title">CLICK TO UPLOAD</span>
-                    <span class="upload-formats">JPEG · PNG · WEBP</span>
+                    <span class="upload-title">DROP FILE OR CLICK TO UPLOAD</span>
+                    <span class="upload-formats">JPG · PNG · WEBP</span>
                   </div>
                   
                   <div class="dropzone-preview-state" id="dropzone-preview" style="${isEditing && context.editingProduct.image ? '' : 'display:none;'}">
-                    <img id="primary-image-preview" src="${isEditing ? (context.editingProduct.image || '') : ''}" alt="Preview">
+                    <img id="primary-image-preview" src="${isEditing ? (context.editingProduct.image || '') : ''}" alt="Preview" style="max-height:140px; border-radius:8px; object-fit:contain;">
                     <button type="button" class="remove-preview-btn" id="remove-primary-image-btn" title="Remove image">&times;</button>
                   </div>
                 </div>
-                <!-- Hidden input storing text path for storage compatibility -->
                 <input type="hidden" id="prod-image-url-val" value="${isEditing ? (context.editingProduct.image || '') : ''}">
               </div>
 
-              <div class="form-group-modern mt-2">
-                <label>PRODUCT GALLERY (3 - 5 IMAGES)</label>
-                <div class="gallery-upload-container">
-                  <div class="gallery-item-add" id="add-gallery-item-btn">
-                    <span>+</span>
-                    <span>ADD</span>
-                  </div>
-                  <input type="file" id="gallery-image-file-input" accept="image/*" multiple style="display:none;">
-                  <div class="gallery-previews" id="gallery-previews-list" style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <!-- Prepopulated edits images -->
-                  </div>
-                </div>
-                <div class="gallery-info-row">
-                  <span>IMAGES COUNT</span>
-                  <span id="gallery-limit-label">0 / 5 LIMIT</span>
+              <!-- Product Badge / Ribbon -->
+              <div class="form-group-modern">
+                <label>Promotional Ribbon / Badge Tag</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="text" id="prod-badge" placeholder="e.g. NEW, 30% OFF, BESTSELLER" value="${isEditing ? (context.editingProduct.badge || '') : ''}">
+                  <select id="preset-badge-select" style="width:130px; font-size:12px;">
+                    <option value="">Preset...</option>
+                    <option value="NEW">NEW</option>
+                    <option value="HOT">HOT</option>
+                    <option value="BESTSELLER">BESTSELLER</option>
+                    <option value="LIMITED">LIMITED</option>
+                    <option value="20% OFF">20% OFF</option>
+                  </select>
                 </div>
               </div>
 
-              <div class="form-group-modern mt-4 variant-toggle-card">
+              <!-- Product Variants Toggle -->
+              <div class="form-group-modern variant-toggle-card" style="padding:14px; background:#0c101b; border-radius:10px; border:1px solid rgba(255,255,255,0.08); margin-bottom:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                  <span>PRODUCT VARIANTS</span>
-                  <label class="switch-toggle">
-                    <input type="checkbox" id="variants-toggle" ${isEditing && context.editingProduct.hasVariants ? 'checked' : ''}>
+                  <div>
+                    <strong style="color:white; font-size:13px; display:block;">Enable Multiple Variants</strong>
+                    <small style="color:#94a3b8; font-size:11.5px;">Allows buyers to select colors / switch styles</small>
+                  </div>
+                  <label class="switch-toggle" style="margin:0;">
+                    <input type="checkbox" id="variants-toggle" ${(isEditing && (context.editingProduct.hasVariants || (context.editingProduct.colors && context.editingProduct.colors.length > 0))) ? 'checked' : ''}>
                     <span class="switch-slider"></span>
                   </label>
                 </div>
               </div>
 
-              <!-- Homepage Sections checklist selection -->
-              <div class="form-group-modern mt-4">
-                <label>Show in Homepage Sections</label>
-                <div class="sections-checkbox-grid" style="display:flex; flex-direction:column; gap:8px; background:#0c101b; padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); max-height:160px; overflow-y:auto;">
+              <!-- Dynamic Colors & Variants Manager Section -->
+              <div id="product-colors-manager-section" style="display: ${(isEditing && (context.editingProduct.hasVariants || (context.editingProduct.colors && context.editingProduct.colors.length > 0))) ? 'block' : 'none'}; background:#0c101b; border:1px solid rgba(0,82,204,0.35); border-radius:12px; padding:16px; margin-bottom:18px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                  <div>
+                    <span style="color:white; font-size:13px; font-weight:750; display:flex; align-items:center; gap:6px;">
+                      🎨 <span>Product Colors & Variants</span>
+                      <span id="colors-count-badge" style="background:rgba(0,82,204,0.2); color:#38bdf8; font-size:11px; font-weight:800; padding:2px 8px; border-radius:6px;">0 Colors</span>
+                    </span>
+                    <small style="color:#94a3b8; font-size:11px; display:block; margin-top:2px;">Set the available color options, color codes, and extra price adjustments for this product.</small>
+                  </div>
+                  <button type="button" id="add-color-variant-btn" style="background:#0052cc; color:white; border:none; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:750; cursor:pointer; display:flex; align-items:center; gap:5px; transition: all 0.2s;">
+                    <span>+ Add Color</span>
+                  </button>
+                </div>
+
+                <!-- Quick Color Presets -->
+                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; align-items:center; background:rgba(255,255,255,0.02); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+                  <span style="font-size:11px; color:#94a3b8; font-weight:700;">Quick Presets:</span>
+                  <button type="button" class="quick-add-color-preset" data-name="Midnight Black" data-hex="#1C1B1A" style="background:#1e293b; color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">+ Black</button>
+                  <button type="button" class="quick-add-color-preset" data-name="Arctic White" data-hex="#FFFFFF" style="background:#1e293b; color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">+ White</button>
+                  <button type="button" class="quick-add-color-preset" data-name="Space Gray" data-hex="#4A4D52" style="background:#1e293b; color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">+ Silver/Gray</button>
+                  <button type="button" class="quick-add-color-preset" data-name="Cobalt Blue" data-hex="#0052CC" style="background:#1e293b; color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">+ Blue</button>
+                  <button type="button" class="quick-add-color-preset" data-name="Forest Green" data-hex="#15803D" style="background:#1e293b; color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">+ Green</button>
+                  <button type="button" class="quick-add-color-preset" data-name="Crimson Red" data-hex="#DC2626" style="background:#1e293b; color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">+ Red</button>
+                  <button type="button" class="quick-add-color-preset" data-name="Rose Gold" data-hex="#E0A9A5" style="background:#1e293b; color:#cbd5e1; border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:3px 8px; font-size:11px; cursor:pointer;">+ Rose Gold</button>
+                </div>
+
+                <!-- Color List Container -->
+                <div id="product-colors-list" style="display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; padding-right:4px;">
+                  <!-- Dynamically Rendered -->
+                </div>
+              </div>
+
+              <!-- Homepage Sections Placement -->
+              <div class="form-group-modern">
+                <label>Show in Homepage Curated Sections</label>
+                <div class="sections-checkbox-grid" style="display:flex; flex-direction:column; gap:8px; background:#0c101b; padding:12px; border-radius:10px; border:1px solid rgba(255,255,255,0.08); max-height:140px; overflow-y:auto;">
                   ${(() => {
                     const secs = JSON.parse(localStorage.getItem('SWEETOS_homepage_sections') || '[]');
-                    // Don't show 'categories' layout type since it doesn't display products directly
-                    return secs.filter(s => s.type !== 'categories').map(sec => {
+                    const targetSecs = secs.filter(s => s.type !== 'categories');
+                    if (targetSecs.length === 0) {
+                      return `<small style="color:#64748b;">No dynamic sections configured.</small>`;
+                    }
+                    return targetSecs.map(sec => {
                       const isChecked = isEditing && context.editingProduct.homepageSections && context.editingProduct.homepageSections.includes(sec.id);
                       return `
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ffffff; font-size:13px; text-transform:none; font-weight:600; margin:0;">
-                          <input type="checkbox" class="product-section-checkbox" value="${sec.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer; margin:0;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ffffff; font-size:13px; font-weight:600; margin:0;">
+                          <input type="checkbox" class="product-section-checkbox" value="${sec.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer; accent-color:#0052cc; margin:0;">
                           <span>${sec.name}</span>
                         </label>
                       `;
@@ -305,12 +952,14 @@ export function renderAdminProducts(context) {
                 </div>
               </div>
 
-              <div id="prod-error-msg" class="error-text"></div>
+              <div id="prod-error-msg" class="error-text" style="margin-top:10px;"></div>
               
-              <button type="submit" class="publish-submit-btn mt-6" id="publish-submit-btn">
-                ${isEditing ? 'Save Product Details' : 'Publish Product to Store'}
+              <!-- Submit Button -->
+              <button type="submit" class="publish-submit-btn" id="publish-submit-btn" style="margin-top:16px; width:100%; padding:14px; font-size:14px; font-weight:800;">
+                ${isEditing ? '✓ Save Changes' : '🚀 Publish Product to Store'}
               </button>
             </div>
+
           </form>
         </div>
       </div>
@@ -319,31 +968,36 @@ export function renderAdminProducts(context) {
 }
 
 export function attachAdminProductsListeners(context, shadow) {
-  // Search input filtering
-  const searchInput = shadow.getElementById('product-search');
+  // 1. Search Input
+  const searchInput = shadow.getElementById('product-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       context.searchQuery = e.target.value;
       context.currentPageIndex = 1;
-      context.updateProductsTable();
+      context.render();
+      context.attachListeners();
+      const sRef = shadow.getElementById('product-search-input');
+      if (sRef) {
+        sRef.focus();
+        sRef.setSelectionRange(sRef.value.length, sRef.value.length);
+      }
     });
   }
 
-  // Category filter selection
-  const catF = shadow.getElementById('product-cat-filter');
-  if (catF) {
-    catF.addEventListener('change', (e) => {
-      context.categoryFilter = e.target.value;
+  // 2. Category Pill Tabs
+  shadow.querySelectorAll('.category-pill-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      context.categoryFilter = tab.getAttribute('data-cat');
       context.currentPageIndex = 1;
       context.render();
       context.attachListeners();
     });
-  }
+  });
 
-  // Stock warning filters
-  const stockF = shadow.getElementById('product-stock-filter');
-  if (stockF) {
-    stockF.addEventListener('change', (e) => {
+  // 3. Stock Filter
+  const stockSelect = shadow.getElementById('product-stock-select');
+  if (stockSelect) {
+    stockSelect.addEventListener('change', (e) => {
       context.stockFilter = e.target.value;
       context.currentPageIndex = 1;
       context.render();
@@ -351,7 +1005,28 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   }
 
-  // Pagination navigations
+  // 4. Brand Filter
+  const brandSelect = shadow.getElementById('product-brand-select');
+  if (brandSelect) {
+    brandSelect.addEventListener('change', (e) => {
+      brandFilter = e.target.value;
+      context.currentPageIndex = 1;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // 5. Sort Filter
+  const sortSelect = shadow.getElementById('product-sort-select');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', (e) => {
+      sortBy = e.target.value;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // 6. Pagination
   const prevBtn = shadow.getElementById('prev-page-btn');
   if (prevBtn) {
     prevBtn.addEventListener('click', () => {
@@ -362,32 +1037,193 @@ export function attachAdminProductsListeners(context, shadow) {
       }
     });
   }
+
   const nextBtn = shadow.getElementById('next-page-btn');
   if (nextBtn) {
     nextBtn.addEventListener('click', () => {
-      // Re-calculate list length
-      const filtered = context.products.filter(p => {
-        if (context.searchQuery) {
-          const q = context.searchQuery.toLowerCase();
-          if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
-        }
-        if (context.categoryFilter !== 'All' && p.category !== context.categoryFilter) return false;
-        if (context.stockFilter !== 'All') {
-          if (context.stockFilter === 'Low Stock' && (p.stock === undefined || p.stock > (p.threshold || 5))) return false;
-          if (context.stockFilter === 'Out of Stock' && p.stock !== 0) return false;
-        }
-        return true;
+      context.currentPageIndex = (context.currentPageIndex || 1) + 1;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // 7. Checkbox Selection & Bulk Actions
+  const selectAllCb = shadow.getElementById('select-all-products-cb');
+  if (selectAllCb) {
+    selectAllCb.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      shadow.querySelectorAll('.product-select-cb').forEach(cb => {
+        const id = parseInt(cb.getAttribute('data-product-id'));
+        if (isChecked) selectedProductIds.add(id);
+        else selectedProductIds.delete(id);
       });
-      const totalPages = Math.ceil(filtered.length / context.itemsPerPage) || 1;
-      if (context.currentPageIndex < totalPages) {
-        context.currentPageIndex++;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  shadow.querySelectorAll('.product-select-cb').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const id = parseInt(cb.getAttribute('data-product-id'));
+      if (e.target.checked) selectedProductIds.add(id);
+      else selectedProductIds.delete(id);
+      context.render();
+      context.attachListeners();
+    });
+  });
+
+  const deselectBtn = shadow.getElementById('bulk-deselect-products-btn');
+  if (deselectBtn) {
+    deselectBtn.addEventListener('click', () => {
+      selectedProductIds.clear();
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // Bulk Handlers
+  const bulkActivate = shadow.getElementById('bulk-activate-btn');
+  if (bulkActivate) {
+    bulkActivate.addEventListener('click', () => {
+      selectedProductIds.forEach(id => {
+        const p = context.products.find(prod => prod.id === id);
+        if (p) p.status = 'Active';
+      });
+      context.saveDatabase('products');
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Marked ${selectedProductIds.size} products as Active.` }));
+      selectedProductIds.clear();
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  const bulkDraft = shadow.getElementById('bulk-draft-btn');
+  if (bulkDraft) {
+    bulkDraft.addEventListener('click', () => {
+      selectedProductIds.forEach(id => {
+        const p = context.products.find(prod => prod.id === id);
+        if (p) p.status = 'Draft';
+      });
+      context.saveDatabase('products');
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Marked ${selectedProductIds.size} products as Draft.` }));
+      selectedProductIds.clear();
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  const bulkRestock = shadow.getElementById('bulk-restock-btn');
+  if (bulkRestock) {
+    bulkRestock.addEventListener('click', () => {
+      selectedProductIds.forEach(id => {
+        const p = context.products.find(prod => prod.id === id);
+        if (p) p.stock = (p.stock || 0) + 10;
+      });
+      context.saveDatabase('products');
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Added +10 stock units to ${selectedProductIds.size} products.` }));
+      selectedProductIds.clear();
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  const bulkDelete = shadow.getElementById('bulk-delete-products-btn');
+  if (bulkDelete) {
+    bulkDelete.addEventListener('click', async () => {
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: 'Bulk Delete Products',
+        message: `Are you sure you want to delete ${selectedProductIds.size} selected products? This cannot be undone.`,
+        confirmText: 'Delete Selected',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '🗑️'
+      }) : Promise.resolve(confirm(`Are you sure you want to delete ${selectedProductIds.size} selected products?`)));
+
+      if (confirmed) {
+        context.products = context.products.filter(p => !selectedProductIds.has(p.id));
+        context.saveDatabase('products');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted selected products successfully.` }));
+        selectedProductIds.clear();
         context.render();
         context.attachListeners();
       }
     });
   }
 
-  // Add Product Button
+  // 8. Inline Stock Stepper Adjusters
+  shadow.querySelectorAll('.stock-increment-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.getAttribute('data-product-id'));
+      const p = context.products.find(prod => prod.id === id);
+      if (p) {
+        p.stock = (p.stock || 0) + 1;
+        context.saveDatabase('products');
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
+
+  shadow.querySelectorAll('.stock-decrement-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.getAttribute('data-product-id'));
+      const p = context.products.find(prod => prod.id === id);
+      if (p && (p.stock || 0) > 0) {
+        p.stock = p.stock - 1;
+        context.saveDatabase('products');
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
+
+  // 9. Quick Status Toggle Button
+  shadow.querySelectorAll('.quick-status-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.getAttribute('data-product-id'));
+      const p = context.products.find(prod => prod.id === id);
+      if (p) {
+        p.status = p.status === 'Draft' ? 'Active' : 'Draft';
+        context.saveDatabase('products');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Product "${p.name}" is now ${p.status}.` }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
+
+  // 10. Duplicate Product
+  shadow.querySelectorAll('.duplicate-prod-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.getAttribute('data-product-id'));
+      const orig = context.products.find(prod => prod.id === id);
+      if (orig) {
+        const newId = context.products.length > 0 ? (Math.max(...context.products.map(p => p.id)) + 1) : 1;
+        const copy = {
+          ...orig,
+          id: newId,
+          name: `${orig.name} (Copy)`,
+          sku: `${orig.sku || 'PROD'}-COPY`,
+          stock: orig.stock || 10
+        };
+        context.products.unshift(copy);
+        context.saveDatabase('products');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Duplicated "${orig.name}" successfully!` }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
+
+  // 11. Export to CSV
+  const exportBtn = shadow.getElementById('export-products-csv-btn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      exportProductsToCSV(context.products);
+    });
+  }
+
+  // 12. Add Product Modal Triggers
   const addBtn = shadow.getElementById('add-product-btn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
@@ -399,20 +1235,10 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   }
 
-  // Close Product modal
-  const closeBtn = shadow.getElementById('close-prod-modal-btn');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      context.showProductModal = false;
-      context.editingProduct = null;
-      context.render();
-      context.attachListeners();
-    });
-  }
-
-  // Edit action
-  shadow.querySelectorAll('.edit-prod-action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+  // Edit triggers
+  shadow.querySelectorAll('.edit-prod-action-btn, .edit-prod-title-link').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
       const id = parseInt(btn.getAttribute('data-product-id'));
       const prod = context.products.find(p => p.id === id);
       if (prod) {
@@ -425,26 +1251,45 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   });
 
-  // Delete product action
+  // Close Modal
+  const closeBtn = shadow.getElementById('close-prod-modal-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      context.showProductModal = false;
+      context.editingProduct = null;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // Delete Product
   shadow.querySelectorAll('.delete-prod-action-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const id = parseInt(btn.getAttribute('data-product-id'));
       const index = context.products.findIndex(p => p.id === id);
       if (index > -1) {
         const prod = context.products[index];
-        const hasActiveOrders = context.orders.some(o => 
-          (o.status === 'Pending' || o.status === 'En cours' || o.status === 'Confirmé') && 
+        const hasActiveOrders = (context.orders || []).some(o => 
+          ['Pending', 'En cours', 'Confirmé', 'Processing', 'Shipping'].includes(o.status) && 
           o.products && o.products.some(item => item.id === id)
         );
         if (hasActiveOrders) {
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Error: Cannot delete "${prod.name}" because it has active pending customer orders!` }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Cannot delete "${prod.name}" because it is part of active orders!` }));
           return;
         }
-        const confirmed = await window.showConfirm(`Are you sure you want to delete "${prod.name}" from the product catalog?`, 'Delete Product');
+        const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+          title: 'Delete Product',
+          message: `Are you sure you want to permanently delete "${prod.name}"? This cannot be undone.`,
+          confirmText: 'Delete Product',
+          cancelText: 'Cancel',
+          type: 'danger',
+          icon: '🗑️'
+        }) : Promise.resolve(confirm(`Are you sure you want to permanently delete "${prod.name}"?`)));
+
         if (confirmed) {
           context.products.splice(index, 1);
           context.saveDatabase('products');
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted product "${prod.name}" successfully.` }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted product "${prod.name}".` }));
           context.render();
           context.attachListeners();
         }
@@ -452,18 +1297,101 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   });
 
-  // Image Upload Dropzone interactions
+  // Auto SKU button
+  const autoSkuBtn = shadow.getElementById('auto-sku-btn');
+  if (autoSkuBtn) {
+    autoSkuBtn.addEventListener('click', () => {
+      const nameInput = shadow.getElementById('prod-name');
+      const catInput = shadow.getElementById('prod-cat');
+      const skuInput = shadow.getElementById('prod-sku');
+
+      const nameVal = (nameInput ? nameInput.value : '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITEM';
+      const catVal = (catInput && catInput.value ? catInput.value.slice(0, 2).toUpperCase() : 'SW');
+      const rand = Math.floor(100 + Math.random() * 900);
+      skuInput.value = `${catVal}-${nameVal}-${rand}`;
+    });
+  }
+
+  // Preset badge select
+  const presetBadge = shadow.getElementById('preset-badge-select');
+  const badgeInput = shadow.getElementById('prod-badge');
+  if (presetBadge && badgeInput) {
+    presetBadge.addEventListener('change', () => {
+      if (presetBadge.value) {
+        badgeInput.value = presetBadge.value;
+      }
+    });
+  }
+
+  // Quick Add Category prompt
+  const quickAddCat = shadow.getElementById('quick-add-cat-btn');
+  if (quickAddCat) {
+    quickAddCat.addEventListener('click', async () => {
+      const newCat = await showPromptModal({
+        title: 'New Category',
+        message: 'Enter name of new category:',
+        placeholder: 'e.g. Mechanical Keyboards, Studio Audio...',
+        confirmText: '+ Create Category',
+        icon: '📁'
+      });
+      if (newCat && newCat.trim()) {
+        const catName = newCat.trim();
+        if (!context.categories.some(c => c.name.toLowerCase() === catName.toLowerCase())) {
+          context.categories.push({ id: Date.now(), name: catName, count: 0 });
+          context.saveDatabase('categories');
+          const catSelect = shadow.getElementById('prod-cat');
+          if (catSelect) {
+            const opt = document.createElement('option');
+            opt.value = catName;
+            opt.textContent = catName;
+            opt.selected = true;
+            catSelect.appendChild(opt);
+          }
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Category "${catName}" added!` }));
+        }
+      }
+    });
+  }
+
+  // Quick Add Brand prompt
+  const quickAddBrand = shadow.getElementById('quick-add-brand-btn');
+  if (quickAddBrand) {
+    quickAddBrand.addEventListener('click', async () => {
+      const newBrand = await showPromptModal({
+        title: 'New Brand',
+        message: 'Enter name of new brand:',
+        placeholder: 'e.g. Keychron, Logitech, Sony, Apple...',
+        confirmText: '+ Create Brand',
+        icon: '🏷️'
+      });
+      if (newBrand && newBrand.trim()) {
+        const bName = newBrand.trim();
+        const brandSelect = shadow.getElementById('prod-brand');
+        if (brandSelect) {
+          const opt = document.createElement('option');
+          opt.value = bName;
+          opt.textContent = bName;
+          opt.selected = true;
+          brandSelect.appendChild(opt);
+        }
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Brand "${bName}" added!` }));
+      }
+    });
+  }
+
+  // Image Upload Dropzone & URL Loader
   const dropzone = shadow.getElementById('primary-image-dropzone');
   const fileInput = shadow.getElementById('primary-image-file-input');
   const removeImgBtn = shadow.getElementById('remove-primary-image-btn');
   const imgUrlVal = shadow.getElementById('prod-image-url-val');
+  const imgUrlInput = shadow.getElementById('prod-image-url-input');
+  const applyImgUrlBtn = shadow.getElementById('apply-img-url-btn');
   const dropzoneEmpty = shadow.getElementById('dropzone-empty');
   const dropzonePreview = shadow.getElementById('dropzone-preview');
   const previewImg = shadow.getElementById('primary-image-preview');
 
   if (dropzone && fileInput) {
     dropzone.addEventListener('click', (e) => {
-      // Stop clicks from remove button bubbling
       if (e.target.closest('#remove-primary-image-btn')) return;
       fileInput.click();
     });
@@ -476,6 +1404,7 @@ export function attachAdminProductsListeners(context, shadow) {
           const dataUrl = e.target.result;
           imgUrlVal.value = dataUrl;
           previewImg.src = dataUrl;
+          if (imgUrlInput) imgUrlInput.value = '';
           dropzoneEmpty.style.display = 'none';
           dropzonePreview.style.display = 'block';
         };
@@ -484,10 +1413,24 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   }
 
+  if (applyImgUrlBtn && imgUrlInput) {
+    applyImgUrlBtn.addEventListener('click', () => {
+      const url = imgUrlInput.value.trim();
+      if (url) {
+        imgUrlVal.value = url;
+        previewImg.src = url;
+        dropzoneEmpty.style.display = 'none';
+        dropzonePreview.style.display = 'block';
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Image loaded from URL!' }));
+      }
+    });
+  }
+
   if (removeImgBtn) {
     removeImgBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      fileInput.value = '';
+      if (fileInput) fileInput.value = '';
+      if (imgUrlInput) imgUrlInput.value = '';
       imgUrlVal.value = '';
       previewImg.src = '';
       dropzoneEmpty.style.display = 'flex';
@@ -495,41 +1438,7 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   }
 
-  // Product Gallery simulation trigger
-  const addGalleryBtn = shadow.getElementById('add-gallery-item-btn');
-  const galleryInput = shadow.getElementById('gallery-image-file-input');
-  const galleryPreviews = shadow.getElementById('gallery-previews-list');
-  const galleryLimitLabel = shadow.getElementById('gallery-limit-label');
-  let galleryCount = 0;
-
-  if (addGalleryBtn && galleryInput) {
-    addGalleryBtn.addEventListener('click', () => {
-      galleryInput.click();
-    });
-
-    galleryInput.addEventListener('change', () => {
-      const files = Array.from(galleryInput.files);
-      files.forEach(file => {
-        if (galleryCount >= 5) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = document.createElement('img');
-          img.src = e.target.result;
-          img.style.width = '64px';
-          img.style.height = '64px';
-          img.style.borderRadius = '8px';
-          img.style.objectFit = 'cover';
-          img.style.border = '1px solid rgba(255, 255, 255, 0.08)';
-          galleryPreviews.appendChild(img);
-          galleryCount++;
-          galleryLimitLabel.textContent = `${galleryCount} / 5 LIMIT`;
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-  }
-
-  // Active/Draft status buttons toggle
+  // Active / Draft Status Toggle in Modal
   const activeBtn = shadow.getElementById('status-active-btn');
   const draftBtn = shadow.getElementById('status-draft-btn');
   const statusVal = shadow.getElementById('prod-status-val');
@@ -550,6 +1459,122 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   }
 
+  // Variants toggle & Color Manager logic
+  const variantsToggle = shadow.getElementById('variants-toggle');
+  const colorsSection = shadow.getElementById('product-colors-manager-section');
+  const colorsList = shadow.getElementById('product-colors-list');
+  const addColorBtn = shadow.getElementById('add-color-variant-btn');
+  const colorsCountBadge = shadow.getElementById('colors-count-badge');
+
+  let currentVariants = [];
+  if (context.editingProduct && Array.isArray(context.editingProduct.colors) && context.editingProduct.colors.length > 0) {
+    currentVariants = JSON.parse(JSON.stringify(context.editingProduct.colors));
+  } else if (context.editingProduct && context.editingProduct.hasVariants) {
+    currentVariants = [
+      { name: 'Standard Black', hex: '#1C1B1A', priceAdjust: 0 }
+    ];
+  }
+
+  const renderColorRows = () => {
+    if (!colorsList) return;
+    if (colorsCountBadge) {
+      colorsCountBadge.textContent = `${currentVariants.length} Color${currentVariants.length === 1 ? '' : 's'}`;
+    }
+    if (currentVariants.length === 0) {
+      colorsList.innerHTML = `
+        <div style="text-align:center; padding:16px; color:#64748b; font-size:12px; border:1px dashed rgba(255,255,255,0.1); border-radius:8px;">
+          No colors configured yet. Click <strong>+ Add Color</strong> or choose a preset above.
+        </div>
+      `;
+      return;
+    }
+
+    colorsList.innerHTML = currentVariants.map((c, index) => {
+      const hex = c.hex || '#0052cc';
+      const name = c.name || '';
+      const priceAdj = c.priceAdjust || 0;
+      return `
+        <div class="color-variant-row" data-index="${index}" style="display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:8px 10px;">
+          <input type="color" class="variant-color-picker" data-index="${index}" value="${hex}" style="width:32px; height:32px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); cursor:pointer; background:none; padding:0; flex-shrink:0;">
+          
+          <div style="flex:2; min-width:120px;">
+            <input type="text" class="variant-color-name" data-index="${index}" placeholder="Color Name (e.g. Midnight Black)" value="${name}" style="width:100%; background:#141b2d; border:1px solid rgba(255,255,255,0.1); color:white; padding:6px 8px; border-radius:6px; font-size:12px;">
+          </div>
+
+          <div style="flex:1; min-width:95px;">
+            <input type="number" class="variant-price-adjust" data-index="${index}" placeholder="± Extra FCFA" value="${priceAdj}" title="Extra Price (FCFA)" style="width:100%; background:#141b2d; border:1px solid rgba(255,255,255,0.1); color:white; padding:6px 8px; border-radius:6px; font-size:12px;">
+          </div>
+
+          <button type="button" class="delete-color-variant-btn" data-index="${index}" style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:6px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; flex-shrink:0;" title="Remove Color">✕</button>
+        </div>
+      `;
+    }).join('');
+
+    // Attach row events
+    colorsList.querySelectorAll('.variant-color-picker').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.getAttribute('data-index'));
+        if (currentVariants[idx]) currentVariants[idx].hex = e.target.value;
+      });
+    });
+
+    colorsList.querySelectorAll('.variant-color-name').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.getAttribute('data-index'));
+        if (currentVariants[idx]) currentVariants[idx].name = e.target.value;
+      });
+    });
+
+    colorsList.querySelectorAll('.variant-price-adjust').forEach(input => {
+      input.addEventListener('input', (e) => {
+        const idx = parseInt(e.target.getAttribute('data-index'));
+        if (currentVariants[idx]) currentVariants[idx].priceAdjust = parseFloat(e.target.value) || 0;
+      });
+    });
+
+    colorsList.querySelectorAll('.delete-color-variant-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(btn.getAttribute('data-index'));
+        currentVariants.splice(idx, 1);
+        renderColorRows();
+      });
+    });
+  };
+
+  if (variantsToggle && colorsSection) {
+    variantsToggle.addEventListener('change', () => {
+      if (variantsToggle.checked) {
+        colorsSection.style.display = 'block';
+        if (currentVariants.length === 0) {
+          currentVariants.push({ name: 'Standard Edition', hex: '#1C1B1A', priceAdjust: 0 });
+        }
+        renderColorRows();
+      } else {
+        colorsSection.style.display = 'none';
+      }
+    });
+  }
+
+  if (addColorBtn) {
+    addColorBtn.addEventListener('click', () => {
+      currentVariants.push({ name: `Color Variant ${currentVariants.length + 1}`, hex: '#0052CC', priceAdjust: 0 });
+      renderColorRows();
+    });
+  }
+
+  shadow.querySelectorAll('.quick-add-color-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pName = btn.getAttribute('data-name');
+      const pHex = btn.getAttribute('data-hex');
+      currentVariants.push({ name: pName, hex: pHex, priceAdjust: 0 });
+      renderColorRows();
+    });
+  });
+
+  if (variantsToggle && variantsToggle.checked) {
+    renderColorRows();
+  }
+
   // Modal Submit Action
   const form = shadow.getElementById('prod-crud-form');
   if (form) {
@@ -557,22 +1582,38 @@ export function attachAdminProductsListeners(context, shadow) {
       e.preventDefault();
       
       const name = shadow.getElementById('prod-name').value.trim();
-      const price = parseFloat(shadow.getElementById('prod-price').value);
-      const comparePrice = parseFloat(shadow.getElementById('prod-compare-price').value) || null;
+
+      const parsePriceInput = (val) => {
+        if (!val) return NaN;
+        let str = String(val).trim().replace(/\s+/g, '').replace(/,/g, '');
+        if (/^\d+\.\d{3}$/.test(str)) {
+          str = str.replace('.', '');
+        }
+        return parseFloat(str);
+      };
+
+      const price = parsePriceInput(shadow.getElementById('prod-price').value);
+      const rawCompare = shadow.getElementById('prod-compare-price').value;
+      const comparePrice = rawCompare ? (parsePriceInput(rawCompare) || 0) : 0;
       const category = shadow.getElementById('prod-cat').value;
       const brand = shadow.getElementById('prod-brand').value || 'SWEETOS';
       const stock = parseInt(shadow.getElementById('prod-stock').value) || 0;
+      const sku = shadow.getElementById('prod-sku').value.trim();
+      const threshold = parseInt(shadow.getElementById('prod-threshold').value) || 5;
       const costPrice = parseFloat(shadow.getElementById('prod-cost-price').value) || null;
       const description = shadow.getElementById('prod-desc').value.trim();
+      const badge = shadow.getElementById('prod-badge').value.trim();
       const status = statusVal.value || 'Active';
       const imageUrl = imgUrlVal.value || './assets/keyboard_1786712380801.jpg';
       const hasVariants = shadow.getElementById('variants-toggle').checked;
       const checkedSections = Array.from(shadow.querySelectorAll('.product-section-checkbox:checked')).map(cb => cb.value);
       
+      const finalColors = hasVariants ? currentVariants.filter(c => c && c.name && c.name.trim() !== '') : [];
+
       const errorMsg = shadow.getElementById('prod-error-msg');
       errorMsg.textContent = '';
 
-      if (!name || isNaN(price)) {
+      if (!name || isNaN(price) || !category) {
         errorMsg.textContent = 'Please fill out all required fields marked with *';
         return;
       }
@@ -585,47 +1626,53 @@ export function attachAdminProductsListeners(context, shadow) {
           context.products[index] = {
             ...context.products[index],
             name,
+            sku: sku || context.products[index].sku,
             price,
             comparePrice,
+            originalPrice: comparePrice,
             category,
             brand,
             stock,
+            threshold,
             costPrice,
             description,
+            badge: badge || null,
             status,
             image: imageUrl,
-            hasVariants,
+            hasVariants: hasVariants && finalColors.length > 0,
+            colors: finalColors,
             homepageSections: checkedSections
           };
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Product "${name}" saved successfully!` }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Product "${name}" updated successfully!` }));
         }
       } else {
         // Create new product
-        // Compute unique SKU
-        const shortName = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 5).toUpperCase();
-        const randId = Math.floor(100 + Math.random() * 900);
-        const sku = `${category.slice(0,2).toUpperCase()}-${shortName}-${randId}`;
-        
+        const finalSku = sku || `${category.slice(0,2).toUpperCase()}-${name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
         const newId = context.products.length > 0 ? (Math.max(...context.products.map(p => p.id)) + 1) : 1;
-        context.products.push({
+        
+        context.products.unshift({
           id: newId,
-          sku,
+          sku: finalSku,
           name,
           price,
           comparePrice,
+          originalPrice: comparePrice,
           category,
           brand,
           stock,
+          threshold,
           costPrice,
           description,
+          badge: badge || null,
           status,
           image: imageUrl,
-          hasVariants,
+          hasVariants: hasVariants && finalColors.length > 0,
+          colors: finalColors,
           homepageSections: checkedSections,
-          rating: 4.8,
+          rating: 5.0,
           reviews: 0
         });
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `New product "${name}" added to catalog!` }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `New product "${name}" added to store!` }));
       }
 
       context.saveDatabase('products');
@@ -635,4 +1682,37 @@ export function attachAdminProductsListeners(context, shadow) {
       context.attachListeners();
     });
   }
+}
+
+// Export to CSV
+function exportProductsToCSV(products) {
+  if (!products || products.length === 0) {
+    window.dispatchEvent(new CustomEvent('toast:show', { detail: 'No products to export.' }));
+    return;
+  }
+
+  const headers = ['ID', 'Product Name', 'SKU', 'Category', 'Brand', 'Price (CFA)', 'Compare Price', 'Stock', 'Threshold', 'Cost Price', 'Status', 'Badge'];
+  const rows = products.map(p => [
+    p.id,
+    `"${(p.name || '').replace(/"/g, '""')}"`,
+    `"${p.sku || ''}"`,
+    `"${p.category || ''}"`,
+    `"${p.brand || 'SWEETOS'}"`,
+    p.price || 0,
+    p.comparePrice || '',
+    p.stock !== undefined ? p.stock : 0,
+    p.threshold || 5,
+    p.costPrice || '',
+    `"${p.status || 'Active'}"`,
+    `"${p.badge || ''}"`
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `SWEETOS_Products_Catalog_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }

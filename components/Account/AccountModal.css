@@ -205,14 +205,38 @@
   color: #102a43;
 }
 
-.order-status.delivered {
-  background: rgba(54, 179, 126, 0.08);
-  color: #36b37e;
+.order-status {
   font-size: 0.72rem;
   font-weight: 750;
   padding: 3px 8px;
   border-radius: 8px;
   text-transform: uppercase;
+  display: inline-block;
+}
+
+.order-status.pending {
+  background: rgba(255, 171, 0, 0.08);
+  color: #ffab00;
+}
+
+.order-status.processing {
+  background: rgba(0, 82, 204, 0.08);
+  color: #0052cc;
+}
+
+.order-status.shipping {
+  background: rgba(94, 53, 177, 0.08);
+  color: #5e35b1;
+}
+
+.order-status.delivered {
+  background: rgba(54, 179, 126, 0.08);
+  color: #36b37e;
+}
+
+.order-status.cancelled {
+  background: rgba(255, 86, 48, 0.08);
+  color: #ff5630;
 }
 
 .order-details-row {

@@ -39,7 +39,7 @@ class ProductCard extends HTMLElement {
 
     const isOutOfStock = p.stock === 0;
 
-    // Load actual reviews from localStorage to eliminate mock reviews on card list
+    // Load reviews with fallback to product rating
     const key = `SWEETOS_reviews_${p.id}`;
     const saved = localStorage.getItem(key);
     let reviewsList = [];
@@ -48,14 +48,49 @@ class ProductCard extends HTMLElement {
         reviewsList = JSON.parse(saved);
       } catch (e) {}
     }
-    const totalReviewsCount = reviewsList.length;
-    const averageRating = totalReviewsCount > 0 
-      ? (reviewsList.reduce((sum, r) => sum + r.rating, 0) / totalReviewsCount).toFixed(1)
-      : "0.0";
+    const realReviewsCount = reviewsList.length;
+    const ratingVal = realReviewsCount > 0 
+      ? (reviewsList.reduce((sum, r) => sum + r.rating, 0) / realReviewsCount).toFixed(1)
+      : (p.rating || 4.9).toFixed(1);
+    const reviewsDisplayCount = realReviewsCount > 0 
+      ? realReviewsCount 
+      : (p.reviews || 24);
 
-    // Dynamically calculate status signs using real review counts
-    const isNew = p.id > 38; // Last 12 items are new arrivals
-    const isBestSeller = parseFloat(averageRating) >= 4.8 && totalReviewsCount >= 5; // Best Seller requires >=5 real 4.8+ ratings
+    // Cute signs / status badge determination
+    const dealIds = [5, 14, 28, 40, 7, 18, 32, 45];
+    const bestIds = [1, 13, 26, 39, 2, 8, 15, 22];
+    const newIds = [46, 47, 48, 49, 50, 41, 42, 43, 44];
+
+    const isHotDeal = Boolean(
+      this._isHotDeal || 
+      p.isHotDeal || 
+      (p.homepageSections && p.homepageSections.includes('sec-deals')) || 
+      dealIds.includes(p.id) || 
+      (p.originalPrice && p.originalPrice > p.price)
+    );
+
+    const isNew = Boolean(
+      !isHotDeal && (
+        p.isNewArrival || 
+        (p.homepageSections && p.homepageSections.includes('sec-new')) || 
+        newIds.includes(p.id) || 
+        p.id > 44
+      )
+    );
+
+    const isBestSeller = Boolean(
+      !isHotDeal && !isNew && (
+        p.isBestSeller || 
+        (p.homepageSections && p.homepageSections.includes('sec-best')) || 
+        bestIds.includes(p.id) || 
+        parseFloat(ratingVal) >= 4.8
+      )
+    );
+
+    const origPrice = p.comparePrice || p.originalPrice || p.original_price || 0;
+    const hasDiscount = Boolean(origPrice > p.price);
+    const originalPriceVal = hasDiscount ? origPrice : 0;
+    const discountVal = hasDiscount ? Math.round(((originalPriceVal - p.price) / originalPriceVal) * 100) : 0;
 
     const wishlistSaved = localStorage.getItem('SWEETOS_wishlist');
     let isWishlisted = false;
@@ -70,14 +105,19 @@ class ProductCard extends HTMLElement {
       <link rel="stylesheet" href="./components/ProductCard/ProductCard.css">
       <div class="card glass-panel">
         <div class="image-container">
-          <img src="${p.image}" alt="${p.name}" class="product-img">
+          <img src="${p.image}" alt="${p.name}" class="product-img" loading="lazy">
           
-          <!-- Category badge removed -->
+          <!-- Category / Stock badge on left -->
+          <span class="category-badge ${isOutOfStock ? 'out-of-stock' : ''}">
+            ${isOutOfStock ? '✕ Rupture' : (p.category || 'Workspace')}
+          </span>
           
           <!-- Status Signs on right -->
           <div class="status-badge-container">
-            ${isBestSeller ? `<span class="status-badge bestseller">Best Seller</span>` : ''}
-            ${isNew && !isBestSeller ? `<span class="status-badge new">New</span>` : ''}
+            ${p.isDeal ? `<span class="status-badge hot-deal" style="background: linear-gradient(135deg, #0052cc 0%, #00b4d8 100%); color: white; border: none; font-weight: 900; box-shadow: 0 4px 10px rgba(0,82,204,0.3);">⚡ FLASH DEAL</span>` : ''}
+            ${!p.isDeal && isHotDeal ? `<span class="status-badge hot-deal">🔥 -${discountVal || 20}% OFF</span>` : ''}
+            ${!p.isDeal && isBestSeller ? `<span class="status-badge bestseller">⭐ BEST SELLER</span>` : ''}
+            ${!p.isDeal && isNew ? `<span class="status-badge new">✨ NEW</span>` : ''}
           </div>
           
           <div class="overlay-actions">
@@ -92,6 +132,15 @@ class ProductCard extends HTMLElement {
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
               </svg>
             </button>
+            <button class="action-btn" id="share-card-btn" title="Share Product">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+              </svg>
+            </button>
             <button class="action-btn" id="add-to-cart-btn" title="${isOutOfStock ? 'Rupture de Stock / Out of Stock' : 'Add to Cart'}" ${isOutOfStock ? 'disabled style="opacity: 0.45; cursor: not-allowed; pointer-events: none;"' : ''}>
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
@@ -104,20 +153,23 @@ class ProductCard extends HTMLElement {
         
         <div class="info-container">
           <div class="rating-row">
-            <span class="stars" style="color: ${totalReviewsCount > 0 ? '#00b4d8' : '#94a3b8'};">
-              <svg class="star-icon" viewBox="0 0 24 24" width="14" height="14" fill="${totalReviewsCount > 0 ? '#00b4d8' : '#94a3b8'}" stroke="${totalReviewsCount > 0 ? '#00b4d8' : '#94a3b8'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-              ${averageRating}
+            <span class="stars" style="color: #f59e0b;">
+              <svg class="star-icon" viewBox="0 0 24 24" width="14" height="14" fill="#f59e0b" stroke="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              ${ratingVal}
             </span>
-            <span class="reviews">(${totalReviewsCount})</span>
+            <span class="reviews">(${reviewsDisplayCount})</span>
           </div>
           
           <h3 class="product-title" id="title-click">${p.name}</h3>
           <p class="product-desc">${p.shortDesc}</p>
           
           <div class="price-row">
-            <div class="price-box">
+            <div class="price-box" style="display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;">
               <span class="price">${formatPrice(p.price)}</span>
-              ${this.isHotDeal ? `<span class="original-price">${formatPrice(p.price / 0.8)}</span>` : ''}
+              ${hasDiscount ? `
+                <span class="original-price" style="text-decoration: line-through; color: #94a3b8; font-size: 0.85rem; font-weight: 550;">${formatPrice(originalPriceVal)}</span>
+                <span class="discount-pill" style="font-size: 10px; font-weight: 850; background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 1px 5px; border-radius: 5px;">-${discountVal}%</span>
+              ` : ''}
             </div>
             <button class="buy-btn" id="buy-btn" ${isOutOfStock ? 'disabled style="background: #475569; border-color: #475569; opacity: 0.55; cursor: not-allowed; pointer-events: none;"' : ''}>
               ${isOutOfStock ? 'Out' : 'Add +'}
@@ -149,6 +201,61 @@ class ProductCard extends HTMLElement {
       wishBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         window.dispatchEvent(new CustomEvent('wishlist:add', { detail: p }));
+      });
+    }
+
+    const shareCardBtn = shadow.getElementById('share-card-btn');
+    if (shareCardBtn) {
+      shareCardBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const shareTitle = `SWEETOS | ${p.name}`;
+        const shareText = `Découvrez ${p.name} sur SWEETOS !\n${p.shortDesc || ''}\n\nPrix: $${p.price.toFixed(2)}`;
+        const shareUrl = window.location.origin;
+
+        const copyToClipboardFallback = () => {
+          navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`)
+            .then(() => {
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: '📋 Lien du produit copié ! / Copied to clipboard! 🌟' }));
+            })
+            .catch(() => {
+              const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + '\n\n' + shareUrl)}`;
+              window.open(whatsappUrl, '_blank');
+            });
+        };
+
+        if (navigator.share) {
+          try {
+            // Fetch product image to share as file blob
+            const response = await fetch(p.image);
+            const blob = await response.blob();
+            const extension = p.image.split('.').pop().split('?')[0] || 'jpg';
+            const file = new File([blob], `product-${p.id}.${extension}`, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: shareTitle,
+                text: shareText,
+                url: shareUrl,
+                files: [file]
+              });
+            } else {
+              await navigator.share({
+                title: shareTitle,
+                text: shareText,
+                url: shareUrl
+              });
+            }
+          } catch (err) {
+            console.log('Error sharing image file, falling back to text:', err);
+            navigator.share({
+              title: shareTitle,
+              text: shareText,
+              url: shareUrl
+            }).catch(() => copyToClipboardFallback());
+          }
+        } else {
+          copyToClipboardFallback();
+        }
       });
     }
 

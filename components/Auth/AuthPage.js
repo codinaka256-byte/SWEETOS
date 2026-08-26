@@ -18,31 +18,31 @@ export function getAuthPageHTML() {
           
           <!-- Left Side: Visuals (Hidden on mobile) -->
           <div class="hidden lg:flex w-1/2 relative overflow-hidden bg-slate-900">
-              <img id="side-image" src="https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=2070&auto=format&fit=crop" alt="Luxury Fashion" class="absolute inset-0 w-full h-full object-cover opacity-50 hover:scale-105 transition-transform duration-[10s] ease-linear">
+              <img id="side-image" src="https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=2070&auto=format&fit=crop" alt="Luxury Tech & Lifestyle" class="absolute inset-0 w-full h-full object-cover opacity-50 hover:scale-105 transition-transform duration-[10s] ease-linear">
               <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-slate-900/50"></div>
               
               <div class="relative z-10 flex flex-col justify-between h-full p-12">
                   <div>
                       <h1 class="text-4xl font-bold tracking-tighter text-white mb-2">SWEETOS</h1>
-                      <p class="text-slate-300 text-sm tracking-widest uppercase">Curated Excellence</p>
+                      <p class="text-slate-300 text-sm tracking-widest uppercase">E-Commerce & High-End Tech Côte d'Ivoire 🇨🇮</p>
                   </div>
                   
                   <div class="mb-12">
-                      <h2 class="text-5xl font-light leading-tight mb-6">Elevate your <br><span class="font-semibold text-gradient">lifestyle.</span></h2>
-                      <p class="text-slate-400 max-w-xs leading-relaxed">Join an exclusive community of trendsetters. Access limited drops and personalized collections.</p>
+                      <h2 class="text-5xl font-light leading-tight mb-6">Sublimez votre <br><span class="font-semibold text-gradient">espace de travail.</span></h2>
+                      <p class="text-slate-400 max-w-xs leading-relaxed">Rejoignez notre boutique exclusive en Côte d'Ivoire. Livraison rapide à Abidjan et dans toutes les villes de l'intérieur.</p>
                   </div>
 
                   <div class="flex gap-4 text-slate-500 text-sm">
-                      <span>&copy; 2026 SWEETOS Inc.</span>
+                      <span>&copy; 2026 SWEETOS Côte d'Ivoire</span>
                       <span>•</span>
-                      <span>Privacy</span>
+                      <span>Confidentialité</span>
                       <span>•</span>
-                      <span>Terms</span>
+                      <span>Conditions</span>
                   </div>
               </div>
           </div>
 
-          <!-- Right Side: Forms (Light Themed to match screenshot) -->
+          <!-- Right Side: Forms -->
           <div class="w-full lg:w-1/2 p-8 md:p-10 lg:p-12 flex flex-col justify-center relative light-glass-column text-gray-800">
               
               <!-- Mobile Logo -->
@@ -53,7 +53,6 @@ export function getAuthPageHTML() {
 
                   <!-- LOGIN FORM -->
                   <form id="login-form" class="fade-in-up block">
-                      <!-- Login Header Icon -->
                       <div class="flex flex-col items-center mb-6">
                         <div class="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center text-brand mb-3">
                           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
@@ -61,8 +60,8 @@ export function getAuthPageHTML() {
                             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                           </svg>
                         </div>
-                        <h3 class="text-2xl font-bold text-gray-800">Welcome Back</h3>
-                        <p class="text-gray-500 text-sm mt-1">Sign in to SWEETOS</p>
+                        <h3 class="text-2xl font-bold text-gray-800">Bon retour parmi nous</h3>
+                        <p class="text-gray-500 text-sm mt-1">Connectez-vous à votre compte SWEETOS</p>
                       </div>
 
                       <!-- Google Button -->
@@ -73,29 +72,29 @@ export function getAuthPageHTML() {
                               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                           </svg>
-                          Continue with Google
+                          Continuer avec Google
                       </button>
 
                       <div class="relative flex py-2 items-center mb-6">
                           <div class="flex-grow border-t border-gray-200"></div>
-                          <span class="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase tracking-wider font-semibold">Or sign in with email</span>
+                          <span class="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase tracking-wider font-semibold">Ou par e-mail</span>
                           <div class="flex-grow border-t border-gray-200"></div>
                       </div>
 
                       <div class="space-y-4">
                           <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Adresse e-mail</label>
                               <div class="relative">
                                   <i class="ph ph-envelope-simple absolute left-4 top-3.5 text-gray-400"></i>
-                                  <input type="email" id="signin-email" placeholder="you@example.com" required autocomplete="email" class="light-input-field w-full pl-11 pr-4 py-3 rounded-xl text-sm">
+                                  <input type="email" id="signin-email" placeholder="vous@exemple.ci" required autocomplete="email" class="light-input-field w-full pl-11 pr-4 py-3 rounded-xl text-sm">
                               </div>
                           </div>
                           
                           <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Mot de passe</label>
                               <div class="relative">
                                   <i class="ph ph-lock-key absolute left-4 top-3.5 text-gray-400"></i>
-                                  <input type="password" id="signin-password" placeholder="Enter your password" required autocomplete="current-password" class="light-input-field w-full pl-11 pr-10 py-3 rounded-xl text-sm">
+                                  <input type="password" id="signin-password" placeholder="Entrez votre mot de passe" required autocomplete="current-password" class="light-input-field w-full pl-11 pr-10 py-3 rounded-xl text-sm">
                                   <button type="button" id="toggle-signin-pass" class="absolute right-4 top-3.5 text-gray-400 hover:text-brand transition-colors focus:outline-none">
                                       <i class="ph ph-eye text-lg"></i>
                                   </button>
@@ -109,21 +108,22 @@ export function getAuthPageHTML() {
                               <div class="w-4.5 h-4.5 border border-gray-300 rounded flex items-center justify-center transition-colors bg-white">
                                   <i class="ph ph-check text-[10px] text-white opacity-0 custom-check-icon"></i>
                               </div>
-                              <span class="text-xs text-gray-600">Remember me</span>
+                              <span class="text-xs text-gray-600">Se souvenir de moi</span>
                           </label>
-                          <a href="#" class="text-xs text-brand font-semibold hover:underline">Forgot password?</a>
+                          <a href="#" class="text-xs text-brand font-semibold hover:underline">Mot de passe oublié ?</a>
                       </div>
 
                       <button type="submit" class="w-full btn-brand font-semibold py-3.5 rounded-xl active:scale-[0.98]">
-                          Sign In
+                          Se Connecter
                       </button>
 
                       <div class="mt-6 text-center text-sm text-gray-500">
-                          Don't have an account? <a href="#" id="to-signup-link" class="text-brand font-semibold hover:underline">Create Account</a>
+                          Vous n'avez pas de compte ? <a href="#" id="to-signup-link" class="text-brand font-semibold hover:underline">Créer un compte</a>
                       </div>
                   </form>
+
+                  <!-- REGISTER FORM (COMPULSORY ALL-IN-ONE FOR CÔTE D'IVOIRE) -->
                   <form id="register-form" class="hidden fade-in-up">
-                      <!-- Register Header Icon -->
                       <div class="flex flex-col items-center mb-6">
                         <div class="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center text-brand mb-3">
                           <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
@@ -133,8 +133,8 @@ export function getAuthPageHTML() {
                             <line x1="22" y1="11" x2="16" y2="11"></line>
                           </svg>
                         </div>
-                        <h3 class="text-2xl font-bold text-gray-800">Create Account</h3>
-                        <p class="text-gray-500 text-sm mt-1">Join SWEETOS</p>
+                        <h3 class="text-2xl font-bold text-gray-800">Créer un Compte Client</h3>
+                        <p class="text-gray-500 text-sm mt-1">Toutes les informations ci-dessous sont obligatoires pour la livraison</p>
                       </div>
 
                       <!-- Google Button -->
@@ -145,135 +145,89 @@ export function getAuthPageHTML() {
                               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                           </svg>
-                          Continue with Google
+                          Continuer avec Google
                       </button>
 
                       <div class="relative flex py-2 items-center mb-6">
                           <div class="flex-grow border-t border-gray-200"></div>
-                          <span class="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase tracking-wider font-semibold">Or sign up with email</span>
+                          <span class="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase tracking-wider font-semibold">Ou formulaire d'inscription complet</span>
                           <div class="flex-grow border-t border-gray-200"></div>
                       </div>
 
                       <div class="space-y-4">
                           <!-- Full Name -->
                           <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Full Name</label>
-                              <input type="text" id="signup-fullname" placeholder="Jean Dupont" required autocomplete="name" class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Nom et Prénom complets *</label>
+                              <input type="text" id="signup-fullname" placeholder="Ex: Marc Aurele" required autocomplete="name" class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
                           </div>
 
                           <!-- Email Address -->
                           <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Email Address</label>
-                              <input type="email" id="signup-email" placeholder="vous@exemple.com" required autocomplete="email" class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Adresse e-mail *</label>
+                              <input type="email" id="signup-email" placeholder="vous@exemple.ci" required autocomplete="email" class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
                           </div>
 
                           <!-- Password -->
                           <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Mot de passe sécurisé *</label>
                               <div class="relative">
-                                  <input type="password" id="signup-password" placeholder="Enter your password" required autocomplete="new-password" class="light-input-field w-full pl-4 pr-10 py-3 rounded-xl text-sm">
+                                  <input type="password" id="signup-password" placeholder="Minimum 6 caractères" required autocomplete="new-password" class="light-input-field w-full pl-4 pr-10 py-3 rounded-xl text-sm">
                                   <button type="button" id="toggle-signup-pass" class="absolute right-3 top-3.5 text-gray-400 hover:text-brand transition-colors focus:outline-none">
                                       <i class="ph ph-eye text-lg"></i>
                                   </button>
                               </div>
-                              <span class="block text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
-                                  <i class="ph ph-info text-xs"></i> Password must be at least 6 characters
-                              </span>
                           </div>
 
                           <!-- Phone Number (Prefix Dropdown + Input) -->
                           <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Phone Number</label>
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Numéro WhatsApp / Téléphone de contact *</label>
                               <div class="flex gap-2">
-                                  <select id="signup-phone-prefix" class="light-input-field px-3 py-3 rounded-xl text-sm bg-white" style="width: 105px;">
+                                  <select id="signup-phone-prefix" class="light-input-field px-3 py-3 rounded-xl text-sm bg-white" style="width: 110px;">
                                       <option value="+225" selected>CI +225</option>
-                                      <option value="+237">CM +237</option>
-                                      <option value="+234">NG +234</option>
-                                      <option value="+233">GH +233</option>
                                       <option value="+221">SN +221</option>
-                                      <option value="+254">KE +254</option>
-                                      <option value="+27">ZA +27</option>
-                                      <option value="+212">MA +212</option>
-                                      <option value="+216">TN +216</option>
-                                      <option value="+213">DZ +213</option>
+                                      <option value="+237">CM +237</option>
+                                      <option value="+233">GH +233</option>
+                                      <option value="+234">NG +234</option>
+                                      <option value="+226">BF +226</option>
+                                      <option value="+228">TG +228</option>
+                                      <option value="+229">BJ +229</option>
+                                      <option value="+33">FR +33</option>
                                   </select>
-                                  <input type="tel" id="signup-phone" placeholder="6XX XXX XXX" required autocomplete="tel" class="flex-1 light-input-field px-4 py-3 rounded-xl text-sm">
+                                  <input type="tel" id="signup-phone" placeholder="05 00 61 99 23" required autocomplete="tel" class="flex-1 light-input-field px-4 py-3 rounded-xl text-sm">
                               </div>
                               <span class="block text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
-                                  <i class="ph ph-info text-xs"></i> We will use this to contact you regarding your orders
+                                  <i class="ph ph-info text-xs"></i> Utilisé par nos livreurs pour vous joindre lors des expéditions
                               </span>
                           </div>
 
-                          <!-- Shipping Address -->
+                          <!-- City / Region in Ivory Coast -->
                           <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Shipping Address</label>
-                              <input type="text" id="signup-address" placeholder="123 Main Street, City, Country" required autocomplete="street-address" class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
-                              <span class="block text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
-                                  <i class="ph ph-info text-xs"></i> Your default shipping address
-                              </span>
-                          </div>
-
-                          <!-- Country / Region Selector (50 African Countries) -->
-                          <div class="form-group">
-                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Country / Region</label>
-                              <select id="signup-country" required class="w-full px-4 py-3 rounded-xl light-input-field text-sm bg-white">
-                                  <option value="Ivory Coast" selected>Ivory Coast (Côte d'Ivoire)</option>
-                                  <option value="Algeria">Algeria</option>
-                                  <option value="Angola">Angola</option>
-                                  <option value="Benin">Benin</option>
-                                  <option value="Botswana">Botswana</option>
-                                  <option value="Burkina Faso">Burkina Faso</option>
-                                  <option value="Burundi">Burundi</option>
-                                  <option value="Cabo Verde">Cabo Verde</option>
-                                  <option value="Cameroon">Cameroon</option>
-                                  <option value="Central African Republic">Central African Republic</option>
-                                  <option value="Chad">Chad</option>
-                                  <option value="Comoros">Comoros</option>
-                                  <option value="Congo-Brazzaville">Congo (Brazzaville)</option>
-                                  <option value="Congo-Kinshasa">Congo (Kinshasa)</option>
-                                  <option value="Djibouti">Djibouti</option>
-                                  <option value="Egypt">Egypt</option>
-                                  <option value="Equatorial Guinea">Equatorial Guinea</option>
-                                  <option value="Eritrea">Eritrea</option>
-                                  <option value="Eswatini">Eswatini</option>
-                                  <option value="Ethiopia">Ethiopia</option>
-                                  <option value="Gabon">Gabon</option>
-                                  <option value="Gambia">Gambia</option>
-                                  <option value="Ghana">Ghana</option>
-                                  <option value="Guinea">Guinea</option>
-                                  <option value="Guinea-Bissau">Guinea-Bissau</option>
-                                  <option value="Kenya">Kenya</option>
-                                  <option value="Lesotho">Lesotho</option>
-                                  <option value="Liberia">Liberia</option>
-                                  <option value="Libya">Libya</option>
-                                  <option value="Madagascar">Madagascar</option>
-                                  <option value="Malawi">Malawi</option>
-                                  <option value="Mali">Mali</option>
-                                  <option value="Mauritania">Mauritania</option>
-                                  <option value="Mauritius">Mauritius</option>
-                                  <option value="Morocco">Morocco</option>
-                                  <option value="Mozambique">Mozambique</option>
-                                  <option value="Namibia">Namibia</option>
-                                  <option value="Niger">Niger</option>
-                                  <option value="Nigeria">Nigeria</option>
-                                  <option value="Rwanda">Rwanda</option>
-                                  <option value="Sao Tome and Principe">Sao Tome and Principe</option>
-                                  <option value="Senegal">Senegal</option>
-                                  <option value="Seychelles">Seychelles</option>
-                                  <option value="Sierra Leone">Sierra Leone</option>
-                                  <option value="Somalia">Somalia</option>
-                                  <option value="South Africa">South Africa</option>
-                                  <option value="South Sudan">South Sudan</option>
-                                  <option value="Sudan">Sudan</option>
-                                  <option value="Tanzania">Tanzania</option>
-                                  <option value="Togo">Togo</option>
-                                  <option value="Tunisia">Tunisia</option>
-                                  <option value="Uganda">Uganda</option>
-                                  <option value="Zambia">Zambia</option>
-                                  <option value="Zimbabwe">Zimbabwe</option>
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Ville / Région (Côte d'Ivoire) *</label>
+                              <select id="signup-city" required class="w-full px-4 py-3 rounded-xl light-input-field text-sm bg-white">
+                                  <option value="Abidjan" selected>Abidjan (District Autonome)</option>
+                                  <option value="Yamoussoukro">Yamoussoukro</option>
+                                  <option value="Bouaké">Bouaké</option>
+                                  <option value="San-Pédro">San-Pédro</option>
+                                  <option value="Korhogo">Korhogo</option>
+                                  <option value="Daloa">Daloa</option>
+                                  <option value="Grand-Bassam">Grand-Bassam</option>
+                                  <option value="Bingerville">Bingerville</option>
+                                  <option value="Autre Ville">Autre Ville de l'Intérieur</option>
                               </select>
+                          </div>
+
+                          <!-- Commune / Quartier -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Commune / Quartier *</label>
+                              <input type="text" id="signup-commune" placeholder="Ex: Cocody Angré 8ème Tranche / Marcory Zone 4 / Plateau" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
+                          </div>
+
+                          <!-- Street Address & Landmark -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Rue & Repère précis de livraison *</label>
+                              <input type="text" id="signup-address" placeholder="Ex: Près de la Pharmacie des Grâces, Immeuble Horizon" required autocomplete="street-address" class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
                               <span class="block text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
-                                  <i class="ph ph-info text-xs"></i> Select your country for shipping and currency
+                                  <i class="ph ph-info text-xs"></i> Indiquez un repère clair pour faciliter la livraison rapide
                               </span>
                           </div>
                       </div>
@@ -286,25 +240,107 @@ export function getAuthPageHTML() {
                                   <i class="ph ph-check text-xs text-white opacity-0 custom-check-icon"></i>
                               </div>
                               <span class="text-xs text-gray-600 leading-relaxed">
-                                  I accept the conditions of use and the privacy policy.
+                                  J'accepte les conditions de vente et la politique de confidentialité de SWEETOS.
                               </span>
                           </label>
                       </div>
 
                       <button type="submit" class="w-full btn-brand font-semibold py-3.5 rounded-xl active:scale-[0.98]">
-                          Create Account
+                          Créer mon Compte
                       </button>
 
                       <div class="mt-6 text-center text-sm text-gray-500">
-                          Already have an account? <a href="#" id="to-signin-link" class="text-brand font-semibold hover:underline">Sign In</a>
+                          Vous avez déjà un compte ? <a href="#" id="to-signin-link" class="text-brand font-semibold hover:underline">Se Connecter</a>
                       </div>
+                  </form>
+
+                  <!-- COMPLETE PROFILE FORM (TRIGGERED AFTER GOOGLE AUTH IF MISSING INFO) -->
+                  <form id="complete-profile-form" class="hidden fade-in-up">
+                      <div class="flex flex-col items-center mb-6">
+                        <div class="w-14 h-14 rounded-full bg-brand-light flex items-center justify-center text-brand mb-3">
+                          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                          </svg>
+                        </div>
+                        <h3 class="text-2xl font-bold text-gray-800">Finaliser votre Profil</h3>
+                        <p class="text-gray-500 text-sm mt-1 text-center">Veuillez renseigner votre contact WhatsApp et votre lieu de livraison en Côte d'Ivoire pour commander</p>
+                      </div>
+
+                      <div class="space-y-4">
+                          <!-- Email Address (Read-only) -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Adresse e-mail Google (Vérifiée)</label>
+                              <input type="email" id="complete-email" readonly class="light-input-field w-full px-4 py-3 rounded-xl text-sm bg-gray-100 cursor-not-allowed">
+                          </div>
+
+                          <!-- Full Name -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Nom et Prénom complets *</label>
+                              <input type="text" id="complete-fullname" placeholder="Ex: Marc Aurele" required autocomplete="name" class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
+                          </div>
+
+                          <!-- Phone Number (Prefix Dropdown + Input) -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Numéro WhatsApp / Téléphone de réception *</label>
+                              <div class="flex gap-2">
+                                  <select id="complete-phone-prefix" class="light-input-field px-3 py-3 rounded-xl text-sm bg-white" style="width: 110px;">
+                                      <option value="+225" selected>CI +225</option>
+                                      <option value="+221">SN +221</option>
+                                      <option value="+237">CM +237</option>
+                                      <option value="+233">GH +233</option>
+                                      <option value="+234">NG +234</option>
+                                      <option value="+226">BF +226</option>
+                                      <option value="+228">TG +228</option>
+                                      <option value="+229">BJ +229</option>
+                                      <option value="+33">FR +33</option>
+                                  </select>
+                                  <input type="tel" id="complete-phone" placeholder="05 00 61 99 23" required class="flex-1 light-input-field px-4 py-3 rounded-xl text-sm">
+                              </div>
+                              <span class="block text-[11px] text-gray-400 mt-1.5 flex items-center gap-1">
+                                  <i class="ph ph-info text-xs"></i> Requis pour que le livreur puisse vous joindre
+                              </span>
+                          </div>
+
+                          <!-- City Selector -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Ville / Région (Côte d'Ivoire) *</label>
+                              <select id="complete-city" required class="w-full px-4 py-3 rounded-xl light-input-field text-sm bg-white">
+                                  <option value="Abidjan" selected>Abidjan (District Autonome)</option>
+                                  <option value="Yamoussoukro">Yamoussoukro</option>
+                                  <option value="Bouaké">Bouaké</option>
+                                  <option value="San-Pédro">San-Pédro</option>
+                                  <option value="Korhogo">Korhogo</option>
+                                  <option value="Daloa">Daloa</option>
+                                  <option value="Grand-Bassam">Grand-Bassam</option>
+                                  <option value="Bingerville">Bingerville</option>
+                                  <option value="Autre Ville">Autre Ville de l'Intérieur</option>
+                              </select>
+                          </div>
+
+                          <!-- Commune / Quartier -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Commune / Quartier *</label>
+                              <input type="text" id="complete-commune" placeholder="Ex: Cocody Angré 8ème Tranche / Marcory Zone 4 / Plateau" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
+                          </div>
+
+                          <!-- Street Address & Landmark -->
+                          <div class="form-group">
+                              <label class="block text-sm font-semibold text-gray-700 mb-1.5">Rue & Repère précis de livraison *</label>
+                              <input type="text" id="complete-address" placeholder="Ex: Près de la Pharmacie des Grâces, Immeuble Horizon" required class="light-input-field w-full px-4 py-3 rounded-xl text-sm">
+                          </div>
+                      </div>
+
+                      <button type="submit" class="w-full btn-brand font-semibold py-3.5 rounded-xl mt-6 active:scale-[0.98]">
+                          Enregistrer et Commencer mes Achats
+                      </button>
                   </form>
 
               </div>
           </div>
       </div>
       
-      <!-- GOOGLE OAUTH SIMULATED OVERLAY (SERIOUS AUTH FLOW) -->
+      <!-- GOOGLE OAUTH SIMULATED OVERLAY -->
       <div id="google-oauth-overlay" class="modal-backdrop" style="display: none; z-index: 10000; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); align-items: center; justify-content: center; width: 100%; height: 100%;">
         <div style="background: #ffffff; width: 440px; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.18); border: 1px solid #e2e8f0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; animation: fadeInModal 0.3s ease;">
           
@@ -316,30 +352,30 @@ export function getAuthPageHTML() {
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            <h2 style="font-size: 20px; font-weight: 500; color: #202124; margin: 0 0 6px 0; font-family: 'Outfit', sans-serif;">Sign in with Google</h2>
-            <p style="font-size: 14px; color: #5f6368; margin: 0; font-family: 'Outfit', sans-serif;">to continue to <strong style="color:#0052cc;">SWEETOS</strong></p>
+            <h2 style="font-size: 20px; font-weight: 500; color: #202124; margin: 0 0 6px 0; font-family: 'Outfit', sans-serif;">Se connecter avec Google</h2>
+            <p style="font-size: 14px; color: #5f6368; margin: 0; font-family: 'Outfit', sans-serif;">pour continuer sur <strong style="color:#0052cc;">SWEETOS</strong></p>
           </div>
 
           <!-- Google Sign-in Form -->
           <div style="padding: 24px 36px 36px 36px;">
             <form id="google-oauth-form" style="display: flex; flex-direction: column; gap: 16px;">
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                <label style="font-size: 13px; font-weight: 600; color: #374151;">Email address</label>
-                <input type="email" id="google-email" required placeholder="name@gmail.com" style="width: 100%; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; background: white;">
+                <label style="font-size: 13px; font-weight: 600; color: #374151;">Adresse e-mail Google</label>
+                <input type="email" id="google-email" required placeholder="nom@gmail.com" style="width: 100%; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; background: white;">
               </div>
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                <label style="font-size: 13px; font-weight: 600; color: #374151;">Full Name</label>
-                <input type="text" id="google-fullname" required placeholder="Alex Johnson" style="width: 100%; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; background: white;">
+                <label style="font-size: 13px; font-weight: 600; color: #374151;">Nom et Prénom</label>
+                <input type="text" id="google-fullname" required placeholder="Ex: Marc Aurele" style="width: 100%; border: 1px solid #cbd5e1; padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; background: white;">
               </div>
               
               <button type="submit" style="width: 100%; background: #4285F4; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
-                Continue to SWEETOS
+                Continuer sur SWEETOS
               </button>
             </form>
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
-              <button type="button" id="cancel-google-oauth-btn" style="background: none; border: none; color: #1a73e8; font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 12px; border-radius: 4px; transition: background 0.2s;">Cancel</button>
-              <span style="font-size: 11.5px; color: #5f6368; font-family: 'Outfit', sans-serif;">Secure connection 🛡️</span>
+              <button type="button" id="cancel-google-oauth-btn" style="background: none; border: none; color: #1a73e8; font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 12px; border-radius: 4px; transition: background 0.2s;">Annuler</button>
+              <span style="font-size: 11.5px; color: #5f6368; font-family: 'Outfit', sans-serif;">Connexion Sécurisée 🛡️</span>
             </div>
           </div>
 
@@ -353,10 +389,12 @@ export function getAuthPageHTML() {
 export function attachAuthListeners(shadow, onLoginSuccess) {
   const formSignin = shadow.getElementById('login-form');
   const formSignup = shadow.getElementById('register-form');
+  const completeForm = shadow.getElementById('complete-profile-form');
 
   const showSignin = () => {
     formSignin.classList.remove('hidden');
     formSignup.classList.add('hidden');
+    if (completeForm) completeForm.classList.add('hidden');
 
     formSignin.classList.remove('fade-in-up');
     void formSignin.offsetWidth; 
@@ -366,6 +404,7 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
   const showSignup = () => {
     formSignup.classList.remove('hidden');
     formSignin.classList.add('hidden');
+    if (completeForm) completeForm.classList.add('hidden');
 
     formSignup.classList.remove('fade-in-up');
     void formSignup.offsetWidth; 
@@ -419,12 +458,11 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
   const googleRegisterBtn = shadow.getElementById('google-register-btn');
   const googleOverlay = shadow.getElementById('google-oauth-overlay');
   const cancelGoogleBtn = shadow.getElementById('cancel-google-oauth-btn');
-  const googleAccRows = shadow.querySelectorAll('.google-acc-row');
 
   const openGoogleOverlay = () => {
     if (googleOverlay) {
       googleOverlay.style.display = 'flex';
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Opening Google Sign-In secure portal... 🔒' }));
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Ouverture du portail de connexion sécurisé Google... 🔒' }));
     }
   };
 
@@ -443,64 +481,162 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
       const email = shadow.getElementById('google-email').value.trim().toLowerCase();
       const fullName = shadow.getElementById('google-fullname').value.trim();
       const parts = fullName.split(' ');
-      const firstname = parts[0] || 'Google';
-      const lastname = parts.slice(1).join(' ') || 'User';
+      const firstname = parts[0] || 'Client';
+      const lastname = parts.slice(1).join(' ') || 'Google';
 
       closeGoogleOverlay();
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Authenticating with Google account: ${email}... 🌐` }));
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Authentification Google : ${email}... 🌐` }));
 
       setTimeout(() => {
+        const safeKey = email.replace(/[^a-zA-Z0-9]/g, '_');
+        const savedProfileStr = localStorage.getItem(`SWEETOS_user_profile_${safeKey}`) || localStorage.getItem('SWEETOS_user_profile');
+        let savedProfile = null;
+        if (savedProfileStr) {
+          try {
+            savedProfile = JSON.parse(savedProfileStr);
+          } catch (err) {}
+        }
+
+        // Check if user already has complete profile (phone, commune, address, and city)
+        const hasCompleteProfile = savedProfile && 
+                                   savedProfile.phone && 
+                                   savedProfile.phone.length >= 8 &&
+                                   savedProfile.address && 
+                                   savedProfile.address.length >= 5 &&
+                                   savedProfile.phone !== "+225 600 000 000" && 
+                                   savedProfile.address !== "Ivory Coast";
+
+        if (hasCompleteProfile) {
+          // Complete profile exists, log in immediately
+          localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
+          localStorage.setItem('SWEETOS_user_profile', JSON.stringify(savedProfile));
+
+          window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Bon retour, ${savedProfile.firstName} ! Connecté via Google.` }));
+          
+          onLoginSuccess();
+        } else {
+          // Profile is incomplete -> Pop up Complete Profile Form!
+          formSignin.classList.add('hidden');
+          formSignup.classList.add('hidden');
+          
+          if (completeForm) {
+            completeForm.classList.remove('hidden');
+            completeForm.classList.remove('fade-in-up');
+            void completeForm.offsetWidth;
+            completeForm.classList.add('fade-in-up');
+
+            shadow.getElementById('complete-email').value = email;
+            shadow.getElementById('complete-fullname').value = fullName;
+            
+            const phoneInput = shadow.getElementById('complete-phone');
+            if (phoneInput) phoneInput.focus();
+            
+            window.dispatchEvent(new CustomEvent('toast:show', { detail: '⚠️ Veuillez compléter vos informations de livraison en Côte d\'Ivoire.' }));
+          }
+        }
+      }, 900);
+    });
+  }
+
+  // Handle complete profile form submit (for Google OAuth users)
+  if (completeForm) {
+    completeForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = shadow.getElementById('complete-email').value.trim().toLowerCase();
+      const fullName = shadow.getElementById('complete-fullname').value.trim();
+      const parts = fullName.split(' ');
+      const first = parts[0] || 'Client';
+      const last = parts.slice(1).join(' ') || 'SWEETOS';
+
+      const phonePrefix = shadow.getElementById('complete-phone-prefix').value;
+      const rawPhone = shadow.getElementById('complete-phone').value.trim();
+      const phone = `${phonePrefix} ${rawPhone}`;
+
+      const city = shadow.getElementById('complete-city').value;
+      const commune = shadow.getElementById('complete-commune').value.trim();
+      const address = shadow.getElementById('complete-address').value.trim();
+
+      const fullFormattedAddress = `${commune}, ${address}, ${city} • Côte d'Ivoire`;
+
+      const btn = completeForm.querySelector('button[type="submit"]');
+      const originalText = btn.innerText;
+
+      btn.innerText = 'Enregistrement du profil...';
+      btn.disabled = true;
+      btn.classList.add('opacity-70');
+
+      setTimeout(() => {
+        btn.innerText = originalText;
+        btn.disabled = false;
+        btn.classList.remove('opacity-70');
+
         // Log in user state
         localStorage.setItem('SWEETOS_logged_in_user', JSON.stringify({ email }));
 
-        // Sync or initialize customer profile details
-        const profileKey = getProfileStorageKey();
-        let savedProfile = localStorage.getItem(profileKey);
-        if (!savedProfile) {
-          const defaultProfile = {
-            firstName: firstname,
-            lastName: lastname,
-            email: email,
-            phone: "+225 600 000 000",
-            bio: "SWEETOS member. Google Authenticated Profile.",
-            address: "Ivory Coast",
-            theme: "Ice Blue",
-            twoFactor: false,
-            marketingEmails: true,
-            smsUpdates: false,
-            addresses: ["Ivory Coast"],
-            orders: []
-          };
-          localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
-          localStorage.setItem('SWEETOS_user_profile', JSON.stringify(defaultProfile));
-        } else {
-          localStorage.setItem('SWEETOS_user_profile', savedProfile);
-        }
-
-        // Add user credentials to dynamic Customer database so it shows up in Admin dashboard
-        let savedCreds = [];
+        // Save credentials to database (so Admin can manage and see them)
+        let creds = [];
         try {
-          savedCreds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
+          creds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
         } catch (err) {}
 
-        const existingCredIdx = savedCreds.findIndex(c => c.email.toLowerCase() === email.toLowerCase());
+        const existingCredIdx = creds.findIndex(c => c.email.toLowerCase() === email);
         const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-        if (existingCredIdx === -1) {
-          savedCreds.push({
-            email: email,
-            password: "google_oauth_bypass",
-            fullname: fullName,
-            phone: "+225 600 000 000",
-            country: "Ivory Coast",
-            joinedDate: joinedDate
-          });
-          localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(savedCreds));
-        }
-
-        // Dispatch auth changed event to update sidebar / profile header
-        window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back, ${firstname}! Signed in via Google.` }));
         
+        const userCred = {
+          email: email,
+          password: "google_oauth_verified",
+          name: fullName,
+          phone: phone,
+          city: city,
+          commune: commune,
+          address: fullFormattedAddress,
+          joinedDate: joinedDate
+        };
+
+        if (existingCredIdx === -1) {
+          creds.push(userCred);
+        } else {
+          creds[existingCredIdx] = userCred;
+        }
+        localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(creds));
+
+        // Create complete user profile
+        const newProfile = {
+          firstName: first,
+          lastName: last,
+          email: email,
+          phone: phone,
+          bio: "Client SWEETOS Côte d'Ivoire. Compte Google vérifié.",
+          city: city,
+          commune: commune,
+          address: fullFormattedAddress,
+          theme: "Ice Blue",
+          twoFactor: false,
+          marketingEmails: true,
+          smsUpdates: true,
+          addresses: [
+            {
+              id: Date.now(),
+              label: 'Domicile / Livraison',
+              street: address,
+              commune: commune,
+              city: city,
+              phone: phone
+            }
+          ],
+          orders: []
+        };
+        
+        const safeKey = email.replace(/[^a-zA-Z0-9]/g, '_');
+        localStorage.setItem(`SWEETOS_user_profile_${safeKey}`, JSON.stringify(newProfile));
+        localStorage.setItem('SWEETOS_user_profile', JSON.stringify(newProfile));
+
+        // Dispatch events
+        window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
+        window.dispatchEvent(new CustomEvent('profile:updated'));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Bienvenue, ${first} ! Profil complété avec succès. ✨` }));
+
         onLoginSuccess();
       }, 1000);
     });
@@ -530,16 +666,16 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
       const userMatch = creds.find(u => u.email.toLowerCase() === email);
 
       if (!userMatch) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'This email is not registered! Please register first. ⚠️' }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Cet e-mail n\'est pas encore inscrit ! Veuillez créer un compte. ⚠️' }));
         return;
       }
 
-      if (userMatch.password !== password) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Incorrect password! Please try again. 🚫' }));
+      if (userMatch.password !== password && userMatch.password !== "google_oauth_verified") {
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Mot de passe incorrect ! Veuillez réessayer. 🚫' }));
         return;
       }
 
-      btn.innerText = 'Signing in...';
+      btn.innerText = 'Connexion en cours...';
       btn.disabled = true;
       btn.classList.add('opacity-70');
 
@@ -554,21 +690,32 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         let saved = localStorage.getItem(profileKey);
         if (!saved) {
           const parts = userMatch.name.split(' ');
-          const first = parts[0] || 'User';
+          const first = parts[0] || 'Client';
           const last = parts.slice(1).join(' ') || 'SWEETOS';
           
           const defaultProfile = {
             firstName: first,
             lastName: last,
             email: email,
-            phone: userMatch.phone || "+225 600 000 000",
-            bio: "SWEETOS member. Workspace curations.",
-            address: userMatch.address || "Ivory Coast",
+            phone: userMatch.phone || "+225 05 00 61 99 23",
+            bio: "Client SWEETOS Côte d'Ivoire.",
+            city: userMatch.city || "Abidjan",
+            commune: userMatch.commune || "Cocody",
+            address: userMatch.address || "Abidjan, Côte d'Ivoire",
             theme: "Ice Blue",
             twoFactor: false,
             marketingEmails: true,
             smsUpdates: false,
-            addresses: [userMatch.address || "Ivory Coast"],
+            addresses: [
+              {
+                id: Date.now(),
+                label: 'Domicile / Livraison',
+                street: userMatch.address || "Cocody Angré",
+                commune: userMatch.commune || "Cocody",
+                city: userMatch.city || "Abidjan",
+                phone: userMatch.phone || "+225 05 00 61 99 23"
+              }
+            ],
             orders: []
           };
           localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
@@ -578,10 +725,11 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         }
 
         window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Welcome back to SWEETOS, ${userMatch.name}! 🎉` }));
+        window.dispatchEvent(new CustomEvent('profile:updated'));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Bon retour sur SWEETOS, ${userMatch.name} ! 🎉` }));
         
         onLoginSuccess();
-      }, 1000);
+      }, 900);
     });
   }
 
@@ -591,8 +739,8 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
       e.preventDefault();
       const fullName = shadow.getElementById('signup-fullname').value.trim();
       const parts = fullName.split(' ');
-      const first = parts[0] || 'User';
-      const last = parts.slice(1).join(' ') || 'Member';
+      const first = parts[0] || 'Client';
+      const last = parts.slice(1).join(' ') || 'SWEETOS';
 
       const email = shadow.getElementById('signup-email').value.trim().toLowerCase();
       
@@ -600,12 +748,15 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
       const rawPhone = shadow.getElementById('signup-phone').value.trim();
       const phone = `${phonePrefix} ${rawPhone}`;
 
+      const city = shadow.getElementById('signup-city').value;
+      const commune = shadow.getElementById('signup-commune').value.trim();
       const address = shadow.getElementById('signup-address').value.trim();
-      const country = shadow.getElementById('signup-country').value;
       const password = shadow.getElementById('signup-password').value;
 
+      const fullFormattedAddress = `${commune}, ${address}, ${city} • Côte d'Ivoire`;
+
       if (password.length < 6) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: "Password must be at least 6 characters! ⚠️" }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: "Le mot de passe doit comporter au moins 6 caractères ! ⚠️" }));
         return;
       }
 
@@ -613,14 +764,14 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
       const creds = JSON.parse(localStorage.getItem('SWEETOS_customer_credentials') || '[]');
       const emailExists = creds.some(u => u.email.toLowerCase() === email);
       if (emailExists) {
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'This email is already registered! Please sign in. ⚠️' }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Cet e-mail est déjà enregistré ! Veuillez vous connecter. ⚠️' }));
         return;
       }
 
       const btn = formSignup.querySelector('button[type="submit"]');
       const originalText = btn.innerText;
 
-      btn.innerText = 'Creating Account...';
+      btn.innerText = 'Création du compte...';
       btn.disabled = true;
       btn.classList.add('opacity-70');
 
@@ -629,13 +780,18 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         btn.disabled = false;
         btn.classList.remove('opacity-70');
 
+        const joinedDate = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
         // Save to credentials database
         creds.push({
           email: email,
           password: password,
           name: fullName,
           phone: phone,
-          address: `${address}, ${country}`
+          city: city,
+          commune: commune,
+          address: fullFormattedAddress,
+          joinedDate: joinedDate
         });
         localStorage.setItem('SWEETOS_customer_credentials', JSON.stringify(creds));
 
@@ -644,13 +800,24 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
           lastName: last,
           email: email,
           phone: phone,
-          bio: "SWEETOS member. Workspace curations.",
-          address: `${address}, ${country}`,
+          bio: "Client SWEETOS Côte d'Ivoire.",
+          city: city,
+          commune: commune,
+          address: fullFormattedAddress,
           theme: "Ice Blue",
           twoFactor: false,
           marketingEmails: true,
-          smsUpdates: false,
-          addresses: [`${address}, ${country}`],
+          smsUpdates: true,
+          addresses: [
+            {
+              id: Date.now(),
+              label: 'Domicile / Livraison',
+              street: address,
+              commune: commune,
+              city: city,
+              phone: phone
+            }
+          ],
           orders: []
         };
         
@@ -661,10 +828,11 @@ export function attachAuthListeners(shadow, onLoginSuccess) {
         localStorage.setItem('SWEETOS_user_profile', JSON.stringify(newProfile));
 
         window.dispatchEvent(new CustomEvent('auth:changed', { detail: { loggedIn: true, email } }));
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Account created successfully! Welcome, ${first} 🎈` }));
+        window.dispatchEvent(new CustomEvent('profile:updated'));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Compte créé avec succès ! Bienvenue ${first} 🎈` }));
 
         onLoginSuccess();
-      }, 1200);
+      }, 1000);
     });
   }
 }

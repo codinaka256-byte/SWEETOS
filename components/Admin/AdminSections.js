@@ -1,159 +1,503 @@
-export function renderAdminSections(context) {
-  const sections = context.homepageSections || [];
-  const isEditing = context.editingSection !== null;
-  const showModal = context.showSectionModal;
+// Dedicated Admin Homepage Section Layout Management
 
-  // Make sure order field is initialized on all sections
-  sections.forEach((s, idx) => {
-    if (s.order === undefined) s.order = idx;
+let typeFilter = 'All';
+
+export function renderAdminSections(context) {
+  const query = (context.searchQuery || '').toLowerCase().trim();
+  const rawSections = context.homepageSections || [];
+  const rawCategories = context.categories || [];
+  const isEditing = context.editingSection !== null && context.editingSection !== undefined;
+  const showModal = context.showSectionModal === true;
+  const editSec = context.editingSection || {};
+
+  // Ensure every section has an integer order index
+  rawSections.forEach((s, idx) => {
+    if (s.order === undefined || s.order === null) s.order = idx;
   });
 
-  // Sort sections by their order parameter
-  const sortedSections = [...sections].sort((a, b) => (a.order || 0) - (b.order || 0));
+  // Sort sections by their display sequence order
+  const sortedSections = [...rawSections].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  // Filter sections
+  const filtered = sortedSections.filter(s => {
+    if (query) {
+      const matchName = (s.name || '').toLowerCase().includes(query);
+      const matchType = (s.type || '').toLowerCase().includes(query);
+      const matchCat = (s.category || '').toLowerCase().includes(query);
+      if (!matchName && !matchType && !matchCat) return false;
+    }
+    if (typeFilter !== 'All' && s.type !== typeFilter) return false;
+    return true;
+  });
+
+  // KPI Calculations
+  const totalSections = rawSections.length;
+  const activeSections = rawSections.filter(s => s.active).length;
+  const inactiveSections = totalSections - activeSections;
+  const layoutTypesCount = new Set(rawSections.map(s => s.type)).size;
+
+  const getLayoutTypeBadge = (type) => {
+    switch (type) {
+      case 'categories': return { icon: '📁', label: 'Category Grid', bg: '#e0f2fe', color: '#0369a1' };
+      case 'deals': return { icon: '⚡', label: 'Flash Deals', bg: '#fef3c7', color: '#92400e' };
+      case 'new-arrivals': return { icon: '✨', label: 'New Arrivals', bg: '#ede9fe', color: '#6d28d9' };
+      case 'best-sellers': return { icon: '🏆', label: 'Best Sellers', bg: '#dcfce7', color: '#15803d' };
+      case 'carousel': return { icon: '🎠', label: 'Slider Carousel', bg: '#fce7f3', color: '#9d174d' };
+      case 'banner': return { icon: '🖼️', label: 'Promo Banner', bg: '#ffedd5', color: '#c2410c' };
+      case 'grid': default: return { icon: '▦', label: 'Custom Grid', bg: '#f1f5f9', color: '#334155' };
+    }
+  };
 
   return `
-    <div class="admin-table-filters-bar mb-4" style="margin-bottom: 20px;">
-      <div class="search-box">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="text" id="section-search" placeholder="Search sections..." value="${context.searchQuery || ''}">
+    <style>
+      .sections-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .kpi-card {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        transition: all 0.2s ease;
+        backdrop-filter: blur(8px);
+      }
+      .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+      }
+      .kpi-icon-box {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        flex-shrink: 0;
+      }
+      .kpi-title {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 3px;
+        display: block;
+      }
+      .kpi-val {
+        font-size: 22px;
+        font-weight: 850;
+        color: #0f172a;
+        line-height: 1.2;
+      }
+      .section-toolbar {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      }
+      .clean-search-box {
+        position: relative;
+        min-width: 240px;
+        flex: 1;
+      }
+      .clean-search-box input {
+        width: 100%;
+        padding: 9px 14px 9px 38px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        font-size: 13.5px;
+        font-family: inherit;
+        color: #1e293b;
+        outline: none;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+      }
+      .clean-search-box input:focus {
+        border-color: #0052cc;
+        box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.12);
+      }
+      .clean-search-box svg {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        pointer-events: none;
+      }
+      .select-filter-btn {
+        padding: 9px 14px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        font-family: inherit;
+        outline: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .sections-table-container {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+      }
+      .section-row-hover:hover {
+        background-color: rgba(241, 245, 249, 0.6) !important;
+      }
+      .order-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: #f1f5f9;
+        color: #0052cc;
+        font-weight: 850;
+        font-size: 13px;
+        border: 1px solid #e2e8f0;
+      }
+      .reorder-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .reorder-btn:hover:not([disabled]) {
+        background: #0052cc;
+        color: #ffffff;
+        border-color: #0052cc;
+      }
+      .reorder-btn[disabled] {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .action-icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-decoration: none;
+      }
+      .action-icon-btn:hover {
+        background: #0052cc;
+        color: #ffffff;
+        border-color: #0052cc;
+        transform: translateY(-1px);
+      }
+      .action-icon-btn.delete-btn:hover {
+        background: #ef4444;
+        color: #ffffff;
+        border-color: #ef4444;
+      }
+    </style>
+
+    <!-- 1. KPI Cards -->
+    <div class="sections-kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(0, 82, 204, 0.1); color: #0052cc;">📑</div>
+        <div>
+          <span class="kpi-title">Total Sections</span>
+          <span class="kpi-val">${totalSections}</span>
+        </div>
       </div>
-      
-      <button class="admin-btn admin-btn-primary" id="add-section-btn">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        <span>Add Section</span>
-      </button>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(34, 197, 94, 0.1); color: #16a34a;">🟢</div>
+        <div>
+          <span class="kpi-title">Active on Homepage</span>
+          <span class="kpi-val" style="color: #16a34a;">${activeSections}</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #d97706;">⏸️</div>
+        <div>
+          <span class="kpi-title">Drafts / Inactive</span>
+          <span class="kpi-val" style="color: #d97706;">${inactiveSections}</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;">🎨</div>
+        <div>
+          <span class="kpi-title">Layout Varieties</span>
+          <span class="kpi-val" style="color: #8b5cf6;">${layoutTypesCount} types</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Sections Table -->
-    <div class="admin-table-panel glass-panel">
+    <!-- 2. Toolbar & Filters -->
+    <div class="section-toolbar">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1;">
+        <div class="clean-search-box">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="section-search-input" placeholder="Search section title, layout type, category..." value="${context.searchQuery || ''}">
+        </div>
+
+        <select class="select-filter-btn" id="section-type-filter" title="Filter by layout type">
+          <option value="All" ${typeFilter === 'All' ? 'selected' : ''}>🎨 All Layouts</option>
+          <option value="categories" ${typeFilter === 'categories' ? 'selected' : ''}>📁 Shop by Category Grid</option>
+          <option value="deals" ${typeFilter === 'deals' ? 'selected' : ''}>⚡ Hot Deals Showcase</option>
+          <option value="new-arrivals" ${typeFilter === 'new-arrivals' ? 'selected' : ''}>✨ New Arrivals</option>
+          <option value="best-sellers" ${typeFilter === 'best-sellers' ? 'selected' : ''}>🏆 Best Sellers</option>
+          <option value="grid" ${typeFilter === 'grid' ? 'selected' : ''}>▦ Custom Product Grid</option>
+          <option value="carousel" ${typeFilter === 'carousel' ? 'selected' : ''}>🎠 Slider Carousel</option>
+          <option value="banner" ${typeFilter === 'banner' ? 'selected' : ''}>🖼️ Promo Banner</option>
+        </select>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="admin-btn" id="open-more-love-studio-btn" style="background: #fdf2f8; color: #db2777; border: 1.5px solid #fbcfe8; display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-weight: 800; border-radius: 10px; cursor: pointer;" title="Configurer la section More to Love">
+          <span>💖 More to Love Studio</span>
+        </button>
+        <button class="admin-btn admin-btn-primary" id="add-section-main-btn" style="display:flex; align-items:center; gap:8px; padding:10px 18px;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Add Section</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. Sections Data Table with Sequence Controls -->
+    <div class="sections-table-container">
       <div class="table-wrapper">
-        <table>
+        <table style="width:100%; border-collapse:collapse; text-align:left;">
           <thead>
-            <tr>
-              <th>Order</th>
-              <th>Section Name</th>
-              <th>Layout Type</th>
-              <th>Category Filter</th>
-              <th>Status</th>
-              <th>Actions & Re-ordering</th>
+            <tr style="background:#f8fafc; border-bottom:1.5px solid #e2e8f0;">
+              <th style="padding:12px 16px; width:70px; text-align:center; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Sequence</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Section Name</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Layout Style</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Target Category</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Storefront Visibility</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${sortedSections.length === 0 ? `
+            ${filtered.length === 0 ? `
               <tr>
-                <td colspan="6" class="text-center py-6">No homepage sections created. Click "Add Section" to make one.</td>
-              </tr>
-            ` : sortedSections
-                .filter(s => s.name.toLowerCase().includes((context.searchQuery || '').toLowerCase()))
-                .map((s, index) => `
-              <tr>
-                <td><code style="font-weight:700; color:var(--primary); font-size:13.5px;"># ${index + 1}</code></td>
-                <td><strong>${s.name}</strong></td>
-                <td>
-                  <span class="status-badge ${s.type.includes('grid') || s.type.includes('carousel') || s.type.includes('banner') ? 'status-blue' : 'status-green'}" style="text-transform: uppercase;">
-                    ${s.type}
-                  </span>
-                </td>
-                <td><code>${s.category || 'All'}</code></td>
-                <td>
-                  <span class="stock-status-badge ${s.active ? 'badge-success' : 'badge-danger'}">
-                    ${s.active ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td>
-                  <div class="row-actions" style="gap: 6px;">
-                    <!-- Reordering Arrow controls -->
-                    <button class="move-up-section-btn admin-btn" data-id="${s.id}" style="padding: 4px 8px; font-size: 11px; background: rgba(0,0,0,0.02); border: 1.5px solid var(--border);" ${index === 0 ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} title="Move Up">▲</button>
-                    <button class="move-down-section-btn admin-btn" data-id="${s.id}" style="padding: 4px 8px; font-size: 11px; background: rgba(0,0,0,0.02); border: 1.5px solid var(--border);" ${index === sortedSections.length - 1 ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} title="Move Down">▼</button>
-                    
-                    <button class="edit-section-row-btn" data-id="${s.id}">Edit</button>
-                    <button class="delete-section-row-btn delete-prod-action-btn" data-id="${s.id}">Delete</button>
-                  </div>
+                <td colspan="6" style="padding:48px 20px; text-align:center; color:#94a3b8;">
+                  <div style="font-size:36px; margin-bottom:8px;">🎨</div>
+                  <strong style="font-size:15px; color:#475569; display:block;">No homepage sections found</strong>
+                  <span style="font-size:13px;">Create a new custom banner, carousel, or deal showcase above!</span>
                 </td>
               </tr>
-            `).join('')}
+            ` : filtered.map((s, idx) => {
+              const badge = getLayoutTypeBadge(s.type);
+              const isFirst = idx === 0;
+              const isLast = idx === filtered.length - 1;
+
+              return `
+                <tr class="section-row-hover" style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:14px 16px; text-align:center;">
+                    <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                      <div class="order-pill">#${idx + 1}</div>
+                      <div style="display:flex; flex-direction:column; gap:2px;">
+                        <button class="reorder-btn move-up-btn" data-sec-id="${s.id}" ${isFirst ? 'disabled' : ''} title="Move Up">▲</button>
+                        <button class="reorder-btn move-down-btn" data-sec-id="${s.id}" ${isLast ? 'disabled' : ''} title="Move Down">▼</button>
+                      </div>
+                    </div>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <div style="display:flex; flex-direction:column;">
+                      <strong style="font-size:14px; color:#0f172a;">${s.name}</strong>
+                      <small style="color:#64748b; font-size:11.5px;">${s.subtitle || 'Homepage Section'}</small>
+                    </div>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <span style="display:inline-flex; align-items:center; gap:6px; background:${badge.bg}; color:${badge.color}; font-size:11.5px; font-weight:800; padding:4px 10px; border-radius:6px; text-transform:uppercase;">
+                      <span>${badge.icon}</span>
+                      <span>${badge.label}</span>
+                    </span>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <code style="font-size:12px; font-weight:700; color:#0052cc;">${s.category || 'All Products'}</code>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <button class="toggle-section-active-btn" data-sec-id="${s.id}" style="background:transparent; border:none; cursor:pointer;" title="Click to toggle active state">
+                      <span class="status-badge ${s.active ? 'status-green' : 'status-red'}" style="font-size:11.5px; font-weight:800; cursor:pointer;">
+                        ${s.active ? '● Live on Storefront' : '○ Hidden / Draft'}
+                      </span>
+                    </button>
+                  </td>
+                  <td style="padding:14px 16px; text-align:right;">
+                    <div style="display:inline-flex; align-items:center; gap:6px;">
+                      <button class="action-icon-btn edit-sec-btn" data-sec-id="${s.id}" title="Edit Section">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                      </button>
+                      <button class="action-icon-btn delete-btn delete-sec-btn" data-sec-id="${s.id}" title="Delete Section">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Add/Edit Section Overlay Modal -->
+    <!-- 4. Add / Edit Section Modal Overlay -->
     <div class="modal-backdrop ${showModal ? 'show' : ''}" id="section-modal-backdrop">
-      <div class="modal-wrapper glass-panel animate-in" style="max-width: 480px; background: var(--white); box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid var(--border);">
-        <div class="modal-header">
-          <h3>${isEditing ? 'Edit Section Configuration' : 'Add New Homepage Section'}</h3>
-          <button class="modal-close-btn" id="close-section-modal-btn">&times;</button>
-        </div>
+      <div class="modal-wrapper product-form-dark-wrapper glass-panel animate-in" style="max-width: 520px; width: 95%;">
         
-        <div class="modal-body">
-          <form id="section-config-form" class="settings-form w-full" style="max-width: 100%;">
-            <input type="hidden" id="edit-section-id" value="${isEditing ? context.editingSection.id : ''}">
-            <input type="hidden" id="edit-section-order" value="${isEditing ? (context.editingSection.order || 0) : ''}">
-            
-            <div class="form-group">
-              <label>Section Name</label>
-              <input type="text" id="section-name" class="admin-input" required placeholder="e.g. Hot Deals / Custom Grid" value="${isEditing ? context.editingSection.name : ''}">
+        <div class="modal-header-modern" style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <button class="back-circle-btn" id="close-sec-modal-btn" title="Close">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <div>
+              <h3 style="margin:0; font-size:18px; font-weight:850; color:#ffffff;">
+                ${isEditing ? `Edit Section: ${editSec.name || ''}` : 'Add Homepage Section'}
+              </h3>
+              <p style="margin:2px 0 0 0; font-size:12px; color:#94a3b8;">Control storefront showcase feeds & layout blocks</p>
             </div>
+          </div>
+        </div>
+
+        <div class="modal-body-modern custom-scroll" style="max-height:75vh; overflow-y:auto; padding:12px 4px;">
+          <form id="section-crud-form" style="display:flex; flex-direction:column; gap:16px;">
             
-            <div class="form-group mt-4" style="margin-top: 16px;">
-              <label>Layout / Section Type</label>
-              <select id="section-type" class="admin-input" style="padding: 10px 14px;">
-                <option value="categories" ${isEditing && context.editingSection.type === 'categories' ? 'selected' : ''}>Shop by Category Grid</option>
-                <option value="deals" ${isEditing && context.editingSection.type === 'deals' ? 'selected' : ''}>Hot Deals Showcase</option>
-                <option value="new-arrivals" ${isEditing && context.editingSection.type === 'new-arrivals' ? 'selected' : ''}>New Arrivals Showcase</option>
-                <option value="best-sellers" ${isEditing && context.editingSection.type === 'best-sellers' ? 'selected' : ''}>Best Sellers Showcase</option>
-                <option value="grid" ${isEditing && context.editingSection.type === 'grid' ? 'selected' : ''}>Custom Product Grid</option>
-                <option value="carousel" ${isEditing && context.editingSection.type === 'carousel' ? 'selected' : ''}>Custom Carousel Slider</option>
-                <option value="banner" ${isEditing && context.editingSection.type === 'banner' ? 'selected' : ''}>Custom Promo Banner</option>
+            <div class="form-group-modern">
+              <label>Section Display Title *</label>
+              <input type="text" id="sec-name-input" required placeholder="e.g. ⚡ Flash Deals & Weekend Specials" value="${editSec.name || ''}">
+            </div>
+
+            <div class="form-group-modern">
+              <label>Subtitle / Description Tagline</label>
+              <input type="text" id="sec-subtitle-input" placeholder="e.g. Handcrafted wooden desk risers & artisan keycaps" value="${editSec.subtitle || ''}">
+            </div>
+
+            <div class="form-group-modern">
+              <label>Layout Presentation Style *</label>
+              <select id="sec-type-input" class="admin-input" style="padding:12px 14px;">
+                <option value="categories" ${editSec.type === 'categories' ? 'selected' : ''}>📁 Shop by Category Grid</option>
+                <option value="deals" ${editSec.type === 'deals' ? 'selected' : ''}>⚡ Hot Deals & Flash Sales Showcase</option>
+                <option value="new-arrivals" ${editSec.type === 'new-arrivals' ? 'selected' : ''}>✨ New Arrivals Showcase</option>
+                <option value="best-sellers" ${editSec.type === 'best-sellers' ? 'selected' : ''}>🏆 Best Sellers Showcase</option>
+                <option value="grid" ${editSec.type === 'grid' || !editSec.type ? 'selected' : ''}>▦ Custom Product Grid</option>
+                <option value="carousel" ${editSec.type === 'carousel' ? 'selected' : ''}>🎠 Interactive Slider Carousel</option>
+                <option value="banner" ${editSec.type === 'banner' ? 'selected' : ''}>🖼️ Full-Width Promo Banner</option>
               </select>
             </div>
 
-            <div class="form-group mt-4" style="margin-top: 16px;">
-              <label>Category Filter (Only for Custom grids/carousels/banners)</label>
-              <select id="section-category" class="admin-input" style="padding: 10px 14px;">
-                <option value="All" ${isEditing && context.editingSection.category === 'All' ? 'selected' : ''}>All Products</option>
-                <option value="Keyboards" ${isEditing && context.editingSection.category === 'Keyboards' ? 'selected' : ''}>Keyboards</option>
-                <option value="Audio" ${isEditing && context.editingSection.category === 'Audio' ? 'selected' : ''}>Audio</option>
-                <option value="Lighting" ${isEditing && context.editingSection.category === 'Lighting' ? 'selected' : ''}>Lighting</option>
-                <option value="Desks" ${isEditing && context.editingSection.category === 'Desks' ? 'selected' : ''}>Desks</option>
-                <option value="Apple" ${isEditing && context.editingSection.category === 'Apple' ? 'selected' : ''}>Apple</option>
+            <div class="form-group-modern">
+              <label>Category Source Filter</label>
+              <select id="sec-category-input" class="admin-input" style="padding:12px 14px; font-weight:700;">
+                <option value="All" ${editSec.category === 'All' || !editSec.category ? 'selected' : ''}>📂 All Catalog Products</option>
+                ${(() => {
+                  const parents = rawCategories.filter(c => !c.parent || c.parent === null || c.parent === 0 || c.parent === '');
+                  const subs = rawCategories.filter(c => c.parent && c.parent !== null && c.parent !== 0 && c.parent !== '');
+
+                  return parents.map(parent => {
+                    const parentSubs = subs.filter(sc => sc.parent === parent.id || sc.parent === parent.name);
+                    return `
+                      <optgroup label="${parent.icon || '📁'} ${parent.name.toUpperCase()}">
+                        <option value="${parent.name}" ${editSec.category === parent.name ? 'selected' : ''}>
+                          ${parent.icon || '📁'} All ${parent.name}
+                        </option>
+                        ${parentSubs.map(sub => `
+                          <option value="${sub.name}" ${editSec.category === sub.name ? 'selected' : ''}>
+                            &nbsp;&nbsp;&nbsp;&nbsp;↳ ${sub.icon || '🌿'} ${sub.name}
+                          </option>
+                        `).join('')}
+                      </optgroup>
+                    `;
+                  }).join('');
+                })()}
               </select>
             </div>
 
-            <div class="form-group mt-4" style="margin-top: 16px; flex-direction: row; align-items: center; gap: 8px;">
-              <input type="checkbox" id="section-active" style="width: 16px; height: 16px;" ${!isEditing || context.editingSection.active ? 'checked' : ''}>
-              <label for="section-active" style="cursor: pointer; font-size: 13.5px; font-weight: 600; margin: 0;">Mark as active section on homepage</label>
+            <div class="form-group-modern" style="margin-top:4px;">
+              <label style="display:flex; align-items:center; gap:10px; cursor:pointer; color:white; font-size:13px; font-weight:750;">
+                <input type="checkbox" id="sec-active-toggle" ${editSec.active !== false ? 'checked' : ''} style="width:16px; height:16px; accent-color:#0052cc;">
+                <span>🟢 Display as Active Section on Homepage</span>
+              </label>
             </div>
 
-            <div class="row-actions mt-6" style="margin-top: 24px; justify-content: flex-end; gap: 12px;">
-              <button type="button" class="admin-btn admin-btn-secondary" id="cancel-section-form-btn" style="padding: 10px 20px;">Cancel</button>
-              <button type="submit" class="admin-btn admin-btn-primary" style="padding: 10px 20px;">${isEditing ? 'Save Changes' : 'Create Section'}</button>
-            </div>
+            <button type="submit" class="admin-btn admin-btn-primary" style="padding:14px; font-size:14px; font-weight:800; margin-top:8px;">
+              ${isEditing ? '✓ Save Section Changes' : '🚀 Publish Section'}
+            </button>
           </form>
         </div>
+
       </div>
     </div>
   `;
 }
 
 export function attachAdminSectionsListeners(context, shadow) {
-  // Search input filtering
-  const searchInput = shadow.getElementById('section-search');
+  // 1. Search Input
+  const searchInput = shadow.getElementById('section-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       context.searchQuery = e.target.value;
       context.render();
       context.attachListeners();
-      const s = shadow.getElementById('section-search');
-      if (s) {
-        s.focus();
-        s.setSelectionRange(s.value.length, s.value.length);
+      const sRef = shadow.getElementById('section-search-input');
+      if (sRef) {
+        sRef.focus();
+        sRef.setSelectionRange(sRef.value.length, sRef.value.length);
       }
     });
   }
 
-  // Open Modal to Add
-  const addBtn = shadow.getElementById('add-section-btn');
+  // 2. Type Filter
+  const typeSelect = shadow.getElementById('section-type-filter');
+  if (typeSelect) {
+    typeSelect.addEventListener('change', (e) => {
+      typeFilter = e.target.value;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // 3. Open More to Love Studio
+  const moreLoveBtn = shadow.getElementById('open-more-love-studio-btn');
+  if (moreLoveBtn) {
+    moreLoveBtn.addEventListener('click', () => {
+      context.currentTab = 'more-to-love';
+      sessionStorage.setItem('SWEETOS_admin_current_tab', 'more-to-love');
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // 4. Open Add Modal
+  const addBtn = shadow.getElementById('add-section-main-btn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
       context.showSectionModal = true;
@@ -163,33 +507,24 @@ export function attachAdminSectionsListeners(context, shadow) {
     });
   }
 
-  // Close modal buttons
-  const closeBtn = shadow.getElementById('close-section-modal-btn');
-  const cancelBtn = shadow.getElementById('cancel-section-form-btn');
-  const backdrop = shadow.getElementById('section-modal-backdrop');
-
-  const closeModal = () => {
-    context.showSectionModal = false;
-    context.editingSection = null;
-    context.render();
-    context.attachListeners();
-  };
-
-  if (closeBtn) closeBtn.addEventListener('click', closeModal);
-  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
-  if (backdrop) {
-    backdrop.addEventListener('click', (e) => {
-      if (e.target === backdrop) closeModal();
+  // Close Modal
+  const closeBtn = shadow.getElementById('close-sec-modal-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      context.showSectionModal = false;
+      context.editingSection = null;
+      context.render();
+      context.attachListeners();
     });
   }
 
-  // Edit action trigger
-  shadow.querySelectorAll('.edit-section-row-btn').forEach(btn => {
+  // 4. Edit section trigger
+  shadow.querySelectorAll('.edit-sec-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const sId = btn.getAttribute('data-id');
-      const sectionObj = context.homepageSections.find(s => s.id === sId);
-      if (sectionObj) {
-        context.editingSection = { ...sectionObj };
+      const id = btn.getAttribute('data-sec-id');
+      const sec = (context.homepageSections || []).find(s => s.id === id);
+      if (sec) {
+        context.editingSection = { ...sec };
         context.showSectionModal = true;
         context.render();
         context.attachListeners();
@@ -197,14 +532,28 @@ export function attachAdminSectionsListeners(context, shadow) {
     });
   });
 
-  // Reordering: Move Up Action
-  shadow.querySelectorAll('.move-up-section-btn').forEach(btn => {
+  // 5. Toggle Active state inline
+  shadow.querySelectorAll('.toggle-section-active-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      const sorted = [...context.homepageSections].sort((a, b) => (a.order || 0) - (b.order || 0));
+      const id = btn.getAttribute('data-sec-id');
+      const sec = (context.homepageSections || []).find(s => s.id === id);
+      if (sec) {
+        sec.active = !sec.active;
+        context.saveDatabase('sections');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Section "${sec.name}" is now ${sec.active ? 'Active' : 'Hidden'}.` }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
+
+  // 6. Move Up Action
+  shadow.querySelectorAll('.move-up-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-sec-id');
+      const sorted = [...(context.homepageSections || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
       const idx = sorted.findIndex(s => s.id === id);
       if (idx > 0) {
-        // Swap order values
         const temp = sorted[idx].order;
         sorted[idx].order = sorted[idx - 1].order;
         sorted[idx - 1].order = temp;
@@ -217,14 +566,13 @@ export function attachAdminSectionsListeners(context, shadow) {
     });
   });
 
-  // Reordering: Move Down Action
-  shadow.querySelectorAll('.move-down-section-btn').forEach(btn => {
+  // 7. Move Down Action
+  shadow.querySelectorAll('.move-down-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
-      const sorted = [...context.homepageSections].sort((a, b) => (a.order || 0) - (b.order || 0));
+      const id = btn.getAttribute('data-sec-id');
+      const sorted = [...(context.homepageSections || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
       const idx = sorted.findIndex(s => s.id === id);
       if (idx !== -1 && idx < sorted.length - 1) {
-        // Swap order values
         const temp = sorted[idx].order;
         sorted[idx].order = sorted[idx + 1].order;
         sorted[idx + 1].order = temp;
@@ -237,17 +585,25 @@ export function attachAdminSectionsListeners(context, shadow) {
     });
   });
 
-  // Delete action trigger
-  shadow.querySelectorAll('.delete-section-row-btn').forEach(btn => {
+  // 8. Delete Section
+  shadow.querySelectorAll('.delete-sec-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const sId = btn.getAttribute('data-id');
-      const sectionObj = context.homepageSections.find(s => s.id === sId);
-      if (sectionObj) {
-        const confirmed = await window.showConfirm(`Are you sure you want to delete the homepage section "${sectionObj.name}"?`, 'Delete Section');
+      const id = btn.getAttribute('data-sec-id');
+      const sec = (context.homepageSections || []).find(s => s.id === id);
+      if (sec) {
+        const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+          title: 'Delete Section',
+          message: `Are you sure you want to delete section "${sec.name}"?`,
+          confirmText: 'Delete Section',
+          cancelText: 'Cancel',
+          type: 'danger',
+          icon: '🗑️'
+        }) : Promise.resolve(confirm(`Are you sure you want to delete section "${sec.name}"?`)));
+
         if (confirmed) {
-          context.homepageSections = context.homepageSections.filter(s => s.id !== sId);
+          context.homepageSections = (context.homepageSections || []).filter(s => s.id !== id);
           context.saveDatabase('sections');
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Section "${sectionObj.name}" has been deleted.` }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted section "${sec.name}".` }));
           context.render();
           context.attachListeners();
         }
@@ -255,34 +611,46 @@ export function attachAdminSectionsListeners(context, shadow) {
     });
   });
 
-  // Form submit handler
-  const form = shadow.getElementById('section-config-form');
+  // 9. Form Submit
+  const form = shadow.getElementById('section-crud-form');
   if (form) {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      
-      const sId = shadow.getElementById('edit-section-id').value;
-      const name = shadow.getElementById('section-name').value.trim();
-      const type = shadow.getElementById('section-type').value;
-      const category = shadow.getElementById('section-category').value;
-      const active = shadow.getElementById('section-active').checked;
-      
+      const name = shadow.getElementById('sec-name-input').value.trim();
+      const subtitle = shadow.getElementById('sec-subtitle-input').value.trim();
+      const type = shadow.getElementById('sec-type-input').value;
+      const category = shadow.getElementById('sec-category-input').value;
+      const active = shadow.getElementById('sec-active-toggle').checked;
+
       if (!name) return;
 
-      if (sId) {
-        // Edit mode
-        const index = context.homepageSections.findIndex(s => s.id === sId);
-        if (index !== -1) {
-          const originalOrder = parseInt(shadow.getElementById('edit-section-order').value) || 0;
-          context.homepageSections[index] = { id: sId, name, type, category, active, order: originalOrder };
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Section changes saved successfully.` }));
+      if (context.editingSection && context.editingSection.id) {
+        const id = context.editingSection.id;
+        const idx = (context.homepageSections || []).findIndex(s => s.id === id);
+        if (idx !== -1) {
+          context.homepageSections[idx] = {
+            ...context.homepageSections[idx],
+            name,
+            subtitle,
+            type,
+            category,
+            active
+          };
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Updated section "${name}"!` }));
         }
       } else {
-        // Add mode
-        const nextOrder = context.homepageSections.reduce((max, s) => (s.order !== undefined && s.order > max) ? s.order : max, -1) + 1;
-        const newId = 'sec-' + Math.random().toString(36).substring(2, 7);
-        context.homepageSections.push({ id: newId, name, type, category, active, order: nextOrder });
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Homepage section "${name}" created.` }));
+        const nextOrder = (context.homepageSections || []).length;
+        const newId = 'sec-' + Date.now();
+        context.homepageSections.push({
+          id: newId,
+          name,
+          subtitle,
+          type,
+          category,
+          active,
+          order: nextOrder
+        });
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Published new section "${name}"!` }));
       }
 
       context.saveDatabase('sections');

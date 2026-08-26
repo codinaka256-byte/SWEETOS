@@ -10,12 +10,13 @@
     left: 0;
     right: 0;
     z-index: 990; /* Sits below checkout-modal overlay (995) but above page content */
-    height: 72px;
-    background: rgba(255, 255, 255, 0.85);
+    height: calc(68px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-top: 1.5px solid var(--border);
-    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.03);
+    border-top: 1px solid rgba(226, 232, 240, 0.85);
+    box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.04);
   }
 
   .mobile-nav-bar {

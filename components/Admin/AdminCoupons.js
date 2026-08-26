@@ -1,330 +1,790 @@
 import { formatPrice } from '../../utils/storage.js';
 
+let selectedCouponCodes = new Set();
+let couponTypeFilter = 'All'; // 'All' | 'percentage' | 'fixed' | 'active' | 'expired'
+let sortBy = 'newest';
+
 export function renderAdminCoupons(context) {
-  context.couponValueFilter = context.couponValueFilter || 'All';
-  let list = [...context.coupons];
-  if (context.searchQuery) {
-    const q = context.searchQuery.toLowerCase();
-    list = list.filter(c => c.code.toLowerCase().includes(q));
-  }
-  
-  const originalList = [...list];
-  if (context.couponValueFilter !== 'All') {
-    const targetVal = parseInt(context.couponValueFilter);
-    list = list.filter(c => c.type === 'percentage' && c.value === targetVal);
-  }
+  const query = (context.searchQuery || '').toLowerCase().trim();
+  const rawCoupons = context.coupons || [];
+  const rawOrders = context.orders || [];
+
+  // Enhance coupon with usage & stats
+  const enrichedCoupons = rawCoupons.map(c => {
+    const isExpired = c.expiry && new Date(c.expiry) < new Date();
+    const status = isExpired ? 'expired' : (c.status || 'active');
+    const used = c.used || 0;
+    const limit = c.limit || 100;
+    return {
+      ...c,
+      isExpired,
+      status,
+      used,
+      limit
+    };
+  });
+
+  // Filter coupons
+  let filtered = enrichedCoupons.filter(c => {
+    if (query) {
+      const matchCode = (c.code || '').toLowerCase().includes(query);
+      const matchType = (c.type || '').toLowerCase().includes(query);
+      if (!matchCode && !matchType) return false;
+    }
+    if (couponTypeFilter === 'percentage' && c.type !== 'percentage') return false;
+    if (couponTypeFilter === 'fixed' && c.type !== 'fixed') return false;
+    if (couponTypeFilter === 'active' && c.status !== 'active') return false;
+    if (couponTypeFilter === 'expired' && c.status !== 'expired') return false;
+    return true;
+  });
+
+  // Sorting
+  filtered.sort((a, b) => {
+    if (sortBy === 'newest') return (b.id || 0) - (a.id || 0);
+    if (sortBy === 'val_high') return (b.value || 0) - (a.value || 0);
+    if (sortBy === 'used_high') return (b.used || 0) - (a.used || 0);
+    if (sortBy === 'code_asc') return (a.code || '').localeCompare(b.code || '');
+    return 0;
+  });
+
+  // KPI Calculations
+  const totalCoupons = enrichedCoupons.length;
+  const activeCoupons = enrichedCoupons.filter(c => c.status === 'active').length;
+  const totalUsedCount = enrichedCoupons.reduce((sum, c) => sum + (c.used || 0), 0);
+  const totalDiscountsGiven = enrichedCoupons.reduce((sum, c) => sum + ((c.used || 0) * (c.type === 'percentage' ? 4500 : (c.value || 0))), 0);
+
+  const showModal = context.showCouponModal === true;
+  const editCoup = context.editingCoupon || {};
+  const isEditing = context.editingCoupon !== null && context.editingCoupon !== undefined;
+
+  const allSelected = filtered.length > 0 && filtered.every(c => selectedCouponCodes.has(c.code));
 
   return `
-    <div class="admin-table-filters-bar" style="margin-bottom: 16px;">
-      <div class="search-box">
-        <input type="text" id="coupon-search" placeholder="Search coupon code..." value="${context.searchQuery}">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; flex-shrink: 0;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+    <style>
+      .coupons-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .kpi-card {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        transition: all 0.2s ease;
+        backdrop-filter: blur(8px);
+      }
+      .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+      }
+      .kpi-icon-box {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        flex-shrink: 0;
+      }
+      .kpi-title {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        margin-bottom: 3px;
+        display: block;
+      }
+      .kpi-val {
+        font-size: 22px;
+        font-weight: 850;
+        color: #0f172a;
+        line-height: 1.2;
+      }
+      .coupon-toolbar {
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      }
+      .clean-search-box {
+        position: relative;
+        min-width: 240px;
+        flex: 1;
+      }
+      .clean-search-box input {
+        width: 100%;
+        padding: 9px 14px 9px 38px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        font-size: 13.5px;
+        font-family: inherit;
+        color: #1e293b;
+        outline: none;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+      }
+      .clean-search-box input:focus {
+        border-color: #0052cc;
+        box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.12);
+      }
+      .clean-search-box svg {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #94a3b8;
+        pointer-events: none;
+      }
+      .select-filter-btn {
+        padding: 9px 14px;
+        border-radius: 10px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        font-family: inherit;
+        outline: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .bulk-action-bar {
+        background: #0f172a;
+        color: #ffffff;
+        padding: 10px 18px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        animation: slide-down 0.2s ease;
+        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.15);
+      }
+      .coupon-table-container {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+      }
+      .coupon-row-hover:hover {
+        background-color: rgba(241, 245, 249, 0.6) !important;
+      }
+      .coupon-code-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #eff6ff;
+        border: 1.5px dashed #0052cc;
+        color: #0052cc;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-family: monospace;
+        font-weight: 850;
+        font-size: 13.5px;
+      }
+      .action-icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #475569;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-decoration: none;
+      }
+      .action-icon-btn:hover {
+        background: #0052cc;
+        color: #ffffff;
+        border-color: #0052cc;
+        transform: translateY(-1px);
+      }
+      .whatsapp-btn:hover {
+        background: #25d366 !important;
+        color: #ffffff !important;
+        border-color: #25d366 !important;
+      }
+      .action-icon-btn.delete-btn:hover {
+        background: #ef4444;
+        color: #ffffff;
+        border-color: #ef4444;
+      }
+    </style>
+
+    <!-- 1. Coupon KPIs -->
+    <div class="coupons-kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(0, 82, 204, 0.1); color: #0052cc;">🎟️</div>
+        <div>
+          <span class="kpi-title">Total Promo Codes</span>
+          <span class="kpi-val">${totalCoupons}</span>
+        </div>
       </div>
-      
-      <button class="admin-btn admin-btn-primary" id="add-coupon-btn">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px; flex-shrink: 0;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        <span>Add Coupon</span>
-      </button>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(34, 197, 94, 0.1); color: #16a34a;">🟢</div>
+        <div>
+          <span class="kpi-title">Active Campaigns</span>
+          <span class="kpi-val" style="color: #16a34a;">${activeCoupons}</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(245, 158, 11, 0.12); color: #d97706;">⚡</div>
+        <div>
+          <span class="kpi-title">Redemptions Used</span>
+          <span class="kpi-val" style="color: #d97706;">${totalUsedCount} times</span>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon-box" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;">🎁</div>
+        <div>
+          <span class="kpi-title">Customer Savings</span>
+          <span class="kpi-val" style="color: #8b5cf6; font-size: 19px;">${formatPrice(totalDiscountsGiven)}</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Category sub-tabs to view different coupon groups (5%, 10%, 20%, 30%) -->
-    <div class="coupon-category-tabs-row" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-      ${['All', '5%', '10%', '20%', '30%'].map(filterVal => {
-        const isActive = context.couponValueFilter === filterVal;
-        return `
-          <button class="coupon-filter-pill-btn" data-filter="${filterVal}" style="
-            background: ${isActive ? 'var(--primary)' : 'rgba(255, 255, 255, 0.4)'};
-            color: ${isActive ? 'white' : 'var(--text-dark)'};
-            border: 1.5px solid ${isActive ? 'var(--primary)' : 'var(--border)'};
-            padding: 8px 16px;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: all 0.2s;
-            box-shadow: ${isActive ? '0 4px 12px var(--primary-light)' : 'none'};
-          ">
-            <span>${filterVal === 'All' ? 'All Coupons' : filterVal + ' Off'}</span>
-          </button>
-        `;
-      }).join('')}
+    <!-- 2. Toolbar & Multi-Filters -->
+    <div class="coupon-toolbar">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1;">
+        <div class="clean-search-box">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="coupon-search-input" placeholder="Search coupon code or discount type..." value="${context.searchQuery || ''}">
+        </div>
+
+        <select class="select-filter-btn" id="coupon-type-filter" title="Filter by type">
+          <option value="All" ${couponTypeFilter === 'All' ? 'selected' : ''}>🎟️ All Coupons</option>
+          <option value="active" ${couponTypeFilter === 'active' ? 'selected' : ''}>🟢 Active Campaigns</option>
+          <option value="percentage" ${couponTypeFilter === 'percentage' ? 'selected' : ''}>% Percentage Off</option>
+          <option value="fixed" ${couponTypeFilter === 'fixed' ? 'selected' : ''}>💵 Fixed CFA Off</option>
+          <option value="expired" ${couponTypeFilter === 'expired' ? 'selected' : ''}>⌛ Expired Codes</option>
+        </select>
+
+        <select class="select-filter-btn" id="coupon-sort-select" title="Sort coupons">
+          <option value="newest" ${sortBy === 'newest' ? 'selected' : ''}>⚡ Newest Created</option>
+          <option value="val_high" ${sortBy === 'val_high' ? 'selected' : ''}>💰 Highest Discount</option>
+          <option value="used_high" ${sortBy === 'used_high' ? 'selected' : ''}>📈 Most Redeemed</option>
+          <option value="code_asc" ${sortBy === 'code_asc' ? 'selected' : ''}>🔤 Code: A to Z</option>
+        </select>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="select-filter-btn" id="export-coupons-csv-btn" style="background:#f8fafc; display:flex; align-items:center; gap:6px;">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Export CSV</span>
+        </button>
+
+        <button class="admin-btn admin-btn-primary" id="add-coupon-main-btn" style="display:flex; align-items:center; gap:8px; padding:10px 18px;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Add Coupon</span>
+        </button>
+      </div>
     </div>
 
-    <div class="admin-table-panel glass-panel mt-4">
+    <!-- 3. Bulk Actions Bar -->
+    ${selectedCouponCodes.size > 0 ? `
+      <div class="bulk-action-bar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-weight:800; font-size:13.5px;">✓ ${selectedCouponCodes.size} coupon${selectedCouponCodes.size > 1 ? 's' : ''} selected</span>
+          <button class="bulk-btn" id="bulk-deselect-coup-btn" style="background:transparent; border:none; text-decoration:underline; font-size:12px; cursor:pointer;">Clear</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button class="bulk-btn" id="bulk-activate-coup-btn">🟢 Set Active</button>
+          <button class="bulk-btn" id="bulk-pause-coup-btn">⏸️ Pause</button>
+          <button class="bulk-btn bulk-btn-danger" id="bulk-delete-coup-btn">🗑️ Delete Selected</button>
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- 4. Coupons Data Table -->
+    <div class="coupon-table-container">
       <div class="table-wrapper">
-        <table>
+        <table style="width:100%; border-collapse:collapse; text-align:left;">
           <thead>
-            <tr>
-              <th>Coupon Code</th>
-              <th>Discount Type</th>
-              <th>Discount Value</th>
-              <th>Min. Order Requirement</th>
-              <th>Usage limits</th>
-              <th>Stock Remaining</th>
-              <th>Expiration</th>
-              <th>Status</th>
-              <th>Action</th>
+            <tr style="background:#f8fafc; border-bottom:1.5px solid #e2e8f0;">
+              <th style="padding:12px 16px; width:36px; text-align:center;">
+                <input type="checkbox" id="select-all-coupons-cb" ${allSelected ? 'checked' : ''} style="cursor:pointer; width:16px; height:16px; accent-color:#0052cc;">
+              </th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Coupon Code</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Discount Reward</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Min. Purchase</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Usage / Limit</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Expiry Date</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase;">Status</th>
+              <th style="padding:12px 16px; font-size:11.5px; font-weight:800; color:#64748b; text-transform:uppercase; text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${list.length === 0 ? `
+            ${filtered.length === 0 ? `
               <tr>
-                <td colspan="9" class="text-center py-6 text-slate-400">No coupons registered yet.</td>
-              </tr>
-            ` : list.map(c => `
-              <tr>
-                <td><code style="font-weight:800; font-size:14px; color:var(--primary);">${c.code}</code></td>
-                <td><span style="text-transform: capitalize;">${c.type}</span></td>
-                <td><strong>${c.type === 'percentage' ? `${c.value}% Off` : formatPrice(c.value)}</strong></td>
-                <td><span>${formatPrice(c.minOrder || 0)}</span></td>
-                <td><span>${c.used || 0} / ${c.limit || '∞'} uses</span></td>
-                <td>
-                  <strong style="color: ${c.stock !== undefined && c.stock <= 2 ? 'var(--red)' : 'var(--primary)'};">
-                    ${c.stock !== undefined ? `${c.stock} left` : '∞'}
-                  </strong>
-                </td>
-                <td><span>${c.expiry}</span></td>
-                <td>
-                  <span class="status-badge status-${c.status === 'active' ? 'green' : 'yellow'}">
-                    ${c.status}
-                  </span>
-                </td>
-                <td>
-                  <div class="row-actions">
-                    <button class="share-coupon-whatsapp-btn" data-coupon-code="${c.code}" data-coupon-type="${c.type}" data-coupon-value="${c.value}" data-coupon-min="${c.minOrder || 0}" data-coupon-expiry="${c.expiry}" style="background: rgba(37, 211, 102, 0.1); border-color: rgba(37, 211, 102, 0.2); color: #25d366;" title="Share to WhatsApp">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="width: 14px; height: 14px; flex-shrink: 0;"><path d="M17.472 14.382c-.022-.08-.124-.184-.282-.232-.078-.024-.464-.232-.536-.252-.072-.02-.124-.03-.178.05-.054.082-.21.26-.258.312-.048.052-.096.06-.178.02a1.866 1.866 0 0 1-.502-.308c-.287-.25-.482-.56-.538-.65-.056-.092-.006-.142.04-.188.04-.04.096-.11.144-.168.048-.058.064-.1.096-.168.032-.068.016-.128-.008-.178-.024-.05-.178-.436-.244-.594-.064-.158-.13-.136-.178-.138-.046-.002-.098-.002-.15-.002a.287.287 0 0 0-.208.098c-.072.078-.276.27-.276.658 0 .388.282.764.32.816.04.052.556.85 1.348 1.192.188.082.336.13.45.166.19.06.362.052.498.032.152-.022.464-.19.53-.374.066-.184.066-.342.046-.374-.022-.03-.078-.05-.156-.088zm-5.467 1.162a6.3 6.3 0 0 1-3.237-.893l-.233-.14-2.404.63 2.443-2.38-.152-.243a6.262 6.262 0 0 1-.958-3.326c0-3.468 2.82-6.29 6.29-6.29 3.47 0 6.29 2.822 6.29 6.29 0 3.47-2.82 6.29-6.29 6.29zm0-13.82c-4.148 0-7.527 3.38-7.527 7.527 0 1.326.347 2.62 1.006 3.766L4 19.5l4.636-1.216a7.487 7.487 0 0 0 3.37.804c4.148 0 7.527-3.378 7.527-7.527 0-4.15-3.38-7.527-7.527-7.527z"/></svg>
-                    </button>
-                    <button class="edit-coupon-action-btn" data-coupon-code="${c.code}">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; flex-shrink: 0;"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                    </button>
-                    <button class="delete-coupon-action-btn" data-coupon-code="${c.code}">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; flex-shrink: 0;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                    </button>
-                  </div>
+                <td colspan="8" style="padding:48px 20px; text-align:center; color:#94a3b8;">
+                  <div style="font-size:36px; margin-bottom:8px;">🎟️</div>
+                  <strong style="font-size:15px; color:#475569; display:block;">No coupon promotions found</strong>
+                  <span style="font-size:13px;">Create your first promo code or flash discount above!</span>
                 </td>
               </tr>
-            `).join('')}
+            ` : filtered.map(c => {
+              const isChecked = selectedCouponCodes.has(c.code);
+              const discountLabel = c.type === 'percentage' ? `${c.value}% OFF` : `${formatPrice(c.value)} OFF`;
+              const discountText = c.type === 'percentage' ? `${c.value}% de réduction` : `${formatPrice(c.value)} de réduction`;
+              const shareMsg = `🌟 PROMO EXCLUSIVE SWEETOS !\nUtilisez le code promo : *${c.code}* pour obtenir *${discountText}* sur votre commande !\n${c.minOrder > 0 ? `(Minimum d'achat : ${formatPrice(c.minOrder)})\n` : ''}Valable jusqu'au ${c.expiry}.\nBoutique : ${window.location.origin}`;
+              const waShareUrl = `https://wa.me/?text=${encodeURIComponent(shareMsg)}`;
+
+              return `
+                <tr class="coupon-row-hover" style="border-bottom:1px solid #e2e8f0; ${isChecked ? 'background:#eff6ff !important;' : ''}">
+                  <td style="padding:14px 16px; text-align:center;">
+                    <input type="checkbox" class="coup-select-cb" data-coupon-code="${c.code}" ${isChecked ? 'checked' : ''} style="cursor:pointer; width:16px; height:16px; accent-color:#0052cc;">
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span class="coupon-code-badge">${c.code}</span>
+                      <button class="copy-coupon-btn action-icon-btn" data-code="${c.code}" style="width:24px; height:24px;" title="Copy Code">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                      </button>
+                    </div>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <strong style="color:#0f172a; font-size:13.5px;">${discountLabel}</strong>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <span style="color:#64748b; font-size:12.5px; font-weight:600;">
+                      ${c.minOrder > 0 ? formatPrice(c.minOrder) : 'No minimum'}
+                    </span>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <span style="font-size:12.5px; font-weight:700; color:#0f172a;">
+                      ${c.used || 0} / ${c.stock !== undefined ? c.stock : (c.limit || '∞')} uses
+                    </span>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <span style="font-size:12.5px; color:${c.isExpired ? '#ef4444' : '#64748b'}; font-weight:600;">
+                      ${c.expiry || 'No expiry'}
+                    </span>
+                  </td>
+                  <td style="padding:14px 16px;">
+                    <span class="status-badge ${c.status === 'active' ? 'status-green' : (c.status === 'expired' ? 'status-red' : 'status-yellow')}">
+                      ${c.status === 'active' ? '● Active' : (c.status === 'expired' ? '✕ Expired' : '○ Paused')}
+                    </span>
+                  </td>
+                  <td style="padding:14px 16px; text-align:right;">
+                    <div style="display:inline-flex; align-items:center; gap:6px;">
+                      <a href="${waShareUrl}" target="_blank" rel="noopener" class="action-icon-btn whatsapp-btn" title="Share Promotion on WhatsApp">
+                        💬
+                      </a>
+                      <button class="action-icon-btn edit-coup-btn" data-coupon-code="${c.code}" title="Edit Coupon">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                      </button>
+                      <button class="action-icon-btn delete-btn delete-coup-btn" data-coupon-code="${c.code}" title="Delete Coupon">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- COUPON CRUD MODAL -->
-    <div class="modal-backdrop ${context.showCouponModal ? 'show' : ''}" id="coupon-crud-modal-backdrop">
-      <div class="modal-wrapper glass-panel">
-        <div class="modal-header">
-          <h3>${context.editingCoupon ? 'Edit Marketing Coupon' : 'Add New Marketing Coupon'}</h3>
-          <button class="modal-close-btn" id="close-coupon-modal-btn">×</button>
+    <!-- 5. Add / Edit Coupon Modal Overlay -->
+    <div class="modal-backdrop ${showModal ? 'show' : ''}" id="coupon-modal-backdrop">
+      <div class="modal-wrapper product-form-dark-wrapper glass-panel animate-in" style="max-width: 500px; width: 95%;">
+        
+        <div class="modal-header-modern" style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <button class="back-circle-btn" id="close-coup-modal-btn" title="Close">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <div>
+              <h3 style="margin:0; font-size:18px; font-weight:850; color:#ffffff;">
+                ${isEditing ? `Edit Coupon: ${editCoup.code || ''}` : 'Create Marketing Promo'}
+              </h3>
+              <p style="margin:2px 0 0 0; font-size:12px; color:#94a3b8;">Set discount percentages, usage limits & valid dates</p>
+            </div>
+          </div>
         </div>
-        <div class="modal-body">
-          <form id="coupon-crud-form" style="display:flex; flex-direction:column; gap:12px;">
-            <div class="form-group">
-              <label>Coupon Code (Unique, uppercase)</label>
+
+        <div class="modal-body-modern custom-scroll" style="max-height:75vh; overflow-y:auto; padding:12px 4px;">
+          <form id="coupon-crud-form" style="display:flex; flex-direction:column; gap:16px;">
+            
+            <div class="form-group-modern">
+              <label>Coupon Code *</label>
               <div style="display:flex; gap:8px;">
-                <input type="text" id="coup-code" required class="admin-input" placeholder="e.g. PROMO25" autocomplete="off" style="flex:1;">
-                <button type="button" id="auto-gen-coupon-btn" class="admin-btn admin-btn-secondary" style="margin:0; font-size:12px; font-weight:800; padding:10px 14px; white-space:nowrap;">Générer / Auto Gen</button>
+                <input type="text" id="coup-code-input" required placeholder="e.g. FLASH25" value="${editCoup.code || ''}" style="text-transform:uppercase; font-family:monospace; font-weight:800; letter-spacing:1px; flex:1;">
+                <button type="button" id="auto-gen-code-btn" class="admin-btn" style="background:rgba(255,255,255,0.1); color:white; font-size:12px; padding:8px 12px; white-space:nowrap;">
+                  ⚡ Auto-Gen
+                </button>
               </div>
             </div>
-            <div class="form-group">
-              <label>Discount Type</label>
-              <select id="coup-type" class="admin-input">
-                <option value="percentage" selected>Percentage Off (%)</option>
-                <option value="fixed">Fixed Amount Off (CFA)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Discount Value</label>
-              <input type="number" id="coup-val" required class="admin-input" min="1" placeholder="10">
-            </div>
-            <div class="form-group">
-              <label>Min. Order Requirement (CFA)</label>
-              <input type="number" id="coup-min" class="admin-input" value="0">
-            </div>
-            <div class="form-group">
-              <label>Usage limits per customer</label>
-              <input type="number" id="coup-limit" class="admin-input" value="1">
-            </div>
-            <div class="form-group">
-              <label>Coupon Stock / Available Quantity</label>
-              <input type="number" id="coup-stock" required class="admin-input" value="10">
-            </div>
-            <div class="form-group">
-              <label>Valid date expiry (YYYY-MM-DD)</label>
-              <input type="date" id="coup-expiry" required class="admin-input" value="2026-12-31">
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="form-group-modern">
+                <label>Discount Type *</label>
+                <select id="coup-type-select" class="admin-input" style="padding:10px 12px;">
+                  <option value="percentage" ${editCoup.type === 'percentage' || !editCoup.type ? 'selected' : ''}>Percentage (%)</option>
+                  <option value="fixed" ${editCoup.type === 'fixed' ? 'selected' : ''}>Fixed Amount (CFA)</option>
+                </select>
+              </div>
+
+              <div class="form-group-modern">
+                <label>Discount Value *</label>
+                <input type="number" id="coup-val-input" required min="1" placeholder="e.g. 20" value="${editCoup.value || ''}">
+              </div>
             </div>
 
-            <div id="coup-error-msg" class="error-text"></div>
-            <button type="submit" class="admin-btn admin-btn-primary mt-4">Save Marketing Coupon</button>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="form-group-modern">
+                <label>Min. Order Requirement (CFA)</label>
+                <input type="number" id="coup-min-input" min="0" placeholder="0" value="${editCoup.minOrder || 0}">
+              </div>
+
+              <div class="form-group-modern">
+                <label>Max Quantity / Available Stock</label>
+                <input type="number" id="coup-stock-input" min="1" placeholder="50" value="${editCoup.stock !== undefined ? editCoup.stock : (editCoup.limit || 50)}">
+              </div>
+            </div>
+
+            <div class="form-group-modern">
+              <label>Expiration Date *</label>
+              <input type="date" id="coup-expiry-input" required value="${editCoup.expiry || '2026-12-31'}">
+            </div>
+
+            <div id="coup-error-msg" style="color:#ef4444; font-size:12.5px; font-weight:700;"></div>
+
+            <button type="submit" class="admin-btn admin-btn-primary" style="padding:14px; font-size:14px; font-weight:800; margin-top:6px;">
+              ${isEditing ? '✓ Save Coupon Changes' : '🚀 Publish Coupon'}
+            </button>
           </form>
         </div>
+
       </div>
     </div>
   `;
 }
 
 export function attachAdminCouponsListeners(context, shadow) {
-  // Pill Filters Listeners
-  shadow.querySelectorAll('.coupon-filter-pill-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      context.couponValueFilter = btn.getAttribute('data-filter');
+  // 1. Search Input
+  const searchInput = shadow.getElementById('coupon-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      context.searchQuery = e.target.value;
       context.render();
       context.attachListeners();
-    });
-  });
-
-  // Auto Gen Coupon Code button listener
-  const autoGenBtn = shadow.getElementById('auto-gen-coupon-btn');
-  if (autoGenBtn) {
-    autoGenBtn.addEventListener('click', () => {
-      const codeInput = shadow.getElementById('coup-code');
-      if (codeInput) {
-        const randomCode = 'SWEET-' + Math.floor(100000 + Math.random() * 900000);
-        codeInput.value = randomCode;
+      const sRef = shadow.getElementById('coupon-search-input');
+      if (sRef) {
+        sRef.focus();
+        sRef.setSelectionRange(sRef.value.length, sRef.value.length);
       }
     });
   }
 
-  // Add Coupon open modal btn
-  const addBtn = shadow.getElementById('add-coupon-btn');
+  // 2. Type Filter
+  const typeFilter = shadow.getElementById('coupon-type-filter');
+  if (typeFilter) {
+    typeFilter.addEventListener('change', (e) => {
+      couponTypeFilter = e.target.value;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // 3. Sorting
+  const sortSelect = shadow.getElementById('coupon-sort-select');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', (e) => {
+      sortBy = e.target.value;
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  // 4. Open Add Modal
+  const addBtn = shadow.getElementById('add-coupon-main-btn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
-      context.editingCoupon = null;
       context.showCouponModal = true;
+      context.editingCoupon = null;
       context.render();
       context.attachListeners();
     });
   }
 
-  // Edit action
-  shadow.querySelectorAll('.edit-coupon-action-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const code = btn.getAttribute('data-coupon-code');
-      const coup = context.coupons.find(c => c.code === code);
-      if (coup) {
-        context.editingCoupon = coup;
-        context.showCouponModal = true;
-        context.render();
-        context.attachListeners();
-        
-        shadow.getElementById('coup-code').value = coup.code;
-        shadow.getElementById('coup-type').value = coup.type;
-        shadow.getElementById('coup-val').value = coup.value;
-        shadow.getElementById('coup-min').value = coup.minOrder || 0;
-        shadow.getElementById('coup-limit').value = coup.limit !== undefined ? coup.limit : 1;
-        shadow.getElementById('coup-stock').value = coup.stock !== undefined ? coup.stock : 10;
-        shadow.getElementById('coup-expiry').value = coup.expiry;
+  // Auto-Gen code
+  const autoGenBtn = shadow.getElementById('auto-gen-code-btn');
+  if (autoGenBtn) {
+    autoGenBtn.addEventListener('click', () => {
+      const codeInput = shadow.getElementById('coup-code-input');
+      if (codeInput) {
+        const rand = 'SWEET-' + Math.floor(1000 + Math.random() * 9000);
+        codeInput.value = rand;
       }
     });
-  });
+  }
 
-  // WhatsApp Share action
-  shadow.querySelectorAll('.share-coupon-whatsapp-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const code = btn.getAttribute('data-coupon-code');
-      const type = btn.getAttribute('data-coupon-type');
-      const val = btn.getAttribute('data-coupon-value');
-      const min = btn.getAttribute('data-coupon-min');
-      const expiry = btn.getAttribute('data-coupon-expiry');
-
-      const discountText = type === 'percentage' ? `${val}% OFF` : `${val} FCFA OFF`;
-      
-      const message = `🌟 OFFRE SPÉCIALE SWEETOS ! 🌟\nProfitez d'une réduction exclusive sur notre boutique en ligne !\n\nCode Promo : *${code}*\nRéduction : *${discountText}*\n${parseInt(min) > 0 ? `Minimum d'achat : *${min} FCFA*\n` : ''}Date d'expiration : *${expiry}*\n\nFaites vos achats ici : ${window.location.origin}`;
-      
-      const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
-    });
-  });
-
-  // Delete action
-  shadow.querySelectorAll('.delete-coupon-action-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const code = btn.getAttribute('data-coupon-code');
-      const index = context.coupons.findIndex(c => c.code === code);
-      if (index > -1) {
-        const confirmed = await window.showConfirm(`Are you sure you want to delete coupon code ${code}?`, 'Delete Coupon');
-        if (confirmed) {
-          context.coupons.splice(index, 1);
-          context.saveDatabase('coupons');
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon ${code} deleted.` }));
-          context.render();
-          context.attachListeners();
-        }
-      }
-    });
-  });
-
-  // Close Coupon Modal btn
-  const closeBtn = shadow.getElementById('close-coupon-modal-btn');
+  // Close Modal
+  const closeBtn = shadow.getElementById('close-coup-modal-btn');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       context.showCouponModal = false;
+      context.editingCoupon = null;
       context.render();
       context.attachListeners();
     });
   }
 
-  // Search input
-  const search = shadow.getElementById('coupon-search');
-  if (search) {
-    search.addEventListener('input', (e) => {
-      context.searchQuery = e.target.value;
-      context.currentPageIndex = 1;
+  // Edit coupon
+  shadow.querySelectorAll('.edit-coup-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const code = btn.getAttribute('data-coupon-code');
+      const coup = (context.coupons || []).find(c => c.code === code);
+      if (coup) {
+        context.editingCoupon = { ...coup };
+        context.showCouponModal = true;
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
+
+  // Copy code to clipboard
+  shadow.querySelectorAll('.copy-coupon-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const code = btn.getAttribute('data-code');
+      navigator.clipboard.writeText(code).then(() => {
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Copied "${code}" to clipboard!` }));
+      });
+    });
+  });
+
+  // Delete coupon
+  shadow.querySelectorAll('.delete-coup-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const code = btn.getAttribute('data-coupon-code');
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: 'Delete Coupon',
+        message: `Are you sure you want to delete coupon code "${code}"?`,
+        confirmText: 'Delete Coupon',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '🎟️'
+      }) : Promise.resolve(confirm(`Are you sure you want to delete coupon code "${code}"?`)));
+
+      if (confirmed) {
+        context.coupons = (context.coupons || []).filter(c => c.code !== code);
+        context.saveDatabase('coupons');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted coupon ${code}.` }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
+
+  // 5. Checkboxes & Bulk Selection
+  const selectAllCb = shadow.getElementById('select-all-coupons-cb');
+  if (selectAllCb) {
+    selectAllCb.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      shadow.querySelectorAll('.coup-select-cb').forEach(cb => {
+        const code = cb.getAttribute('data-coupon-code');
+        if (isChecked) selectedCouponCodes.add(code);
+        else selectedCouponCodes.delete(code);
+      });
       context.render();
       context.attachListeners();
-      const cS = shadow.getElementById('coupon-search');
-      if (cS) {
-        cS.focus();
-        cS.setSelectionRange(cS.value.length, cS.value.length);
+    });
+  }
+
+  shadow.querySelectorAll('.coup-select-cb').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const code = cb.getAttribute('data-coupon-code');
+      if (e.target.checked) selectedCouponCodes.add(code);
+      else selectedCouponCodes.delete(code);
+      context.render();
+      context.attachListeners();
+    });
+  });
+
+  const deselectBtn = shadow.getElementById('bulk-deselect-coup-btn');
+  if (deselectBtn) {
+    deselectBtn.addEventListener('click', () => {
+      selectedCouponCodes.clear();
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  const bulkActivate = shadow.getElementById('bulk-activate-coup-btn');
+  if (bulkActivate) {
+    bulkActivate.addEventListener('click', () => {
+      selectedCouponCodes.forEach(code => {
+        const c = (context.coupons || []).find(item => item.code === code);
+        if (c) c.status = 'active';
+      });
+      context.saveDatabase('coupons');
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Activated ${selectedCouponCodes.size} coupons.` }));
+      selectedCouponCodes.clear();
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  const bulkPause = shadow.getElementById('bulk-pause-coup-btn');
+  if (bulkPause) {
+    bulkPause.addEventListener('click', () => {
+      selectedCouponCodes.forEach(code => {
+        const c = (context.coupons || []).find(item => item.code === code);
+        if (c) c.status = 'paused';
+      });
+      context.saveDatabase('coupons');
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Paused ${selectedCouponCodes.size} coupons.` }));
+      selectedCouponCodes.clear();
+      context.render();
+      context.attachListeners();
+    });
+  }
+
+  const bulkDelete = shadow.getElementById('bulk-delete-coup-btn');
+  if (bulkDelete) {
+    bulkDelete.addEventListener('click', async () => {
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: 'Bulk Delete Coupons',
+        message: `Are you sure you want to delete ${selectedCouponCodes.size} selected coupons?`,
+        confirmText: 'Delete Selected',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '🗑️'
+      }) : Promise.resolve(confirm(`Are you sure you want to delete ${selectedCouponCodes.size} selected coupons?`)));
+
+      if (confirmed) {
+        context.coupons = (context.coupons || []).filter(c => !selectedCouponCodes.has(c.code));
+        context.saveDatabase('coupons');
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted selected coupons.` }));
+        selectedCouponCodes.clear();
+        context.render();
+        context.attachListeners();
       }
     });
   }
 
-  // Coupon form submit handler
-  const coupForm = shadow.getElementById('coupon-crud-form');
-  if (coupForm) {
-    coupForm.addEventListener('submit', (e) => {
+  // 6. Export to CSV
+  const exportBtn = shadow.getElementById('export-coupons-csv-btn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      exportCouponsToCSV(context.coupons || []);
+    });
+  }
+
+  // 7. Form Submit
+  const form = shadow.getElementById('coupon-crud-form');
+  if (form) {
+    form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const code = shadow.getElementById('coup-code').value.trim().toUpperCase();
-      const type = shadow.getElementById('coup-type').value;
-      const value = parseFloat(shadow.getElementById('coup-val').value);
-      const minOrder = parseFloat(shadow.getElementById('coup-min').value) || 0;
-      const limit = parseInt(shadow.getElementById('coup-limit').value) || 1;
-      const stock = parseInt(shadow.getElementById('coup-stock').value) || 10;
-      const expiry = shadow.getElementById('coup-expiry').value;
+      const code = shadow.getElementById('coup-code-input').value.trim().toUpperCase();
+      const type = shadow.getElementById('coup-type-select').value;
+      const value = parseFloat(shadow.getElementById('coup-val-input').value) || 0;
+      const minOrder = parseFloat(shadow.getElementById('coup-min-input').value) || 0;
+      const stock = parseInt(shadow.getElementById('coup-stock-input').value) || 50;
+      const expiry = shadow.getElementById('coup-expiry-input').value;
       const errorMsg = shadow.getElementById('coup-error-msg');
 
-      const duplicate = context.coupons.some(c => c.code === code && (!context.editingCoupon || c.code !== context.editingCoupon.code));
-      if (duplicate) {
-        errorMsg.textContent = 'Error: Coupon code must be unique!';
+      if (!code || value <= 0) {
+        errorMsg.textContent = 'Please provide a valid code and discount value.';
         return;
       }
 
-      if (context.editingCoupon) {
-        const c = context.coupons.find(item => item.code === context.editingCoupon.code);
-        if (c) {
-          c.code = code;
-          c.type = type;
-          c.value = value;
-          c.minOrder = minOrder;
-          c.limit = limit;
-          c.stock = stock;
-          c.expiry = expiry;
-          context.saveDatabase('coupons');
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon ${code} updated.` }));
+      if (context.editingCoupon && context.editingCoupon.code) {
+        const oldCode = context.editingCoupon.code;
+        const idx = (context.coupons || []).findIndex(c => c.code === oldCode);
+        if (idx !== -1) {
+          context.coupons[idx] = {
+            ...context.coupons[idx],
+            code,
+            type,
+            value,
+            minOrder,
+            stock,
+            expiry
+          };
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon "${code}" updated!` }));
         }
       } else {
+        const duplicate = (context.coupons || []).some(c => c.code === code);
+        if (duplicate) {
+          errorMsg.textContent = `Coupon code "${code}" already exists!`;
+          return;
+        }
+
         context.coupons.unshift({
-          code, type, value, minOrder, limit, stock, used: 0, expiry, status: "active"
+          code,
+          type,
+          value,
+          minOrder,
+          stock,
+          used: 0,
+          expiry,
+          status: 'active'
         });
-        context.saveDatabase('coupons');
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon ${code} created successfully!` }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Coupon "${code}" created successfully!` }));
       }
 
+      context.saveDatabase('coupons');
       context.showCouponModal = false;
       context.editingCoupon = null;
       context.render();
       context.attachListeners();
     });
   }
+}
+
+function exportCouponsToCSV(coupons) {
+  if (!coupons || coupons.length === 0) {
+    window.dispatchEvent(new CustomEvent('toast:show', { detail: 'No coupons to export.' }));
+    return;
+  }
+
+  const headers = ['Coupon Code', 'Discount Type', 'Discount Value', 'Min Order (CFA)', 'Used Count', 'Total Stock', 'Expiry Date', 'Status'];
+  const rows = coupons.map(c => [
+    `"${c.code || ''}"`,
+    c.type,
+    c.value,
+    c.minOrder || 0,
+    c.used || 0,
+    c.stock || 'Unlimited',
+    `"${c.expiry || ''}"`,
+    c.status || 'active'
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `SWEETOS_Coupons_Export_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }

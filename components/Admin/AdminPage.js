@@ -1,4 +1,5 @@
 import { formatPrice } from '../../utils/storage.js';
+import '../../utils/modal.js';
 import products from '../../data/products.js';
 import categories from '../../data/categories.js';
 import brands from '../../data/brands.js';
@@ -7,14 +8,20 @@ import { renderAdminSidebar, attachAdminSidebarListeners } from './AdminSidebar.
 import { renderAdminHeader, attachAdminHeaderListeners } from './AdminHeader.js';
 import { renderAdminDashboard, attachAdminDashboardListeners } from './AdminDashboard.js';
 import { renderAdminProducts, attachAdminProductsListeners } from './AdminProducts.js';
+import { renderAdminCategories, attachAdminCategoriesListeners } from './AdminCategories.js';
+import { renderAdminBrands, attachAdminBrandsListeners } from './AdminBrands.js';
 import { renderAdminOrders, attachAdminOrdersListeners } from './AdminOrders.js';
 import { renderAdminCustomers, attachAdminCustomersListeners } from './AdminCustomers.js';
 import { renderAdminInventory, attachAdminInventoryListeners } from './AdminInventory.js';
 import { renderAdminCoupons, attachAdminCouponsListeners } from './AdminCoupons.js';
 import { renderAdminAnalytics, attachAdminAnalyticsListeners } from './AdminAnalytics.js';
+import { renderAdminNotifications, attachAdminNotificationsListeners } from './AdminNotifications.js';
 import { renderAdminSettings, attachAdminSettingsListeners } from './AdminSettings.js';
 import { renderAdminSections, attachAdminSectionsListeners } from './AdminSections.js';
 import { renderAdminReviews, attachAdminReviewsListeners } from './AdminReviews.js';
+import { renderAdminLoyalty, attachAdminLoyaltyListeners } from './AdminLoyalty.js';
+import { renderAdminTodaysDeals, attachAdminTodaysDealsListeners } from './AdminTodaysDeals.js';
+import { renderAdminMoreToLove, attachAdminMoreToLoveListeners } from './AdminMoreToLove.js';
 
 window.showConfirm = function(message, title = 'Confirm Action') {
   return new Promise((resolve) => {
@@ -320,6 +327,8 @@ class AdminPage extends HTMLElement {
     this.searchQueries = {
       dashboard: '',
       products: '',
+      categories: '',
+      brands: '',
       orders: '',
       customers: '',
       reviews: '',
@@ -327,6 +336,7 @@ class AdminPage extends HTMLElement {
       sections: '',
       coupons: '',
       analytics: '',
+      notifications: '',
       settings: ''
     };
     this.categoryFilter = 'All';
@@ -444,6 +454,14 @@ class AdminPage extends HTMLElement {
     };
     window.addEventListener('storage', this._storageEventListener);
 
+    this._failedSearchesListener = () => {
+      if (this.currentTab === 'analytics') {
+        this.render();
+        this.attachListeners();
+      }
+    };
+    window.addEventListener('failed_searches:updated', this._failedSearchesListener);
+
     // Fetch all database sources concurrently on startup
     Promise.all([
       fetch('/api/products').then(res => res.json()).catch(() => null),
@@ -454,32 +472,32 @@ class AdminPage extends HTMLElement {
       fetch('/api/coupons').then(res => res.json()).catch(() => null)
     ]).then(([products, categories, brands, reviews, orders, coupons]) => {
       let needsRender = false;
-      if (products && products.length > 0) {
+      if (Array.isArray(products)) {
         this.products = products;
         localStorage.setItem('SWEETOS_products', JSON.stringify(products));
         needsRender = true;
       }
-      if (categories && categories.length > 0) {
+      if (Array.isArray(categories)) {
         this.categories = categories;
         localStorage.setItem('SWEETOS_categories', JSON.stringify(categories));
         needsRender = true;
       }
-      if (brands && brands.length > 0) {
+      if (Array.isArray(brands)) {
         this.brands = brands;
         localStorage.setItem('SWEETOS_brands', JSON.stringify(brands));
         needsRender = true;
       }
-      if (reviews && reviews.length > 0) {
+      if (Array.isArray(reviews)) {
         this.reviews = reviews;
         localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
         needsRender = true;
       }
-      if (orders && orders.length > 0) {
+      if (Array.isArray(orders)) {
         this.orders = orders;
         localStorage.setItem('SWEETOS_all_orders', JSON.stringify(orders));
         needsRender = true;
       }
-      if (coupons && coupons.length > 0) {
+      if (Array.isArray(coupons)) {
         this.coupons = coupons;
         localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
         needsRender = true;
@@ -495,66 +513,83 @@ class AdminPage extends HTMLElement {
   }
 
   loadDatabase() {
+    const isFirstTime = localStorage.getItem('SWEETOS_db_initialized') === null && localStorage.getItem('SWEETOS_products') === null;
+
     // 1. Products Catalog
     const storedProds = localStorage.getItem('SWEETOS_products');
-    try {
-      this.products = storedProds ? JSON.parse(storedProds) : [];
-    } catch (e) {
-      this.products = [];
-    }
-    if (this.products.length === 0) {
-      this.products = products;
+    if (storedProds !== null) {
+      try {
+        this.products = JSON.parse(storedProds);
+      } catch (e) {
+        this.products = [];
+      }
+    } else {
+      this.products = isFirstTime ? products : [];
       localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
     }
     
     // 2. Orders Pipeline
     const storedOrders = localStorage.getItem('SWEETOS_all_orders');
-    try {
-      this.orders = storedOrders ? JSON.parse(storedOrders) : [];
-    } catch (e) {
-      this.orders = [];
-    }
-    if (this.orders.length === 0) {
-      this.orders = orders;
+    if (storedOrders !== null) {
+      try {
+        this.orders = JSON.parse(storedOrders);
+      } catch (e) {
+        this.orders = [];
+      }
+    } else {
+      this.orders = isFirstTime ? orders : [];
       localStorage.setItem('SWEETOS_all_orders', JSON.stringify(this.orders));
     }
     
     // 3. Category Settings
     const storedCats = localStorage.getItem('SWEETOS_categories');
-    try {
-      this.categories = storedCats ? JSON.parse(storedCats) : [];
-    } catch (e) {
-      this.categories = [];
-    }
-    if (this.categories.length === 0) {
-      this.categories = categories;
+    if (storedCats !== null) {
+      try {
+        this.categories = JSON.parse(storedCats);
+      } catch (e) {
+        this.categories = [];
+      }
+    } else {
+      this.categories = isFirstTime ? categories : [];
       localStorage.setItem('SWEETOS_categories', JSON.stringify(this.categories));
     }
     
     // 4. Coupon Database
     const storedCoupons = localStorage.getItem('SWEETOS_coupons');
-    this.coupons = storedCoupons ? JSON.parse(storedCoupons) : [
-      { code: "SWEETWELCOME", type: "percentage", value: 10, minOrder: 15000, limit: 100, used: 24, expiry: "2026-12-31", status: "active" },
-      { code: "DESKSETUP", type: "fixed", value: 5000, minOrder: 45000, limit: 50, used: 12, expiry: "2026-10-15", status: "active" }
-    ];
-    if (!storedCoupons) {
+    if (storedCoupons !== null) {
+      try {
+        this.coupons = JSON.parse(storedCoupons);
+      } catch (e) {
+        this.coupons = [];
+      }
+    } else {
+      this.coupons = isFirstTime ? [
+        { code: "SWEETWELCOME", type: "percentage", value: 10, minOrder: 15000, limit: 100, used: 24, expiry: "2026-12-31", status: "active" },
+        { code: "DESKSETUP", type: "fixed", value: 5000, minOrder: 45000, limit: 50, used: 12, expiry: "2026-10-15", status: "active" }
+      ] : [];
       localStorage.setItem('SWEETOS_coupons', JSON.stringify(this.coupons));
     }
 
     // 5. Stock Adjustments logs
     const storedInvLogs = localStorage.getItem('SWEETOS_inventory_logs');
-    this.inventoryLogs = storedInvLogs ? JSON.parse(storedInvLogs) : [
-      { id: 1, date: "2026-08-16 10:14", sku: "KB-Q1PRO", action: "Restock", quantity: 15, user: "admin@sweetos.com" },
-      { id: 2, date: "2026-08-15 14:22", sku: "AU-MX4", action: "Fulfillment", quantity: -2, user: "System checkout" }
-    ];
-    if (!storedInvLogs) {
+    if (storedInvLogs !== null) {
+      try {
+        this.inventoryLogs = JSON.parse(storedInvLogs);
+      } catch (e) {
+        this.inventoryLogs = [];
+      }
+    } else {
+      this.inventoryLogs = isFirstTime ? [
+        { id: 1, date: "2026-08-16 10:14", sku: "KB-Q1PRO", action: "Restock", quantity: 15, user: "admin@sweetos.com" },
+        { id: 2, date: "2026-08-15 14:22", sku: "AU-MX4", action: "Fulfillment", quantity: -2, user: "System checkout" }
+      ] : [];
       localStorage.setItem('SWEETOS_inventory_logs', JSON.stringify(this.inventoryLogs));
     }
     
     // 6. Registered Customers list derived dynamically from SWEETOS profile keys + checkouts
     this.customers = this.loadCustomers();
 
-    // 7. Homepage Sections configuration with self-healing migration for default layouts
+    // 7. Homepage Sections configuration
     const storedSections = localStorage.getItem('SWEETOS_homepage_sections');
     let parsedSections = [];
     try {
@@ -571,42 +606,23 @@ class AdminPage extends HTMLElement {
       { id: "sec-3", name: "Trending Audio Accessories", type: "grid", category: "Audio", active: false, order: 6 }
     ];
 
-    let needsSave = false;
-    if (parsedSections.length === 0) {
+    if (storedSections === null && isFirstTime) {
       parsedSections = defaultSecs;
-      needsSave = true;
-    } else {
-      // Ensure required default sections are present
-      defaultSecs.forEach(ds => {
-        if (!parsedSections.some(s => s.id === ds.id)) {
-          parsedSections.push(ds);
-          needsSave = true;
-        }
-      });
+      localStorage.setItem('SWEETOS_homepage_sections', JSON.stringify(parsedSections));
     }
-
-    // Ensure order is defined on all sections
-    parsedSections.forEach((s, idx) => {
-      if (s.order === undefined) {
-        s.order = idx;
-        needsSave = true;
-      }
-    });
 
     this.homepageSections = parsedSections;
-    if (needsSave || !storedSections) {
-      localStorage.setItem('SWEETOS_homepage_sections', JSON.stringify(this.homepageSections));
-    }
 
     // 8. Brand settings Directory
     const storedBrands = localStorage.getItem('SWEETOS_brands');
-    try {
-      this.brands = storedBrands ? JSON.parse(storedBrands) : [];
-    } catch (e) {
-      this.brands = [];
-    }
-    if (this.brands.length === 0) {
-      this.brands = brands;
+    if (storedBrands !== null) {
+      try {
+        this.brands = JSON.parse(storedBrands);
+      } catch (e) {
+        this.brands = [];
+      }
+    } else {
+      this.brands = isFirstTime ? brands : [];
       localStorage.setItem('SWEETOS_brands', JSON.stringify(this.brands));
     }
 
@@ -616,6 +632,10 @@ class AdminPage extends HTMLElement {
       this.reviews = storedReviews ? JSON.parse(storedReviews) : [];
     } catch (e) {
       this.reviews = [];
+    }
+
+    if (isFirstTime) {
+      localStorage.setItem('SWEETOS_db_initialized', 'true');
     }
   }
 
@@ -967,6 +987,10 @@ class AdminPage extends HTMLElement {
         return renderAdminDashboard(this);
       case 'products':
         return renderAdminProducts(this);
+      case 'categories':
+        return renderAdminCategories(this);
+      case 'brands':
+        return renderAdminBrands(this);
       case 'orders':
         return renderAdminOrders(this);
       case 'customers':
@@ -977,12 +1001,20 @@ class AdminPage extends HTMLElement {
         return renderAdminCoupons(this);
       case 'analytics':
         return renderAdminAnalytics(this);
+      case 'notifications':
+        return renderAdminNotifications(this);
       case 'settings':
         return renderAdminSettings(this);
       case 'sections':
         return renderAdminSections(this);
+      case 'deals':
+        return renderAdminTodaysDeals(this);
+      case 'more-to-love':
+        return renderAdminMoreToLove(this);
       case 'reviews':
         return renderAdminReviews(this);
+      case 'loyalty':
+        return renderAdminLoyalty(this);
       default:
         return renderAdminDashboard(this);
     }
@@ -1029,11 +1061,20 @@ class AdminPage extends HTMLElement {
       case 'products':
         attachAdminProductsListeners(this, shadow);
         break;
+      case 'categories':
+        attachAdminCategoriesListeners(this, shadow);
+        break;
+      case 'brands':
+        attachAdminBrandsListeners(this, shadow);
+        break;
       case 'orders':
         attachAdminOrdersListeners(this, shadow);
         break;
       case 'customers':
         attachAdminCustomersListeners(this, shadow);
+        break;
+      case 'loyalty':
+        attachAdminLoyaltyListeners(this, shadow);
         break;
       case 'inventory':
         attachAdminInventoryListeners(this, shadow);
@@ -1044,11 +1085,20 @@ class AdminPage extends HTMLElement {
       case 'analytics':
         attachAdminAnalyticsListeners(this, shadow);
         break;
+      case 'notifications':
+        attachAdminNotificationsListeners(this, shadow);
+        break;
       case 'settings':
         attachAdminSettingsListeners(this, shadow);
         break;
       case 'sections':
         attachAdminSectionsListeners(this, shadow);
+        break;
+      case 'deals':
+        attachAdminTodaysDealsListeners(this, shadow);
+        break;
+      case 'more-to-love':
+        attachAdminMoreToLoveListeners(this, shadow);
         break;
       case 'reviews':
         attachAdminReviewsListeners(this, shadow);

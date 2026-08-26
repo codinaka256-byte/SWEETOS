@@ -1,16 +1,42 @@
-import { getNotificationsStorageKey } from '../../utils/storage.js';
+import { getNotificationsStorageKey, formatTimeAgo } from '../../utils/storage.js';
 
 class NotificationDrawer extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
     this.notifications = [];
+    this.activeFilter = 'all'; // 'all', 'orders', 'promos', 'messages'
+    this.liveTimer = null;
   }
 
   connectedCallback() {
     this.loadNotifications();
     this.render();
     this.setupEventListeners();
+    
+    // Auto-refresh relative timestamps every 30 seconds
+    if (!this.liveTimer) {
+      this.liveTimer = setInterval(() => {
+        this.updateLiveTimestamps();
+      }, 30000);
+    }
+  }
+
+  disconnectedCallback() {
+    if (this.liveTimer) {
+      clearInterval(this.liveTimer);
+      this.liveTimer = null;
+    }
+  }
+
+  updateLiveTimestamps() {
+    const shadow = this.shadowRoot;
+    shadow.querySelectorAll('.notif-time').forEach(el => {
+      const ts = el.getAttribute('data-timestamp');
+      if (ts) {
+        el.textContent = formatTimeAgo(isNaN(Number(ts)) ? ts : Number(ts));
+      }
+    });
   }
 
   loadNotifications() {
@@ -23,35 +49,33 @@ class NotificationDrawer extends HTMLElement {
         this.notifications = [];
       }
     } else {
-      // Default Seed Notifications with personalization
-      const loggedIn = localStorage.getItem('SWEETOS_logged_in_user');
-      let userName = "Guest User";
-      if (loggedIn) {
-        try {
-          const userObj = JSON.parse(loggedIn);
-          const email = userObj.email;
-          const safeKey = email.replace(/[^a-zA-Z0-9]/g, '_');
-          const profileSaved = localStorage.getItem(`SWEETOS_user_profile_${safeKey}`);
-          if (profileSaved) {
-            const parsed = JSON.parse(profileSaved);
-            userName = parsed.firstName || userName;
-          }
-        } catch (e) {}
-      }
-
+      // Default Welcome Notification
       this.notifications = [
         {
           id: 1,
           type: 'promo',
           icon: '🎁',
-          title: `Welcome to SWEETOS! 🎉`,
-          desc: `Welcome to SWEETOS!`,
-          time: 'Just now',
+          title: `Bienvenue sur SWEETOS ! 🎉`,
+          desc: `Profitez de notre collection exclusive en Côte d'Ivoire avec 10% de réduction via le code <strong>WELCOME10</strong>.`,
+          createdAt: Date.now() - 60000,
           unread: true
         }
       ];
       localStorage.setItem(key, JSON.stringify(this.notifications));
     }
+
+    // Ensure all existing notifications have a numeric createdAt timestamp
+    let needsSave = false;
+    this.notifications.forEach(n => {
+      if (!n.createdAt) {
+        n.createdAt = n.timestamp || Date.now();
+        needsSave = true;
+      }
+    });
+    if (needsSave) {
+      this.saveNotifications();
+    }
+
     this.generateExpiringReminders();
     const totalUnread = this.notifications.filter(n => n.unread).length;
     window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: totalUnread }));
@@ -81,7 +105,7 @@ class NotificationDrawer extends HTMLElement {
               icon: '⏰',
               title: `Rappel: Boîte Mystère expire dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}! 🎁`,
               desc: `Votre boîte mystère de la commande #${card.orderId} va bientôt expirer. Grattez-la maintenant pour découvrir votre offre !`,
-              time: 'Just now',
+              createdAt: Date.now(),
               unread: true
             });
             updated = true;
@@ -112,7 +136,7 @@ class NotificationDrawer extends HTMLElement {
               icon: '⏰',
               title: `Rappel Coupon: ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''}! 🎟️`,
               desc: `Votre coupon de réduction exclusif ${c.code} (${c.value}% OFF) expire bientôt. Utilisez-le vite à la caisse !`,
-              time: 'Just now',
+              createdAt: Date.now(),
               unread: true
             });
             updated = true;
@@ -132,7 +156,7 @@ class NotificationDrawer extends HTMLElement {
   }
 
   render() {
-    // 1. Ensure stylesheet link is injected exactly once to prevent layout style drops on re-renders
+    // 1. Ensure stylesheet link is injected exactly once
     if (!this.shadowRoot.querySelector('link[href*="NotificationDrawer.css"]')) {
       const cssLink = document.createElement('link');
       cssLink.rel = 'stylesheet';
@@ -151,49 +175,95 @@ class NotificationDrawer extends HTMLElement {
 
     const totalUnread = this.notifications.filter(n => n.unread).length;
 
+    // Filter notifications based on active pill
+    const filteredNotifications = this.notifications.filter(n => {
+      if (this.activeFilter === 'orders') return n.type === 'shipping';
+      if (this.activeFilter === 'promos') return n.type === 'promo';
+      if (this.activeFilter === 'messages') return n.type === 'email' || n.type === 'system';
+      return true;
+    });
+
     container.innerHTML = `
       <div class="notifications-wrapper">
         <!-- Swipe handle indicator for mobile -->
         <div class="drawer-swipe-handle"></div>
+        
         <!-- Header -->
         <div class="notifications-header">
-          <h3>Notifications Hub ${totalUnread > 0 ? `(<span class="unread-count">${totalUnread}</span>)` : ''}</h3>
-          <button class="notif-close" id="notifCloseBtn" title="Close Hub">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 15px; height: 15px; flex-shrink: 0; display: inline-block;">
-              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 20px;">🔔</span>
+            <h3 style="margin: 0; font-size: 17px; font-weight: 850; color: var(--text-dark);">
+              Centre de Notifications ${totalUnread > 0 ? `(<span class="unread-count">${totalUnread}</span>)` : ''}
+            </h3>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            ${totalUnread > 0 ? `
+              <button class="notif-mark-read-btn" id="notifMarkAllReadBtn" title="Tout marquer comme lu" style="background: rgba(0,82,204,0.08); color: var(--primary); border: none; font-size: 11.5px; font-weight: 750; padding: 5px 10px; border-radius: 8px; cursor: pointer;">
+                ✓ Tout lire
+              </button>
+            ` : ''}
+            <button class="notif-close" id="notifCloseBtn" title="Fermer le centre">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Tabs Row -->
+        <div class="notif-filter-pills-row" style="display: flex; gap: 6px; padding: 12px 18px 6px 18px; border-bottom: 1px solid var(--border); overflow-x: auto;">
+          <button class="notif-pill ${this.activeFilter === 'all' ? 'active' : ''}" data-filter="all" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 750; border: none; cursor: pointer; transition: all 0.2s; background: ${this.activeFilter === 'all' ? 'var(--primary)' : 'rgba(0,0,0,0.05)'}; color: ${this.activeFilter === 'all' ? 'white' : 'var(--text-gray)'};">
+            Tous (${this.notifications.length})
+          </button>
+          <button class="notif-pill ${this.activeFilter === 'orders' ? 'active' : ''}" data-filter="orders" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 750; border: none; cursor: pointer; transition: all 0.2s; background: ${this.activeFilter === 'orders' ? 'var(--primary)' : 'rgba(0,0,0,0.05)'}; color: ${this.activeFilter === 'orders' ? 'white' : 'var(--text-gray)'};">
+            📦 Commandes
+          </button>
+          <button class="notif-pill ${this.activeFilter === 'promos' ? 'active' : ''}" data-filter="promos" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 750; border: none; cursor: pointer; transition: all 0.2s; background: ${this.activeFilter === 'promos' ? 'var(--primary)' : 'rgba(0,0,0,0.05)'}; color: ${this.activeFilter === 'promos' ? 'white' : 'var(--text-gray)'};">
+            🎁 Offres & Coupons
+          </button>
+          <button class="notif-pill ${this.activeFilter === 'messages' ? 'active' : ''}" data-filter="messages" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 750; border: none; cursor: pointer; transition: all 0.2s; background: ${this.activeFilter === 'messages' ? 'var(--primary)' : 'rgba(0,0,0,0.05)'}; color: ${this.activeFilter === 'messages' ? 'white' : 'var(--text-gray)'};">
+            💬 Messages
           </button>
         </div>
 
         <!-- Scrollable Notifications Listing -->
         <div class="notifications-list" id="notifList">
-          ${this.notifications.length === 0 ? `
-            <div class="empty-state">
-              <div class="empty-bell">🔔</div>
-              <p class="empty-title">All quiet in the studio</p>
-              <p class="empty-desc">You're completely up to date. We'll alert you here when new setup codes or delivery reports arrive.</p>
+          ${filteredNotifications.length === 0 ? `
+            <div class="empty-state" style="padding: 40px 20px; text-align: center;">
+              <div class="empty-bell" style="font-size: 40px; margin-bottom: 12px;">🔔</div>
+              <p class="empty-title" style="font-weight: 850; font-size: 15px; color: var(--text-dark); margin: 0 0 6px 0;">Aucune notification</p>
+              <p class="empty-desc" style="font-size: 13px; color: var(--text-gray); margin: 0; line-height: 1.5;">Vous êtes parfaitement à jour ! Les alertes de livraison et promotions s'afficheront ici en direct.</p>
             </div>
-          ` : this.notifications.map((n, idx) => `
-            <div class="notif-item ${n.unread ? 'unread-flag' : ''}" data-id="${n.id}">
-              <div class="notif-icon-circle ${n.type}">
-                ${n.icon}
-              </div>
-              <div class="notif-info">
-                <div class="notif-title-row">
-                  <h4>${n.title}</h4>
-                  <span class="notif-time">${n.time}</span>
+          ` : filteredNotifications.map(n => {
+            const timestamp = n.createdAt || n.timestamp || Date.now();
+            const timeAgoText = formatTimeAgo(timestamp);
+            return `
+              <div class="notif-item ${n.unread ? 'unread-flag' : ''}" data-id="${n.id}">
+                <div class="notif-icon-circle ${n.type}">
+                  ${n.icon || '🔔'}
                 </div>
-                <div class="notif-desc" style="font-size: 12px; color: var(--text-gray); line-height: 1.5; margin-top: 4px;">${n.desc}</div>
+                <div class="notif-info">
+                  <div class="notif-title-row">
+                    <h4>${n.title}</h4>
+                    <span class="notif-time" data-timestamp="${timestamp}">${timeAgoText}</span>
+                  </div>
+                  <div class="notif-desc" style="font-size: 12.5px; color: var(--text-gray); line-height: 1.5; margin-top: 4px;">
+                    ${n.desc}
+                  </div>
+                </div>
+                <button class="notif-delete-btn" data-id="${n.id}" title="Supprimer l'alerte">×</button>
               </div>
-              <button class="notif-delete-btn" data-id="${n.id}" title="Delete Alert">×</button>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
 
         <!-- Footer actions -->
         ${this.notifications.length > 0 ? `
-          <div class="notifications-footer">
-            <button class="clear-all-btn" id="notifClearAllBtn">Clear All Notifications</button>
+          <div class="notifications-footer" style="padding: 14px 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <button class="clear-all-btn" id="notifClearAllBtn" style="color: var(--red); background: none; border: none; font-size: 12.5px; font-weight: 750; cursor: pointer;">
+              🗑️ Tout effacer
+            </button>
+            <span style="font-size: 11px; color: var(--text-gray); font-weight: 600;">Mis à jour en temps réel ⚡</span>
           </div>
         ` : ''}
       </div>
@@ -225,21 +295,47 @@ class NotificationDrawer extends HTMLElement {
   attachDynamicListeners() {
     const shadow = this.shadowRoot;
 
-    shadow.getElementById('notifCloseBtn').addEventListener('click', () => {
-      window.dispatchEvent(new CustomEvent('notifications:toggle', { detail: { open: false } }));
+    // Close button
+    const closeBtn = shadow.getElementById('notifCloseBtn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        window.dispatchEvent(new CustomEvent('notifications:toggle', { detail: { open: false } }));
+      });
+    }
+
+    // Filter pills
+    shadow.querySelectorAll('.notif-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        this.activeFilter = pill.getAttribute('data-filter') || 'all';
+        this.render();
+      });
     });
 
+    // Mark all read button
+    const markAllBtn = shadow.getElementById('notifMarkAllReadBtn');
+    if (markAllBtn) {
+      markAllBtn.addEventListener('click', () => {
+        this.notifications.forEach(n => n.unread = false);
+        this.saveNotifications();
+        this.render();
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Toutes les alertes sont marquées comme lues. ✓' }));
+        window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: 0 }));
+      });
+    }
+
+    // Clear all button
     const clearBtn = shadow.getElementById('notifClearAllBtn');
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
         this.notifications = [];
         this.saveNotifications();
         this.render();
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Cleared all alerts.' }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Toutes les notifications ont été effacées.' }));
         window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: 0 }));
       });
     }
 
+    // Delete single notification
     shadow.querySelectorAll('.notif-delete-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -247,11 +343,12 @@ class NotificationDrawer extends HTMLElement {
         this.notifications = this.notifications.filter(n => n.id !== id);
         this.saveNotifications();
         this.render();
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Deleted alert.' }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Notification supprimée.' }));
         window.dispatchEvent(new CustomEvent('notifications:badge-sync', { detail: this.notifications.filter(n => n.unread).length }));
       });
     });
 
+    // Click on notification item
     shadow.querySelectorAll('.notif-item').forEach(item => {
       item.addEventListener('click', () => {
         const id = parseInt(item.getAttribute('data-id'));
@@ -275,7 +372,7 @@ class NotificationDrawer extends HTMLElement {
             window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'coupons' } }));
           } else {
             navigator.clipboard.writeText('WELCOME10').then(() => {
-              window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Promo code WELCOME10 copied to clipboard! 🎟️' }));
+              window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Code promo WELCOME10 copié ! 🎟️' }));
             }).catch(() => {});
             window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
           }
@@ -326,7 +423,7 @@ class NotificationDrawer extends HTMLElement {
     } catch(e) {}
     const order = orders.find(o => o.id === orderId);
     if (!order) {
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Order details not found!' }));
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Détails de commande introuvables.' }));
       return;
     }
     const currentHour = new Date().getHours();
@@ -346,30 +443,30 @@ class NotificationDrawer extends HTMLElement {
     } catch(e) {}
     const order = orders.find(o => o.id === orderId);
     if (!order) {
-      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Commande introuvable / Order not found!' }));
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Commande introuvable !' }));
       return;
     }
     
     const receiptContent = `
 ========================================
-             RECEIPT / REÇU
-                SWEETOS
+             REÇU DE COMMANDE
+                 SWEETOS 🇨🇮
 ========================================
 ID Commande: ${order.id}
 Date: ${order.date}
 Client: ${order.customerName}
 E-mail: ${order.customerEmail}
 Téléphone: ${order.customerPhone}
-Adresse: ${order.customerAddress}
+Lieu de livraison: ${order.customerAddress}
 
 Articles commandés:
 ${order.products ? order.products.map(p => `- ${p.name} (x${p.quantity}) : ${p.price * p.quantity} CFA`).join('\n') : order.items}
 
 Total: ${order.total} CFA
-Mode de paiement: ${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'COD'}
+Mode de paiement: ${order.paymentMethod ? order.paymentMethod.toUpperCase() : 'LIVRAISON'}
 Statut de livraison: ${order.status}
 ========================================
-Merci infiniment pour votre achat chez SWEETOS !
+Merci infiniment pour votre confiance chez SWEETOS !
    `.trim();
 
     const blob = new Blob([receiptContent], { type: 'text/plain;charset=utf-8' });
@@ -381,7 +478,7 @@ Merci infiniment pour votre achat chez SWEETOS !
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Reçu téléchargé ! 📄' }));
+    window.dispatchEvent(new CustomEvent('toast:show', { detail: 'Reçu téléchargé avec succès ! 📄' }));
   }
 
   openMockEmailModal(order, greeting) {
@@ -395,23 +492,23 @@ Merci infiniment pour votre achat chez SWEETOS !
       modal.style.left = '0';
       modal.style.width = '100%';
       modal.style.height = '100%';
-      modal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+      modal.style.backgroundColor = 'rgba(0,0,0,0.6)';
       modal.style.zIndex = '9999';
       modal.style.display = 'flex';
       modal.style.alignItems = 'center';
       modal.style.justifyContent = 'center';
-      modal.style.backdropFilter = 'blur(4px)';
+      modal.style.backdropFilter = 'blur(6px)';
       shadow.appendChild(modal);
     }
     
     modal.innerHTML = `
-      <div style="background: white; border-radius: 24px; width: 90%; max-width: 500px; padding: 35px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); font-family: 'Inter', sans-serif; position: relative; border: 1.5px solid var(--border); box-sizing: border-box; text-align: center;">
+      <div style="background: white; border-radius: 24px; width: 90%; max-width: 500px; padding: 35px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); font-family: 'Outfit', sans-serif; position: relative; border: 1.5px solid var(--border); box-sizing: border-box; text-align: center;">
         <button id="close-email-modal" style="position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 28px; cursor: pointer; color: var(--text-gray); font-weight: bold; line-height: 1; transition: color 0.2s;">&times;</button>
         
         <div style="border-bottom: 1.5px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; text-align: left; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box;">
           <div>
             <span style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Nouveau Message</span>
-            <span style="font-size: 13.5px; color: var(--text-dark); font-weight: 600;">De: <strong>rewards@sweetos.com</strong></span>
+            <span style="font-size: 13.5px; color: var(--text-dark); font-weight: 600;">De: <strong>concierge@sweetos.ci</strong></span>
           </div>
           <span style="font-size: 24px;">📧</span>
         </div>
@@ -419,19 +516,19 @@ Merci infiniment pour votre achat chez SWEETOS !
         <div style="color: var(--text-dark); display: flex; flex-direction: column; gap: 16px; align-items: center; text-align: left;">
           <h2 style="font-size: 22px; font-weight: 900; margin: 0; color: var(--primary); letter-spacing: -0.5px; text-align: center; width: 100%;">🎁 Votre Boîte Mystère est prête !</h2>
           
-          <p style="font-size: 14.5px; line-height: 1.6; margin: 0; color: var(--text-dark); width: 100%;">
+          <p style="font-size: 14px; line-height: 1.6; margin: 0; color: var(--text-dark); width: 100%;">
             ${greeting} !<br><br>
             Merci infiniment pour votre commande <strong>#${order.id}</strong> sur <strong>SWEETOS</strong>.<br>
-            Nous sommes ravis que vos articles aient été livrés avec succès.
+            Votre livraison a été enregistrée avec succès.
           </p>
           
           <div style="font-size: 72px; margin: 15px 0; text-align: center; width: 100%;">🎁</div>
           
-          <p style="font-size: 13.5px; color: var(--text-gray); margin: 0; font-weight: 600; text-align: center; width: 100%;">
-            Pour vous remercier de votre fidélité, nous vous offrons une chance de gagner un coupon de réduction exclusif !
+          <p style="font-size: 13px; color: var(--text-gray); margin: 0; font-weight: 600; text-align: center; width: 100%;">
+            Pour vous remercier de votre fidélité, nous vous offrons une chance de gratter et remporter un coupon de réduction exclusif !
           </p>
           
-          <button id="open-scratchcard-btn" style="background: var(--primary); color: white; border: none; padding: 14px 28px; border-radius: 12px; font-size: 14px; font-weight: 850; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px var(--primary-light); width: 100%; display: block; box-sizing: border-box; text-align: center;">
+          <button id="open-scratchcard-btn" style="background: var(--primary); color: white; border: none; padding: 14px 28px; border-radius: 12px; font-size: 14px; font-weight: 850; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,82,204,0.25); width: 100%; display: block; box-sizing: border-box; text-align: center;">
             Gratter ma Boîte Mystère →
           </button>
         </div>
