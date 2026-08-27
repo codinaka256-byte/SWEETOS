@@ -2,8 +2,8 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import initialProducts from '../data/products.js';
 
-export const SUPABASE_URL = 'https://xtonsvyyfnjimlxtauwv.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0b25zdnl5Zm5qaW1seHRhdXd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMTI5MzAsImV4cCI6MjEwMjg4ODkzMH0.3zZ1SKKTvWrQLbxv067KlbOrkTMaWkusDDdYeKEFMO0';
+export const SUPABASE_URL = 'https://euuzsxjsmsktegilbqpv.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1dXpzeGpzbXNrdGVnaWxicXB2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4MzIyMzcsImV4cCI6MjEwMzQwODIzN30.BJtkw4BBkAytc5vDSr8a0dOmUyGk_1xfpdHK3sEHwHs';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
