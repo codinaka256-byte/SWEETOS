@@ -332,7 +332,12 @@ export function renderAdminCustomers(context) {
         </select>
       </div>
 
-      <div style="display:flex; align-items:center; gap:10px;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button class="admin-btn admin-btn-danger" id="wipe-all-customers-btn" style="display:flex; align-items:center; gap:6px; padding:9px 16px; font-weight:800; font-size:13px; background:#dc2626; border-radius:10px; cursor:pointer;" title="Permanently delete ALL customer accounts and profiles">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          <span>🔥 Delete All Accounts (0 Clients)</span>
+        </button>
+
         <button class="select-filter-btn" id="export-customers-csv-btn" style="background:#f8fafc; display:flex; align-items:center; gap:6px;">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           <span>Export CSV</span>
@@ -350,6 +355,7 @@ export function renderAdminCustomers(context) {
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <button class="bulk-btn" id="bulk-email-cust-btn">✉️ Compose Email</button>
           <button class="bulk-btn" id="bulk-export-selected-cust-btn">📄 Export Selected</button>
+          <button class="bulk-btn bulk-btn-danger" id="bulk-delete-cust-btn" style="background:#dc2626; color:white;">🗑️ Delete Selected Accounts</button>
         </div>
       </div>
     ` : ''}
@@ -434,6 +440,9 @@ export function renderAdminCustomers(context) {
                     <div style="display:inline-flex; align-items:center; gap:6px;">
                       <button class="view-customer-profile-btn admin-btn admin-btn-secondary" data-customer-email="${c.email}" style="padding:6px 12px; font-size:12px; font-weight:750;">
                         <span>View Profile</span>
+                      </button>
+                      <button class="delete-customer-btn admin-btn admin-btn-danger" data-customer-email="${c.email}" data-customer-name="${c.name}" style="padding:6px 10px; font-size:12px; font-weight:750; background:#dc2626;" title="Permanently delete this account">
+                        <span>🗑️</span>
                       </button>
                     </div>
                   </td>
@@ -621,6 +630,13 @@ export function renderAdminCustomerProfile(context) {
             `).join('')}
           </div>
         </div>
+
+        <!-- Danger Zone: Permanent Account Deletion -->
+        <div style="border-top: 1px solid #fee2e2; padding-top: 14px;">
+          <button class="delete-customer-btn admin-btn admin-btn-danger" data-customer-email="${customer.email}" data-customer-name="${customer.name}" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #dc2626; border-radius: 10px; font-weight: 800; font-size: 13px;">
+            <span>🗑️ Permanently Delete Customer Account</span>
+          </button>
+        </div>
       </div>
 
       <!-- Right Column: Orders & Purchase History -->
@@ -784,6 +800,134 @@ export function attachAdminCustomersListeners(context, shadow) {
       exportCustomersToCSV(selectedList, context.orders || []);
     });
   }
+
+  // Wipe All Customer Accounts in 1 Click
+  const wipeAllCustBtn = shadow.getElementById('wipe-all-customers-btn');
+  if (wipeAllCustBtn) {
+    wipeAllCustBtn.addEventListener('click', async () => {
+      const total = (context.customers || []).length;
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: '🔥 Delete All Customer Accounts',
+        message: `Are you sure you want to PERMANENTLY ERASE ALL ${total} CUSTOMER ACCOUNTS?\n\nThis will remove all customer profiles, addresses, and account credentials from Localhost and Supabase cloud. This action cannot be undone.`,
+        confirmText: '🔥 Yes, Delete All Accounts Forever',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '👥'
+      }) : Promise.resolve(confirm(`Are you sure you want to delete all ${total} customer accounts forever?`)));
+
+      if (confirmed) {
+        // 1. Purge profiles from Supabase cloud
+        import('../../utils/supabase.js').then(async ({ supabase }) => {
+          if (supabase) {
+            await supabase.from('profiles').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          }
+        }).catch(() => {});
+
+        // 2. Remove all local user profile keys
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('SWEETOS_user_profile_')) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        localStorage.setItem('SWEETOS_customers', JSON.stringify([]));
+
+        context.customers = [];
+        selectedCustomerEmails.clear();
+        context.selectedCustomerEmail = null;
+
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: '🔥 All customer accounts permanently deleted from store and cloud! (0 Accounts)' }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  }
+
+  // Bulk Delete Selected Customer Accounts
+  const bulkDeleteCustBtn = shadow.getElementById('bulk-delete-cust-btn');
+  if (bulkDeleteCustBtn) {
+    bulkDeleteCustBtn.addEventListener('click', async () => {
+      const count = selectedCustomerEmails.size;
+      if (!count) return;
+
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: '🗑️ Delete Selected Accounts',
+        message: `Are you sure you want to permanently delete ${count} selected customer account${count > 1 ? 's' : ''}?`,
+        confirmText: `🔥 Delete ${count} Account${count > 1 ? 's' : ''}`,
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '🗑️'
+      }) : Promise.resolve(confirm(`Delete ${count} selected accounts?`)));
+
+      if (confirmed) {
+        const emailsArray = Array.from(selectedCustomerEmails);
+
+        // Delete from Supabase
+        import('../../utils/supabase.js').then(async ({ supabase }) => {
+          if (supabase) {
+            for (const email of emailsArray) {
+              await supabase.from('profiles').delete().eq('email', email);
+            }
+          }
+        }).catch(() => {});
+
+        // Delete from localStorage
+        emailsArray.forEach(email => {
+          localStorage.removeItem(getProfileStorageKey(email));
+          localStorage.removeItem(`SWEETOS_user_profile_${email}`);
+        });
+
+        context.customers = (context.customers || []).filter(c => !selectedCustomerEmails.has(c.email));
+        selectedCustomerEmails.clear();
+
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `🗑️ ${count} customer accounts permanently deleted.` }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  }
+
+  // Single Delete Customer Account Trigger
+  shadow.querySelectorAll('.delete-customer-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const email = btn.getAttribute('data-customer-email');
+      const name = btn.getAttribute('data-customer-name') || email;
+      if (!email) return;
+
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: '🗑️ Delete Customer Account',
+        message: `Are you sure you want to permanently delete the account for "${name}" (${email})?`,
+        confirmText: '🔥 Delete Account Forever',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '🗑️'
+      }) : Promise.resolve(confirm(`Permanently delete account for ${email}?`)));
+
+      if (confirmed) {
+        import('../../utils/supabase.js').then(async ({ supabase }) => {
+          if (supabase) {
+            await supabase.from('profiles').delete().eq('email', email);
+          }
+        }).catch(() => {});
+
+        localStorage.removeItem(getProfileStorageKey(email));
+        localStorage.removeItem(`SWEETOS_user_profile_${email}`);
+
+        context.customers = (context.customers || []).filter(c => c.email && c.email.toLowerCase() !== email.toLowerCase());
+        selectedCustomerEmails.delete(email);
+        if (context.selectedCustomerEmail === email) {
+          context.selectedCustomerEmail = null;
+        }
+
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Account for "${name}" deleted.` }));
+        context.render();
+        context.attachListeners();
+      }
+    });
+  });
 
   // 6. Export to CSV
   const exportBtn = shadow.getElementById('export-customers-csv-btn');
