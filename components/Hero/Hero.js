@@ -28,62 +28,54 @@ class Hero extends HTMLElement {
     const allProds = this.getProductsList();
     const storeName = localStorage.getItem('SWEETOS_store_name') || 'SWEETOS';
     const heroTitle = localStorage.getItem('SWEETOS_hero_title') || 'Find Your Style, Love Your Look ✨';
-    const heroSubtitle = localStorage.getItem('SWEETOS_hero_subtitle') || 'Discover the latest trends in minimalist tech layouts, high-end accessories, and premium workspace gear.';
+    const heroSubtitle = localStorage.getItem('SWEETOS_hero_subtitle') || 'Discover the latest trends in high-end tech layouts, accessories, and premium workspace gear.';
+    const entranceImg = localStorage.getItem('SWEETOS_store_entrance_image') || null;
 
-    const p1 = allProds[0] || { id: 1, name: 'Aero-75 Mechanical Keyboard', price: 145000, rating: 4.9, image: './assets/keyboard_1786712380801.jpg' };
-    const p2 = allProds.find(p => (p.category || '').toLowerCase().includes('audio') || (p.name || '').toLowerCase().includes('headphone')) || allProds[1] || p1;
-    const p3 = allProds.find(p => (p.category || '').toLowerCase().includes('wood') || (p.name || '').toLowerCase().includes('stand') || (p.name || '').toLowerCase().includes('desk')) || allProds[2] || p1;
+    if (!Array.isArray(allProds) || allProds.length === 0) {
+      // 0 Products in store - Clean branded showcase without any mock cards
+      this.slides = [
+        {
+          tag: `✨ ${storeName.toUpperCase()} OFFICIAL STORE`,
+          title: heroTitle.includes('<br>') ? heroTitle : heroTitle.replace('\n', '<br>'),
+          subtitle: heroSubtitle,
+          bg: "linear-gradient(135deg, #09111e 0%, #0d2149 50%, #0052cc 100%)",
+          glow1: "rgba(0, 82, 204, 0.5)",
+          glow2: "rgba(0, 180, 216, 0.35)",
+          product: null,
+          bannerImage: entranceImg,
+          perks: ["Authentic Guaranteed", "Fast Delivery", "Official Warranty"],
+          ctaText: "Explore Catalog",
+          actionTarget: "catalog"
+        }
+      ];
+      return;
+    }
 
-    this.slides = [
-      {
-        tag: `✨ ${storeName.toUpperCase()} EXCLUSIVE`,
-        title: heroTitle.includes('<br>') ? heroTitle : heroTitle.replace('\n', '<br>'),
-        subtitle: heroSubtitle,
-        bg: "linear-gradient(135deg, #09111e 0%, #0d2149 50%, #0052cc 100%)",
-        glow1: "rgba(0, 82, 204, 0.5)",
-        glow2: "rgba(0, 180, 216, 0.35)",
-        product: p1,
-        perks: ["Authentic Quality", "2-Year Warranty", "Verified Customers"],
+    // Dynamic slides generated purely from REAL products in catalog
+    const gradients = [
+      { bg: "linear-gradient(135deg, #09111e 0%, #0d2149 50%, #0052cc 100%)", glow1: "rgba(0, 82, 204, 0.5)", glow2: "rgba(0, 180, 216, 0.35)" },
+      { bg: "linear-gradient(135deg, #0b0f19 0%, #17172c 50%, #31104e 100%)", glow1: "rgba(147, 51, 234, 0.5)", glow2: "rgba(0, 180, 216, 0.3)" },
+      { bg: "linear-gradient(135deg, #15002b 0%, #290849 50%, #5b0e8c 100%)", glow1: "rgba(217, 70, 239, 0.5)", glow2: "rgba(99, 102, 241, 0.35)" },
+      { bg: "linear-gradient(135deg, #18120b 0%, #301f10 50%, #543818 100%)", glow1: "rgba(245, 158, 11, 0.5)", glow2: "rgba(217, 119, 6, 0.35)" }
+    ];
+
+    this.slides = allProds.slice(0, 4).map((p, idx) => {
+      const g = gradients[idx % gradients.length];
+      const isFirst = idx === 0;
+      return {
+        tag: `✨ ${storeName.toUpperCase()} • ${(p.category || 'FEATURED').toUpperCase()}`,
+        title: isFirst ? (heroTitle.includes('<br>') ? heroTitle : heroTitle.replace('\n', '<br>')) : p.name,
+        subtitle: isFirst ? heroSubtitle : (p.description ? p.description.slice(0, 130) + '...' : `Premium quality ${p.name} available now in stock.`),
+        bg: g.bg,
+        glow1: g.glow1,
+        glow2: g.glow2,
+        product: p,
+        bannerImage: null,
+        perks: ["Authentic Quality", "2-Year Warranty", "Verified In Stock"],
         ctaText: "Shop Now",
         actionTarget: "catalog"
-      },
-      {
-        tag: "⌨️ MECHANICAL WORKSPACE",
-        title: p1 ? `${p1.name}` : "Precision Typing & Custom Keyboards",
-        subtitle: p1?.description || "Anodized aluminum chassis, pre-lubricated linear switches, and ultra-fast connectivity.",
-        bg: "linear-gradient(135deg, #0b0f19 0%, #17172c 50%, #31104e 100%)",
-        glow1: "rgba(147, 51, 234, 0.5)",
-        glow2: "rgba(0, 180, 216, 0.3)",
-        product: p1,
-        perks: ["Pre-Lubed Switches", "Multi-OS Hotswap", "Acoustic Dampening"],
-        ctaText: "Explore Keyboards",
-        actionTarget: "keyboards"
-      },
-      {
-        tag: "🎧 STUDIO ACOUSTICS",
-        title: p2 ? `${p2.name}` : "Pristine Sound & Studio Headphones",
-        subtitle: p2?.description || "High-resolution dynamic drivers, advanced acoustic isolation, and premium comfort.",
-        bg: "linear-gradient(135deg, #15002b 0%, #290849 50%, #5b0e8c 100%)",
-        glow1: "rgba(217, 70, 239, 0.5)",
-        glow2: "rgba(99, 102, 241, 0.35)",
-        product: p2,
-        perks: ["50mm Drivers", "Velour Cushions", "3D Spatial Sound"],
-        ctaText: "Explore Audio",
-        actionTarget: "audio"
-      },
-      {
-        tag: "🪵 WOOD CRAFTSMANSHIP",
-        title: p3 ? `${p3.name}` : "Solid Hardwood Desk Setup",
-        subtitle: p3?.description || "Ergonomic monitor risers and desk organizers handcrafted for clean workspace posture.",
-        bg: "linear-gradient(135deg, #18120b 0%, #301f10 50%, #543818 100%)",
-        glow1: "rgba(245, 158, 11, 0.5)",
-        glow2: "rgba(217, 119, 6, 0.35)",
-        product: p3,
-        perks: ["100% Solid Wood", "Hand-Oiled Finish", "Cable Management"],
-        ctaText: "Explore Desks",
-        actionTarget: "desks"
-      }
-    ];
+      };
+    });
   }
 
   connectedCallback() {
@@ -115,17 +107,22 @@ class Hero extends HTMLElement {
   }
 
   render() {
+    const hasMultipleSlides = this.slides.length > 1;
+
     this.shadowRoot.innerHTML = `
       <link rel="stylesheet" href="./components/Hero/Hero.css">
       <section class="hero-carousel" id="hero-carousel-container">
         <!-- Previous Arrow Button -->
-        <button class="hero-nav-arrow prev" id="hero-prev-btn" aria-label="Slide précédente">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-        </button>
+        ${hasMultipleSlides ? `
+          <button class="hero-nav-arrow prev" id="hero-prev-btn" aria-label="Slide précédente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+        ` : ''}
 
         <div class="slides-wrapper">
           ${this.slides.map((slide, idx) => {
             const p = slide.product;
+            const bImg = slide.bannerImage;
             return `
               <div class="slide ${idx === this.currentSlide ? 'active' : ''}" data-index="${idx}">
                 <div class="slide-card" style="background: ${slide.bg};">
@@ -133,7 +130,7 @@ class Hero extends HTMLElement {
                   <div class="hero-glow-2" style="background: radial-gradient(circle, ${slide.glow2} 0%, rgba(0,0,0,0) 70%);"></div>
 
                   <!-- Left Content Column -->
-                  <div class="hero-content">
+                  <div class="hero-content" style="${!p && !bImg ? 'max-width: 800px;' : ''}">
                     <span class="hero-tag">${slide.tag}</span>
                     <h2 class="hero-title">${slide.title}</h2>
                     <p class="hero-subtitle">${slide.subtitle}</p>
@@ -155,9 +152,11 @@ class Hero extends HTMLElement {
                         </svg>
                       </button>
 
-                      <button class="shop-btn-secondary hero-view-details-btn" data-id="${p?.id || 1}">
-                        <span>Quick View</span>
-                      </button>
+                      ${p ? `
+                        <button class="shop-btn-secondary hero-view-details-btn" data-id="${p.id}">
+                          <span>Quick View</span>
+                        </button>
+                      ` : ''}
                     </div>
                   </div>
 
@@ -192,7 +191,11 @@ class Hero extends HTMLElement {
                         </button>
                       </div>
                     </div>
-                  ` : ''}
+                  ` : (bImg ? `
+                    <div class="hero-visual" style="display:flex; align-items:center; justify-content:center;">
+                      <img src="${bImg}" alt="Store Banner" style="max-height: 280px; max-width: 100%; border-radius: 16px; object-fit: cover; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    </div>
+                  ` : '')}
                 </div>
               </div>
             `;
@@ -200,16 +203,20 @@ class Hero extends HTMLElement {
         </div>
 
         <!-- Next Arrow Button -->
-        <button class="hero-nav-arrow next" id="hero-next-btn" aria-label="Slide suivante">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
-        </button>
+        ${hasMultipleSlides ? `
+          <button class="hero-nav-arrow next" id="hero-next-btn" aria-label="Slide suivante">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        ` : ''}
 
         <!-- Capsule Dot Indicators -->
-        <div class="dot-indicators">
-          ${this.slides.map((_, idx) => `
-            <button class="dot ${idx === this.currentSlide ? 'active' : ''}" data-index="${idx}" aria-label="Aller à la slide ${idx + 1}"></button>
-          `).join('')}
-        </div>
+        ${hasMultipleSlides ? `
+          <div class="dot-indicators">
+            ${this.slides.map((_, idx) => `
+              <button class="dot ${idx === this.currentSlide ? 'active' : ''}" data-index="${idx}" aria-label="Aller à la slide ${idx + 1}"></button>
+            `).join('')}
+          </div>
+        ` : ''}
       </section>
     `;
   }
