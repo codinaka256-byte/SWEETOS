@@ -309,6 +309,11 @@ export function renderAdminHeader(context) {
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; flex-shrink: 0; display: inline-block;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10"/></svg>
           <span>View Store</span>
         </button>
+
+        <!-- 1-Click Hard Wipe Button -->
+        <button class="storefront-link-btn" id="header-wipe-all-btn" style="background: rgba(220, 38, 38, 0.1); color: #dc2626; border: 1px solid rgba(220, 38, 38, 0.25); font-weight: 800; display: flex; align-items: center; gap: 6px; cursor: pointer;" title="Permanently erase all products and test data from database & cloud">
+          <span>🔥 Wipe All Data (0 Items)</span>
+        </button>
       </div>
     </header>
   `;
@@ -320,6 +325,52 @@ export function attachAdminHeaderListeners(context, shadow) {
   if (storefrontBtn) {
     storefrontBtn.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('navigation:changed', { detail: { page: 'home' } }));
+    });
+  }
+
+  // 1-Click Hard Wipe All Store Data Listener
+  const headerWipeBtn = shadow.getElementById('header-wipe-all-btn');
+  if (headerWipeBtn) {
+    headerWipeBtn.addEventListener('click', async () => {
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: '🔥 Permanent Wipe All Store Data',
+        message: 'Are you sure you want to PERMANENTLY ERASE ALL products, orders, categories, and brands from Localhost AND the Supabase Cloud Database?\n\nYour entire store will be set to 0 items and be 100% clean for your real catalog. This action cannot be undone.',
+        confirmText: '🔥 Yes, Wipe Everything to 0',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '🧹'
+      }) : Promise.resolve(confirm('Are you sure you want to completely erase all products and data from the database and cloud?')));
+
+      if (confirmed) {
+        // 1. Purge all tables in Supabase cloud
+        try {
+          const { supabase } = await import('../../utils/supabase.js');
+          if (supabase) {
+            await Promise.allSettled([
+              supabase.from('products').delete().neq('name', '___NON_EXISTENT___'),
+              supabase.from('order_items').delete().neq('product_name', '___NON_EXISTENT___'),
+              supabase.from('orders').delete().neq('order_number', '___NON_EXISTENT___'),
+              supabase.from('categories').delete().neq('name', '___NON_EXISTENT___'),
+              supabase.from('brands').delete().neq('name', '___NON_EXISTENT___'),
+              supabase.from('reviews').delete().neq('comment', '___NON_EXISTENT___')
+            ]);
+          }
+        } catch(e) {}
+
+        // 2. Clear localStorage
+        localStorage.setItem('SWEETOS_products', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_all_orders', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_categories', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_brands', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_reviews_all', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_coupons', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_inventory_logs', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_homepage_sections', JSON.stringify([]));
+        localStorage.setItem('SWEETOS_db_initialized', 'true');
+
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: '🔥 Store completely wiped! All items erased from database and cloud.' }));
+        setTimeout(() => window.location.reload(), 600);
+      }
     });
   }
 

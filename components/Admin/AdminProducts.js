@@ -519,7 +519,12 @@ export function renderAdminProducts(context) {
         </select>
       </div>
 
-      <div style="display:flex; align-items:center; gap:10px;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button class="admin-btn admin-btn-danger" id="wipe-all-products-btn" style="display:flex; align-items:center; gap:6px; padding:10px 16px; font-weight:800; font-size:13px; background:#dc2626; border-radius:10px; cursor:pointer;" title="Permanently delete ALL products from database & Supabase cloud">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          <span>🔥 Wipe All Products (0 Items)</span>
+        </button>
+
         <button class="select-filter-btn" id="export-products-csv-btn" style="background:#f8fafc; display:flex; align-items:center; gap:6px;">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           <span>Export CSV</span>
@@ -1136,6 +1141,47 @@ export function attachAdminProductsListeners(context, shadow) {
       selectedProductIds.clear();
       context.render();
       context.attachListeners();
+    });
+  }
+
+  // Wipe All Products in 1 Click
+  const wipeAllBtn = shadow.getElementById('wipe-all-products-btn');
+  if (wipeAllBtn) {
+    wipeAllBtn.addEventListener('click', async () => {
+      const total = (context.products || []).length;
+      const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+        title: '🔥 Permanent Wipe All Products (0 Items)',
+        message: `Are you sure you want to PERMANENTLY ERASE ALL ${total} PRODUCTS?\n\nThis will immediately delete every product from Localhost and the Supabase Cloud Database. Your store will have 0 products and be 100% clean for your real catalog. This action cannot be undone.`,
+        confirmText: '🔥 Yes, Wipe All to 0 Forever',
+        cancelText: 'Cancel',
+        type: 'danger',
+        icon: '🗑️'
+      }) : Promise.resolve(confirm(`Are you sure you want to permanently delete all ${total} products forever?`)));
+
+      if (confirmed) {
+        // 1. Purge Supabase cloud database table
+        import('../../utils/supabase.js').then(async ({ supabase }) => {
+          if (supabase) {
+            await supabase.from('products').delete().neq('name', '___NON_EXISTENT___');
+          }
+        }).catch(() => {});
+
+        // 2. Clear local store and server cache
+        context.products = [];
+        selectedProductIds.clear();
+        context.saveDatabase('products');
+
+        // 3. Clear curated sections
+        try {
+          const secs = JSON.parse(localStorage.getItem('SWEETOS_homepage_sections') || '[]');
+          secs.forEach(s => { s.productIds = []; });
+          localStorage.setItem('SWEETOS_homepage_sections', JSON.stringify(secs));
+        } catch(e) {}
+
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: '🔥 All products permanently wiped from store and cloud! (0 Items)' }));
+        context.render();
+        context.attachListeners();
+      }
     });
   }
 
