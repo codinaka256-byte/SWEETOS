@@ -182,40 +182,33 @@ class ProductList extends HTMLElement {
   connectedCallback() {
     this.parseHashRoute();
 
-    // Fetch all database resources concurrently on startup
-    Promise.all([
-      fetch('/api/products').then(res => res.json()).catch(() => null),
-      fetch('/api/categories').then(res => res.json()).catch(() => null),
-      fetch('/api/brands').then(res => res.json()).catch(() => null),
-      fetch('/api/reviews').then(res => res.json()).catch(() => null),
-      fetch('/api/coupons').then(res => res.json()).catch(() => null)
-    ]).then(([products, categories, brands, reviews, coupons]) => {
-      let needsRender = false;
-      if (Array.isArray(products)) {
-        this.products = products;
-        localStorage.setItem('SWEETOS_products', JSON.stringify(products));
-        needsRender = true;
-      }
-      if (Array.isArray(categories)) {
-        localStorage.setItem('SWEETOS_categories', JSON.stringify(categories));
-        needsRender = true;
-      }
-      if (Array.isArray(brands)) {
-        localStorage.setItem('SWEETOS_brands', JSON.stringify(brands));
-        needsRender = true;
-      }
-      if (Array.isArray(reviews)) {
-        localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
-        needsRender = true;
-      }
-      if (Array.isArray(coupons)) {
-        localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
-        needsRender = true;
-      }
-      if (needsRender) {
-        this.renderPageContent();
-      }
-    });
+    // Fetch from Supabase Cloud on startup
+    import('../../utils/supabase.js').then(async ({ fetchProductsFromSupabase, fetchCategoriesFromSupabase, fetchBrandsFromSupabase }) => {
+      try {
+        const [cloudProds, cloudCats, cloudBrands] = await Promise.allSettled([
+          fetchProductsFromSupabase(),
+          fetchCategoriesFromSupabase(),
+          fetchBrandsFromSupabase()
+        ]);
+        let needsReRender = false;
+        if (cloudProds.status === 'fulfilled' && Array.isArray(cloudProds.value)) {
+          this.products = cloudProds.value;
+          localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
+          needsReRender = true;
+        }
+        if (cloudCats.status === 'fulfilled' && Array.isArray(cloudCats.value)) {
+          localStorage.setItem('SWEETOS_categories', JSON.stringify(cloudCats.value));
+          needsReRender = true;
+        }
+        if (cloudBrands.status === 'fulfilled' && Array.isArray(cloudBrands.value)) {
+          localStorage.setItem('SWEETOS_brands', JSON.stringify(cloudBrands.value));
+          needsReRender = true;
+        }
+        if (needsReRender) {
+          this.renderPageContent();
+        }
+      } catch(e) {}
+    }).catch(() => {});
 
     // Check if product ID is passed in URL query params (e.g. from share button)
     const urlParams = new URLSearchParams(window.location.search);

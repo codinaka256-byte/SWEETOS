@@ -1,4 +1,4 @@
-﻿-- ====================================================================
+-- ====================================================================
 -- SWEETOS E-COMMERCE - SUPABASE POSTGRESQL DATABASE SCHEMA (CLEAN RESET)
 -- ====================================================================
 
@@ -264,7 +264,7 @@ CREATE INDEX idx_notifications_user ON public.notifications(user_id);
 CREATE INDEX idx_notifications_read ON public.notifications(is_read);
 
 -- ====================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- ROW LEVEL SECURITY (RLS) POLICIES - FULL CRUD ACCESS
 -- ====================================================================
 ALTER TABLE public.store_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
@@ -278,26 +278,18 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wishlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public Read Settings" ON public.store_settings FOR SELECT USING (true);
-CREATE POLICY "Public Read Categories" ON public.categories FOR SELECT USING (true);
-CREATE POLICY "Public Read Brands" ON public.brands FOR SELECT USING (true);
-CREATE POLICY "Public Read Products" ON public.products FOR SELECT USING (true);
-CREATE POLICY "Public Read Reviews" ON public.reviews FOR SELECT USING (true);
-CREATE POLICY "Public Read Active Coupons" ON public.coupons FOR SELECT USING (is_active = true);
-
-CREATE POLICY "Users can read own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "Users can read own orders" ON public.orders FOR SELECT USING (auth.uid() = user_id OR auth.uid() IS NULL);
-CREATE POLICY "Anyone can create orders" ON public.orders FOR INSERT WITH CHECK (true);
-CREATE POLICY "Anyone can create order items" ON public.order_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Users can read own order items" ON public.order_items FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND (orders.user_id = auth.uid() OR auth.uid() IS NULL))
-);
-
-CREATE POLICY "Users manage own wishlist" ON public.wishlists FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Users read own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id OR user_id IS NULL);
-CREATE POLICY "Users update own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+-- Allow full CRUD for storefront and admin management
+CREATE POLICY "Full Products Access" ON public.products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Categories Access" ON public.categories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Brands Access" ON public.brands FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Settings Access" ON public.store_settings FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Orders Access" ON public.orders FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Order Items Access" ON public.order_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Reviews Access" ON public.reviews FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Coupons Access" ON public.coupons FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Wishlists Access" ON public.wishlists FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Notifications Access" ON public.notifications FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Full Profiles Access" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
 
 -- ====================================================================
 -- SEED DATA (INITIAL CATEGORIES & BRANDS)
