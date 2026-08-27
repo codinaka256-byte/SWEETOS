@@ -462,7 +462,61 @@ class AdminPage extends HTMLElement {
     };
     window.addEventListener('failed_searches:updated', this._failedSearchesListener);
 
-    // Fetch all database sources concurrently on startup
+    // Fetch all database sources concurrently from local API & Supabase Cloud
+    import('../../utils/supabase.js').then(async ({ 
+      fetchProductsFromSupabase, 
+      fetchCategoriesFromSupabase, 
+      fetchBrandsFromSupabase, 
+      fetchOrdersFromSupabase, 
+      fetchSettingsFromSupabase 
+    }) => {
+      try {
+        const [cloudProds, cloudCats, cloudBrands, cloudOrders] = await Promise.allSettled([
+          fetchProductsFromSupabase(),
+          fetchCategoriesFromSupabase(),
+          fetchBrandsFromSupabase(),
+          fetchOrdersFromSupabase(),
+          fetchSettingsFromSupabase()
+        ]);
+
+        let hasCloudUpdates = false;
+        if (cloudProds.status === 'fulfilled' && Array.isArray(cloudProds.value)) {
+          this.products = cloudProds.value;
+          localStorage.setItem('SWEETOS_products', JSON.stringify(this.products));
+          hasCloudUpdates = true;
+        }
+        if (cloudCats.status === 'fulfilled' && Array.isArray(cloudCats.value)) {
+          this.categories = cloudCats.value;
+          localStorage.setItem('SWEETOS_categories', JSON.stringify(this.categories));
+          hasCloudUpdates = true;
+        }
+        if (cloudBrands.status === 'fulfilled' && Array.isArray(cloudBrands.value)) {
+          this.brands = cloudBrands.value;
+          localStorage.setItem('SWEETOS_brands', JSON.stringify(this.brands));
+          hasCloudUpdates = true;
+        }
+        if (cloudOrders.status === 'fulfilled' && Array.isArray(cloudOrders.value)) {
+          this.orders = cloudOrders.value;
+          localStorage.setItem('SWEETOS_all_orders', JSON.stringify(this.orders));
+          hasCloudUpdates = true;
+        }
+
+        if (hasCloudUpdates) {
+          this.render();
+          this.attachListeners();
+        }
+      } catch(e) {}
+    }).catch(() => {});
+
+    // Listen to live database sync signals
+    this._supabaseListener = () => {
+      this.loadDatabase();
+      this.render();
+      this.attachListeners();
+    };
+    window.addEventListener('supabase:ready', this._supabaseListener);
+
+    // Fallback local API fetch
     Promise.all([
       fetch('/api/products').then(res => res.json()).catch(() => null),
       fetch('/api/categories').then(res => res.json()).catch(() => null),
@@ -472,32 +526,32 @@ class AdminPage extends HTMLElement {
       fetch('/api/coupons').then(res => res.json()).catch(() => null)
     ]).then(([products, categories, brands, reviews, orders, coupons]) => {
       let needsRender = false;
-      if (Array.isArray(products)) {
+      if (Array.isArray(products) && products.length > 0) {
         this.products = products;
         localStorage.setItem('SWEETOS_products', JSON.stringify(products));
         needsRender = true;
       }
-      if (Array.isArray(categories)) {
+      if (Array.isArray(categories) && categories.length > 0) {
         this.categories = categories;
         localStorage.setItem('SWEETOS_categories', JSON.stringify(categories));
         needsRender = true;
       }
-      if (Array.isArray(brands)) {
+      if (Array.isArray(brands) && brands.length > 0) {
         this.brands = brands;
         localStorage.setItem('SWEETOS_brands', JSON.stringify(brands));
         needsRender = true;
       }
-      if (Array.isArray(reviews)) {
+      if (Array.isArray(reviews) && reviews.length > 0) {
         this.reviews = reviews;
         localStorage.setItem('SWEETOS_reviews_all', JSON.stringify(reviews));
         needsRender = true;
       }
-      if (Array.isArray(orders)) {
+      if (Array.isArray(orders) && orders.length > 0) {
         this.orders = orders;
         localStorage.setItem('SWEETOS_all_orders', JSON.stringify(orders));
         needsRender = true;
       }
-      if (Array.isArray(coupons)) {
+      if (Array.isArray(coupons) && coupons.length > 0) {
         this.coupons = coupons;
         localStorage.setItem('SWEETOS_coupons', JSON.stringify(coupons));
         needsRender = true;
@@ -750,9 +804,9 @@ class AdminPage extends HTMLElement {
       import('../../utils/supabase.js').then(({ supabase }) => {
         if (!supabase) return;
         const records = this.products.map(p => ({
-          legacy_id: typeof p.id === 'number' ? p.id : null,
+          legacy_id: typeof p.id === 'number' ? p.id : (parseInt(p.id) || Date.now()),
           name: p.name || 'Product',
-          slug: (p.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + (p.id || Date.now()),
+          slug: p.slug || ((p.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + (p.id || Date.now())),
           description: p.description || '',
           price: parseFloat(p.price) || 0,
           original_price: p.originalPrice || p.comparePrice ? parseFloat(p.originalPrice || p.comparePrice) : null,
@@ -772,7 +826,7 @@ class AdminPage extends HTMLElement {
           reviews_count: p.reviews || 0
         }));
 
-        supabase.from('products').upsert(records, { onConflict: 'slug' })
+        supabase.from('products').upsert(records, { onConflict: 'legacy_id' })
           .then(({ error }) => {
             if (!error) console.log('[Supabase] Products successfully synced to Supabase cloud!');
             else console.warn('[Supabase] Products sync notice:', error.message);
