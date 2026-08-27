@@ -5140,14 +5140,17 @@ input:checked + .toggle-slider:before {
   background: rgba(0, 82, 204, 0.35);
 }
 
-.slidable-product-row product-card {
+.slidable-product-row product-card,
+.carousel-scroll-wrapper product-card {
   flex: 0 0 280px !important;
   min-width: 260px !important;
   max-width: 300px !important;
+  box-sizing: border-box !important;
 }
 
 @media (min-width: 1400px) {
-  .slidable-product-row product-card {
+  .slidable-product-row product-card,
+  .carousel-scroll-wrapper product-card {
     flex: 0 0 calc((100% - 60px) / 4) !important;
     min-width: 270px !important;
   }

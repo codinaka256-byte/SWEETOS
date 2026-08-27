@@ -1231,7 +1231,7 @@ class ProductList extends HTMLElement {
                   <button class="carousel-control-btn next-btn" id="btn-next-${s.id}" style="border: 1px solid var(--border); border-radius: 8px; width: 36px; height: 36px; background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold; transition: all 0.2s;">→</button>
                 </div>
               </div>
-              <div class="carousel-scroll-wrapper" id="carousel-${s.id}" style="overflow-x: auto; scroll-behavior: smooth; display: flex; gap: 20px; padding-bottom: 12px;">
+              <div class="carousel-scroll-wrapper slidable-product-row" id="carousel-${s.id}" style="overflow-x: auto; scroll-behavior: smooth; display: flex; gap: 20px; padding-bottom: 12px;">
                 <!-- Appended dynamically -->
               </div>
             </div>
@@ -2947,21 +2947,31 @@ class ProductList extends HTMLElement {
           gridDynamic.innerHTML = '';
           let displayProducts = [];
           if (hasAssigned) {
-            displayProducts = assignedProducts.slice(0, 12);
           } else {
             if (s.category === 'All' || !s.category) {
               displayProducts = this.products.slice(0, 12);
             } else if (s.category === 'Apple') {
-              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 12);
+              displayProducts = this.products.filter(p => (p.name || '').toLowerCase().includes('apple') || (p.brand || '').toLowerCase().includes('apple')).slice(0, 12);
             } else {
-              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 12);
+              const catLower = String(s.category).toLowerCase().trim();
+              displayProducts = this.products.filter(p => 
+                (p.category || '').toLowerCase().trim() === catLower ||
+                (p.category || '').toLowerCase().includes(catLower) ||
+                (p.subcategory || '').toLowerCase().includes(catLower)
+              ).slice(0, 12);
             }
           }
-          displayProducts.forEach(p => {
-            const card = document.createElement('product-card');
-            card.product = p;
-            gridDynamic.appendChild(card);
-          });
+          const secWrapper = gridDynamic.closest('.home-section');
+          if (displayProducts.length === 0) {
+            if (secWrapper) secWrapper.style.display = 'none';
+          } else {
+            if (secWrapper) secWrapper.style.display = 'block';
+            displayProducts.forEach(p => {
+              const card = document.createElement('product-card');
+              card.product = p;
+              gridDynamic.appendChild(card);
+            });
+          }
         }
       } else if (s.type === 'carousel') {
         const carousel = this.shadowRoot.getElementById(`carousel-${s.id}`);
@@ -2974,16 +2984,27 @@ class ProductList extends HTMLElement {
             if (s.category === 'All' || !s.category) {
               displayProducts = this.products.slice(0, 8);
             } else if (s.category === 'Apple') {
-              displayProducts = this.products.filter(p => p.name.toLowerCase().startsWith('apple')).slice(0, 8);
+              displayProducts = this.products.filter(p => (p.name || '').toLowerCase().includes('apple') || (p.brand || '').toLowerCase().includes('apple')).slice(0, 8);
             } else {
-              displayProducts = this.products.filter(p => p.category === s.category).slice(0, 8);
+              const catLower = String(s.category).toLowerCase().trim();
+              displayProducts = this.products.filter(p => 
+                (p.category || '').toLowerCase().trim() === catLower ||
+                (p.category || '').toLowerCase().includes(catLower) ||
+                (p.subcategory || '').toLowerCase().includes(catLower)
+              ).slice(0, 8);
             }
           }
-          displayProducts.forEach(p => {
-            const card = document.createElement('product-card');
-            card.product = p;
-            carousel.appendChild(card);
-          });
+          const secWrapper = carousel.closest('.home-section');
+          if (displayProducts.length === 0) {
+            if (secWrapper) secWrapper.style.display = 'none';
+          } else {
+            if (secWrapper) secWrapper.style.display = 'block';
+            displayProducts.forEach(p => {
+              const card = document.createElement('product-card');
+              card.product = p;
+              carousel.appendChild(card);
+            });
+          }
         }
       }
     });
