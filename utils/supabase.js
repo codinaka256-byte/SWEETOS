@@ -50,13 +50,70 @@ export async function fetchProductsFromSupabase() {
 
       localStorage.setItem('SWEETOS_products', JSON.stringify(formatted));
       return formatted;
-    } else {
-      await seedProductsToSupabase();
-      return initialProducts;
+    } else if (data && data.length === 0) {
+      // Explicitly empty database (user wiped or permanently deleted products)
+      localStorage.setItem('SWEETOS_products', JSON.stringify([]));
+      return [];
     }
+    return null;
   } catch (err) {
     console.error('[Supabase] fetchProducts error:', err);
     return null;
+  }
+}
+
+export async function deleteProductPermanentlyFromSupabase(productOrId) {
+  try {
+    if (!supabase) return false;
+    let query = supabase.from('products').delete();
+
+    if (typeof productOrId === 'object' && productOrId !== null) {
+      const conditions = [];
+      if (productOrId.id) conditions.push(`legacy_id.eq.${productOrId.id}`);
+      if (productOrId.name) conditions.push(`name.eq.${encodeURIComponent(productOrId.name)}`);
+      if (productOrId.slug) conditions.push(`slug.eq.${encodeURIComponent(productOrId.slug)}`);
+
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(','));
+      } else {
+        query = query.eq('legacy_id', productOrId.id);
+      }
+    } else if (typeof productOrId === 'number') {
+      query = query.eq('legacy_id', productOrId);
+    } else if (typeof productOrId === 'string') {
+      query = query.or(`slug.eq.${productOrId},name.eq.${productOrId}`);
+    }
+
+    const { error } = await query;
+    if (error) {
+      console.warn('[Supabase] Permanent product delete warning:', error.message);
+      return false;
+    }
+    console.log('[Supabase] Product permanently deleted from Supabase cloud database.');
+    return true;
+  } catch (err) {
+    console.error('[Supabase] deleteProductPermanently error:', err);
+    return false;
+  }
+}
+
+export async function deleteMultipleProductsPermanentlyFromSupabase(productIds = []) {
+  try {
+    if (!supabase || !productIds.length) return false;
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .in('legacy_id', productIds);
+
+    if (error) {
+      console.warn('[Supabase] Bulk delete warning:', error.message);
+      return false;
+    }
+    console.log('[Supabase] Bulk products permanently deleted from Supabase cloud database.');
+    return true;
+  } catch (err) {
+    console.error('[Supabase] Bulk delete error:', err);
+    return false;
   }
 }
 

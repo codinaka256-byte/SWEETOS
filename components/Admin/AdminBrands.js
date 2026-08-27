@@ -773,18 +773,25 @@ export function attachAdminBrandsListeners(context, shadow) {
         }
 
         const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
-          title: 'Delete Brand',
-          message: `Are you sure you want to delete brand "${brand.name}"?`,
-          confirmText: 'Delete Brand',
+          title: '🔥 Permanent Delete Brand',
+          message: `Are you sure you want to PERMANENTLY DELETE brand "${brand.name}"? It will be erased from local storage and Supabase cloud.`,
+          confirmText: '🔥 Delete Forever',
           cancelText: 'Cancel',
           type: 'danger',
           icon: '🏷️'
-        }) : Promise.resolve(confirm(`Are you sure you want to delete brand "${brand.name}"?`)));
+        }) : Promise.resolve(confirm(`Are you sure you want to permanently delete brand "${brand.name}"?`)));
 
         if (confirmed) {
+          // Permanently delete from Supabase cloud
+          import('../../utils/supabase.js').then(({ supabase }) => {
+            if (supabase) {
+              supabase.from('brands').delete().or(`name.eq.${encodeURIComponent(brand.name)},slug.eq.${encodeURIComponent(brand.slug || brand.name)}`).then();
+            }
+          }).catch(() => {});
+
           context.brands.splice(index, 1);
           context.saveDatabase('brands');
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Brand "${brand.name}" deleted.` }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `🔥 Brand "${brand.name}" permanently deleted forever.` }));
           context.render();
           context.attachListeners();
         }

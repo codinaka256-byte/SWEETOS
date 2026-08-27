@@ -993,6 +993,19 @@ export function attachAdminSettingsListeners(context, shadow) {
         localStorage.setItem('SWEETOS_db_initialized', 'true');
         
         try {
+          const { supabase } = await import('../../utils/supabase.js');
+          if (supabase) {
+            await Promise.allSettled([
+              supabase.from('products').delete().neq('name', '___NON_EXISTENT___'),
+              supabase.from('order_items').delete().neq('product_name', '___NON_EXISTENT___'),
+              supabase.from('orders').delete().neq('order_number', '___NON_EXISTENT___'),
+              supabase.from('categories').delete().neq('name', '___NON_EXISTENT___'),
+              supabase.from('brands').delete().neq('name', '___NON_EXISTENT___')
+            ]);
+          }
+        } catch(e) {}
+        
+        try {
           await Promise.all([
             fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '[]' }).catch(() => null),
             fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '[]' }).catch(() => null),
@@ -1003,7 +1016,7 @@ export function attachAdminSettingsListeners(context, shadow) {
           ]);
         } catch(e) {}
 
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: '🧹 Store completely wiped! All items set to 0.' }));
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: '🧹 Store completely wiped! All items erased from database and cloud.' }));
         setTimeout(() => window.location.reload(), 600);
       }
     });

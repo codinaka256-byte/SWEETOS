@@ -1,5 +1,6 @@
 import { formatPrice } from '../../utils/storage.js';
 import { showConfirmModal, showPromptModal } from '../../utils/modal.js';
+import { deleteProductPermanentlyFromSupabase, deleteMultipleProductsPermanentlyFromSupabase } from '../../utils/supabase.js';
 
 // Global internal state helpers for filters & selection
 let selectedProductIds = new Set();
@@ -954,10 +955,21 @@ export function renderAdminProducts(context) {
 
               <div id="prod-error-msg" class="error-text" style="margin-top:10px;"></div>
               
-              <!-- Submit Button -->
-              <button type="submit" class="publish-submit-btn" id="publish-submit-btn" style="margin-top:16px; width:100%; padding:14px; font-size:14px; font-weight:800;">
-                ${isEditing ? '✓ Save Changes' : '🚀 Publish Product to Store'}
-              </button>
+              <!-- Submit & Permanent Delete Buttons -->
+              ${isEditing ? `
+                <div style="display:flex; gap:12px; margin-top:16px; align-items:center;">
+                  <button type="submit" class="publish-submit-btn" id="publish-submit-btn" style="flex:1; padding:14px; font-size:14px; font-weight:800; margin:0;">
+                    ✓ Save Changes
+                  </button>
+                  <button type="button" class="admin-btn admin-btn-danger modal-permanent-delete-btn" data-product-id="${context.editingProduct.id}" style="padding:14px 18px; font-size:13px; font-weight:800; background:#dc2626; border-radius:10px; display:flex; align-items:center; gap:6px; cursor:pointer; flex-shrink:0;" title="Permanently delete from database & cloud">
+                    🔥 Delete Permanently
+                  </button>
+                </div>
+              ` : `
+                <button type="submit" class="publish-submit-btn" id="publish-submit-btn" style="margin-top:16px; width:100%; padding:14px; font-size:14px; font-weight:800;">
+                  🚀 Publish Product to Store
+                </button>
+              `}
             </div>
 
           </form>
@@ -1130,25 +1142,82 @@ export function attachAdminProductsListeners(context, shadow) {
   const bulkDelete = shadow.getElementById('bulk-delete-products-btn');
   if (bulkDelete) {
     bulkDelete.addEventListener('click', async () => {
+      const count = selectedProductIds.size;
+      if (!count) return;
       const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
-        title: 'Bulk Delete Products',
-        message: `Are you sure you want to delete ${selectedProductIds.size} selected products? This cannot be undone.`,
-        confirmText: 'Delete Selected',
+        title: '🔥 Permanent Delete (Irreversible)',
+        message: `Are you sure you want to PERMANENTLY DELETE ${count} selected products?\n\nThey will be immediately purged from your local storage, server, and Supabase cloud database. They will NEVER exist or return again.`,
+        confirmText: `🔥 Delete ${count} Forever`,
         cancelText: 'Cancel',
         type: 'danger',
         icon: '🗑️'
-      }) : Promise.resolve(confirm(`Are you sure you want to delete ${selectedProductIds.size} selected products?`)));
+      }) : Promise.resolve(confirm(`Are you sure you want to permanently delete ${count} selected products forever?`)));
 
       if (confirmed) {
+        const idsArray = Array.from(selectedProductIds);
+        // 1. Permanently delete from Supabase cloud
+        deleteMultipleProductsPermanentlyFromSupabase(idsArray);
+
+        // 2. Remove from local store and sync
         context.products = context.products.filter(p => !selectedProductIds.has(p.id));
         context.saveDatabase('products');
-        window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted selected products successfully.` }));
+        
+        window.dispatchEvent(new CustomEvent('toast:show', { detail: `🔥 ${count} products permanently deleted forever.` }));
         selectedProductIds.clear();
         context.render();
         context.attachListeners();
       }
     });
   }
+
+  // Helper for permanent single product deletion
+  const executePermanentDelete = async (prod) => {
+    if (!prod) return;
+    const hasActiveOrders = (context.orders || []).some(o => 
+      ['Pending', 'En cours', 'Confirmé', 'Processing', 'Shipping'].includes(o.status) && 
+      o.products && o.products.some(item => item.id === prod.id)
+    );
+    if (hasActiveOrders) {
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `Cannot delete "${prod.name}" because it is part of active orders!` }));
+      return;
+    }
+    const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
+      title: '🔥 Permanent Delete (Irreversible)',
+      message: `Are you sure you want to PERMANENTLY DELETE "${prod.name}"?\n\nThis product will be instantly wiped from your local storage, server, and Supabase cloud database. It will NEVER exist or return again.`,
+      confirmText: '🔥 Delete Forever',
+      cancelText: 'Cancel',
+      type: 'danger',
+      icon: '🗑️'
+    }) : Promise.resolve(confirm(`Are you sure you want to permanently delete "${prod.name}" forever?`)));
+
+    if (confirmed) {
+      // 1. Delete from Supabase cloud
+      deleteProductPermanentlyFromSupabase(prod);
+
+      // 2. Delete from local state & storage
+      context.products = context.products.filter(p => p.id !== prod.id);
+      context.showProductModal = false;
+      context.editingProduct = null;
+      context.saveDatabase('products');
+
+      // 3. Clean up from curated homepage sections
+      try {
+        const secs = JSON.parse(localStorage.getItem('SWEETOS_homepage_sections') || '[]');
+        let secMod = false;
+        secs.forEach(s => {
+          if (s.productIds && s.productIds.includes(prod.id)) {
+            s.productIds = s.productIds.filter(id => id !== prod.id);
+            secMod = true;
+          }
+        });
+        if (secMod) localStorage.setItem('SWEETOS_homepage_sections', JSON.stringify(secs));
+      } catch(e) {}
+
+      window.dispatchEvent(new CustomEvent('toast:show', { detail: `🔥 "${prod.name}" permanently deleted forever.` }));
+      context.render();
+      context.attachListeners();
+    }
+  };
 
   // 8. Inline Stock Stepper Adjusters
   shadow.querySelectorAll('.stock-increment-btn').forEach(btn => {
@@ -1262,37 +1331,24 @@ export function attachAdminProductsListeners(context, shadow) {
     });
   }
 
-  // Delete Product
+  // Permanent Delete Product (Table row button)
   shadow.querySelectorAll('.delete-prod-action-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const id = parseInt(btn.getAttribute('data-product-id'));
-      const index = context.products.findIndex(p => p.id === id);
-      if (index > -1) {
-        const prod = context.products[index];
-        const hasActiveOrders = (context.orders || []).some(o => 
-          ['Pending', 'En cours', 'Confirmé', 'Processing', 'Shipping'].includes(o.status) && 
-          o.products && o.products.some(item => item.id === id)
-        );
-        if (hasActiveOrders) {
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Cannot delete "${prod.name}" because it is part of active orders!` }));
-          return;
-        }
-        const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
-          title: 'Delete Product',
-          message: `Are you sure you want to permanently delete "${prod.name}"? This cannot be undone.`,
-          confirmText: 'Delete Product',
-          cancelText: 'Cancel',
-          type: 'danger',
-          icon: '🗑️'
-        }) : Promise.resolve(confirm(`Are you sure you want to permanently delete "${prod.name}"?`)));
+      const prod = context.products.find(p => p.id === id);
+      if (prod) {
+        executePermanentDelete(prod);
+      }
+    });
+  });
 
-        if (confirmed) {
-          context.products.splice(index, 1);
-          context.saveDatabase('products');
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Deleted product "${prod.name}".` }));
-          context.render();
-          context.attachListeners();
-        }
+  // Permanent Delete Product (Modal action button)
+  shadow.querySelectorAll('.modal-permanent-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.getAttribute('data-product-id'));
+      const prod = context.products.find(p => p.id === id);
+      if (prod) {
+        executePermanentDelete(prod);
       }
     });
   });

@@ -950,18 +950,25 @@ export function attachAdminCategoriesListeners(context, shadow) {
         }
 
         const confirmed = await (window.showConfirmModal ? window.showConfirmModal({
-          title: 'Delete Category',
-          message: `Are you sure you want to delete category "${cat.name}"?`,
-          confirmText: 'Delete Category',
+          title: '🔥 Permanent Delete Category',
+          message: `Are you sure you want to PERMANENTLY DELETE category "${cat.name}"? It will be removed from local storage and Supabase cloud.`,
+          confirmText: '🔥 Delete Forever',
           cancelText: 'Cancel',
           type: 'danger',
           icon: '🏷️'
-        }) : Promise.resolve(confirm(`Are you sure you want to delete category "${cat.name}"?`)));
+        }) : Promise.resolve(confirm(`Are you sure you want to permanently delete category "${cat.name}"?`)));
 
         if (confirmed) {
+          // Permanently delete from Supabase cloud
+          import('../../utils/supabase.js').then(({ supabase }) => {
+            if (supabase) {
+              supabase.from('categories').delete().or(`name.eq.${encodeURIComponent(cat.name)},slug.eq.${encodeURIComponent(cat.slug || cat.name)}`).then();
+            }
+          }).catch(() => {});
+
           context.categories.splice(index, 1);
           context.saveDatabase('categories');
-          window.dispatchEvent(new CustomEvent('toast:show', { detail: `Category "${cat.name}" deleted.` }));
+          window.dispatchEvent(new CustomEvent('toast:show', { detail: `🔥 Category "${cat.name}" permanently deleted forever.` }));
           context.render();
           context.attachListeners();
         }
